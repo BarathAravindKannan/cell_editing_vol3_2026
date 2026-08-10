@@ -1,0 +1,136 @@
+﻿@page "/"
+
+@using Syncfusion.Blazor.Grids
+@using Syncfusion.Blazor.DropDowns
+@using Syncfusion.Blazor.Buttons
+
+<h3>Grid Enter Key Navigation Demo</h3>
+
+<div style="margin-bottom:15px;display:flex;gap:20px;align-items:center">
+
+    <div>
+        <label>Enter Key Direction:</label>
+        <SfDropDownList TValue="EnterKeyDirection"
+                        TItem="EnterKeyDirection"
+                        DataSource="@EnterKeyDirections"
+                        @bind-Value="SelectedEnterKeyDirection"
+                        Width="200px">
+        </SfDropDownList>
+    </div>
+
+    <div>
+        <SfCheckBox Label="Allow Edit On Key Press"
+                    @bind-Checked="AllowEditOnKeyPress">
+        </SfCheckBox>
+    </div>
+
+</div>
+
+<SfGrid DataSource="@OrderData" AllowSorting="true" AllowFiltering="true" AllowGrouping="true" AllowRowDragAndDrop="true"
+        Toolbar="@(new List<string>() { "Add", "Edit", "Delete", "Update", "Cancel" })"
+        Height="400">
+
+    <GridEditSettings AllowAdding="true"
+                      AllowEditing="true"
+                      AllowDeleting="true"
+                      Mode="EditMode.Cell"
+                      EnterKeyDirection="@SelectedEnterKeyDirection"
+                      AllowEditOnKeyPress="@AllowEditOnKeyPress">
+    </GridEditSettings>
+    <GridFilterSettings Type="Syncfusion.Blazor.Grids.FilterType.Menu"></GridFilterSettings>
+
+    <GridColumns>
+        <GridColumn Field=@nameof(OrderDetails.OrderID)
+                    HeaderText="Order ID"
+                    IsPrimaryKey="true"
+                    ValidationRules="@(new ValidationRules { Required = true })"
+                    TextAlign="TextAlign.Right"
+                    Width="120">
+        </GridColumn>
+
+        <GridColumn Field=@nameof(OrderDetails.CustomerID)
+                    HeaderText="Customer Name"
+                    ValidationRules="@(new ValidationRules { Required = true, MinLength = 5 })"
+                    Width="150">
+        </GridColumn>
+
+        <GridColumn Field=@nameof(OrderDetails.Freight)
+                    HeaderText="Freight"
+                    ValidationRules="@(new ValidationRules { Required = true, Min = 1, Max = 1000 })"
+                    Format="C2"
+                    TextAlign="TextAlign.Right"
+                    EditType="EditType.NumericEdit"
+                    Width="120">
+        </GridColumn>
+
+        <GridColumn Field=@nameof(OrderDetails.ShipCountry)
+                    HeaderText="Ship Country"
+                    EditType="EditType.DropDownEdit"
+                    Width="150">
+        </GridColumn>
+    </GridColumns>
+
+</SfGrid>
+
+@code {
+
+    public List<OrderDetails> OrderData { get; set; }
+
+    private bool AllowEditOnKeyPress { get; set; } = true;
+
+    private EnterKeyDirection SelectedEnterKeyDirection { get; set; }
+        = EnterKeyDirection.None;
+
+    private List<EnterKeyDirection> EnterKeyDirections { get; set; }
+
+    protected override void OnInitialized()
+    {
+        OrderData = OrderDetails.GetAllRecords();
+
+        EnterKeyDirections = Enum
+            .GetValues(typeof(EnterKeyDirection))
+            .Cast<EnterKeyDirection>()
+            .ToList();
+    }
+
+    public class OrderDetails
+    {
+        public int OrderID { get; set; }
+
+        public string CustomerID { get; set; }
+
+        public double Freight { get; set; }
+
+        public string ShipCountry { get; set; }
+
+        public static List<OrderDetails> GetAllRecords()
+        {
+            string[] customers =
+            {
+                "VINET","TOMSP","HANAR","VICTE","SUPRD",
+                "CHOPS","RICSU","WELLI","HILAA","ERNSH"
+            };
+
+            string[] countries =
+            {
+                "France","Germany","Brazil","Belgium",
+                "Switzerland","USA","Mexico","Austria"
+            };
+
+            var data = new List<OrderDetails>();
+
+            for (int i = 1; i <= 100; i++)
+            {
+                data.Add(new OrderDetails
+                {
+                    OrderID = 10200 + i,
+                    CustomerID = customers[i % customers.Length],
+                    Freight = ((i % 25) + 1) * 10,
+                    ShipCountry = countries[i % countries.Length]
+                });
+            }
+
+            return data;
+        }
+    }
+}
