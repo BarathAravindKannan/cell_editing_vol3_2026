@@ -443,6 +443,7 @@ const Grid: object = {
             if (!isNullOrUndefined(gridInstance) && !isNullOrUndefined(gridInstance.element)) {   
                 const inputElement: HTMLInputElement | null = gridInstance.element.querySelector('#' + elementId);
                 if (!isNullOrUndefined(inputElement)) {
+                    event.preventDefault();
                     inputElement.value = value;
                     // Trigger the input event so the component (SfDatePicker/SfNumericTextBox/SfTextBox)
                     // becomes aware of the change and can update its internal state.
