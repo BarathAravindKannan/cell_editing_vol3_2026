@@ -11381,7 +11381,7 @@ window.sfBlazor.Grid = (function () {
                     this.dotNetRef.invokeMethodAsync('FilterPopupClose');
                 }
             }
-            if (this.options.editMode === 'Batch' && sf.base.isNullOrUndefined(formElement) && (!cellElement || (!sf.base.isNullOrUndefined(targetGridId) && (this.element.id !== targetGridId))) && !toolbar && !this.targetIsFilterDialog(e) && this.element.querySelector('.e-gridform')) {
+            if ((this.options.editMode === 'Batch' || this.options.editMode === 'Cell') && sf.base.isNullOrUndefined(formElement) && (!cellElement || (!sf.base.isNullOrUndefined(targetGridId) && (this.element.id !== targetGridId))) && !toolbar && !this.targetIsFilterDialog(e) && this.element.querySelector('.e-gridform')) {
                 this.dotNetRef.invokeMethodAsync('UpdateChanges');
             }
             if (!sf.base.Browser.isDevice) {
@@ -12715,12 +12715,14 @@ window.sfBlazor.Grid = (function () {
             try {
                 var gridInstance = window.sfBlazor.getCompInstance(dataId);
                 if (!sf.base.isNullOrUndefined(gridInstance) && !sf.base.isNullOrUndefined(gridInstance.element)) {
-                    var inputElement = gridInstance.element.querySelector('#' + elementId);
-                    if (!sf.base.isNullOrUndefined(inputElement)) {
-                        inputElement.value = value;
-                        // Trigger the input event so the component (SfDatePicker/SfNumericTextBox/SfTextBox)
-                        // becomes aware of the change and can update its internal state.
-                        inputElement.dispatchEvent(new Event('input', { bubbles: true }));
+                    var inputElement_1 = gridInstance.element.querySelector('#' + elementId);
+                    if (!sf.base.isNullOrUndefined(inputElement_1)) {
+                        setTimeout(function () {
+                            inputElement_1.value = value;
+                            // Trigger the input event so the component (SfDatePicker/SfNumericTextBox/SfTextBox)
+                            // becomes aware of the change and can update its internal state.
+                            inputElement_1.dispatchEvent(new Event('input', { bubbles: true }));
+                        }, 0);
                     }
                 }
             }

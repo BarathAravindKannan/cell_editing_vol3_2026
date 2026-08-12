@@ -1,4 +1,4 @@
-using Microsoft.AspNetCore.Components.Forms;
+﻿using Microsoft.AspNetCore.Components.Forms;
 using Syncfusion.Blazor.Data;
 using Syncfusion.Blazor.Internal;
 using System;
@@ -482,36 +482,14 @@ namespace Syncfusion.Blazor.Grids.Internal
         internal async Task UpdateRow(double index, object data)
         {
             CloneRowData(data);
-            var PrimaryKeys = await Parent.GetPrimaryKeyFieldNamesAsync().ConfigureAwait(true);
-            var args = new ActionEventArgs<T>()
-            {
-                RequestType = Action.Save,
-                PrimaryKeys = PrimaryKeys?.ToArray()!,
-                Type = "ActionBegin",
-                Data = (T)data,
-                RowData = (await Parent.GetCurrentViewRecordsAsync().ConfigureAwait(true))[(int)index],
-                Cancel = false,
-                PreviousData = (await Parent.GetCurrentViewRecordsAsync().ConfigureAwait(true))[(int)index],
-                Action = "Edit"
-            };
-            var saveEventArgs = new RowUpdatingEventArgs<T>()
-            {
-                PrimaryKeys = PrimaryKeys?.ToArray()!,
-                Data = (T)data,
-                Cancel = false,
-                PreviousData = (await Parent.GetCurrentViewRecordsAsync().ConfigureAwait(true))[(int)index],
-                Action = SaveActionType.Edited
-            };
-            if (Parent.GridEvents?.RowUpdating.HasDelegate == true)
-            {
-                await (Parent.GridEvents?.RowUpdating.InvokeAsync(saveEventArgs))!.ConfigureAwait(true)!;
-            }
-            await Parent.EventAggregator.NotifyAsync("RowUpdating", saveEventArgs).ConfigureAwait(true);
-            Parent.EditModule!.IsAdd = false;
-            if (Parent.DataModule != null)
-                await Parent.DataModule.GetData(args, eventArgs: saveEventArgs, requestType: "Save").ConfigureAwait(true);
-            Parent.EditModule.IsAdd = Parent.EditSettings!.ShowAddNewRow ? true : false;
-            await Parent.ModelChanged(new ActionEventArgs<T>() { Cancel = false, RequestType = Action.Refresh }, requestType: "Save", eventArgs: saveEventArgs, isSavingTriggered: true).ConfigureAwait(true);
+            var currentViewRecords = await Parent.GetCurrentViewRecordsAsync().ConfigureAwait(true);
+            var originalRow = currentViewRecords[(int)index];
+            var updatedRow = (T)data;
+
+            var actionArgs = await BuildActionEventArgsForUpdateAsync(updatedRow, originalRow).ConfigureAwait(true);
+            var rowUpdatingArgs = await BuildRowUpdatingEventArgsAsync(updatedRow, originalRow).ConfigureAwait(true);
+
+            await ExecuteSingleCellUpdateAsync(actionArgs, rowUpdatingArgs).ConfigureAwait(true);
         }
 
         internal async Task SaveCell(bool ForceSave = false, bool isDelete = false, bool isEscapeKey = false, bool focusLastGridCell = false, bool focusFirstCellOnShiftTab = false)
@@ -588,7 +566,7 @@ namespace Syncfusion.Blazor.Grids.Internal
                 {
                     OriginalRow.IsDirty = GridUtils.CompareValues<object>(args.PreviousValue, args.Value);
                 }
-                OriginalRow.EditedData = OriginalRow.IsDirty ? CloneData! : null!;
+                OriginalRow.EditedData = OriginalRow.IsDirty || IsCellEditMode() ? CloneData! : null!;
                 await SfBaseUtils.InvokeEvent<CellSaveArgs<T>>(Parent.GridEvents?.OnCellSave, args).ConfigureAwait(true);
                 await Parent.EventAggregator.NotifyAsync("CellSave", args).ConfigureAwait(true);
                 if (args.Cancel)
@@ -618,16 +596,19 @@ namespace Syncfusion.Blazor.Grids.Internal
                     OriginalRow.EditedData = CloneData!;
                 }
 
-                var checkboxColumn = OriginalCell.Column.Type.Equals(ColumnType.CheckBox);
-                if (OriginalRow.Action != EditAction.Added && !checkboxColumn && !IsCellEditMode())
+                if(!IsCellEditMode())
                 {
-                    OriginalCell.IsDirty = !OriginalCell.IsDirty ?
-                        GridUtils.CompareValues<object>(args.PreviousValue, args.Value) : true;
-                    IsDirtyHandler();
-                }
-                else if (!checkboxColumn)
-                {
-                    OriginalCell.IsDirty = true;
+                    var checkboxColumn = OriginalCell.Column.Type.Equals(ColumnType.CheckBox);
+                    if (OriginalRow.Action != EditAction.Added && !checkboxColumn)
+                    {
+                        OriginalCell.IsDirty = !OriginalCell.IsDirty ?
+                            GridUtils.CompareValues<object>(args.PreviousValue, args.Value) : true;
+                        IsDirtyHandler();
+                    }
+                    else if (!checkboxColumn)
+                    {
+                        OriginalCell.IsDirty = true;
+                    }
                 }
             }
 
@@ -1614,7 +1595,7 @@ namespace Syncfusion.Blazor.Grids.Internal
         {
             if (Parent.IsEdit)
             {
-                if (Parent.EditSettings != null && Parent.EditSettings.Mode != EditMode.Batch)
+                if (Parent.EditSettings != null && !IsBatchEditMode() && !IsCellEditMode())
                 {
                     if (row.IsEdit != true)
                     {
@@ -2097,7 +2078,7 @@ namespace Syncfusion.Blazor.Grids.Internal
                 DisableItems.Add("Add");
             }
 
-            if (Edit != null && Edit.AllowEditing && HasData)
+            if (Edit != null && Edit.AllowEditing && HasData && !IsCellEditMode())
             {
                 EnableItems.Add("Edit");
             }
@@ -2408,15 +2389,9 @@ namespace Syncfusion.Blazor.Grids.Internal
                     Parent.IsEdit = true;
                 }
             }
-            if (Parent.EditSettings?.Mode == EditMode.Cell)
+            if (Parent.EditSettings?.Mode == EditMode.Cell && !IsAdd)
             {
-                // EditMode.Cell: Enter in the editor (or any other commit trigger wired through
-                // the JS interop EndEdit bridge) commits the current cell. SaveCell runs
-                // EditContext.Validate() (using existing !ForceSave validation flow); on failure
-                // it leaves the editor open. On success the SaveCell body writes the clone value
-                // into the bound Row.Data so the rendered cell shows the new value immediately,
-                // and the cell exits edit mode. No navigation, no batch save dialog.
-                if (cell?.IsEdit == true)
+                if (Parent.IsEdit)
                 {
                     await SaveCell(ForceSave: false).ConfigureAwait(true);
                 }
@@ -2424,7 +2399,7 @@ namespace Syncfusion.Blazor.Grids.Internal
                 {
                     return;
                 }
-                Parent.IsEdit = true;
+                Parent.IsEdit = keyCombination == null;
             }
             if (Parent.EditSettings?.Mode == EditMode.Batch)
             {
@@ -2561,7 +2536,10 @@ namespace Syncfusion.Blazor.Grids.Internal
                     PrimaryKeyValue = primaryKeyValues != null && primaryKeyValues.Count > 0 ? primaryKeyValues[0] : null!
                 };
                 bool isBottomNewRowPosition = Parent.EditSettings!.NewRowPosition.Equals(NewRowPosition.Bottom);
-                args.Index = saveEventArgs.Index = (IsAdd && isBottomNewRowPosition) ? args.RowIndex : args.Index;
+                if(!IsCellEditMode())
+                {
+                    args.Index = saveEventArgs.Index = (IsAdd && isBottomNewRowPosition) ? args.RowIndex : args.Index;
+                }
                 if (IsAdd)
                 {
                     if (isBottomNewRowPosition && Parent.EnableVirtualization && EditedRow != null)
@@ -3696,6 +3674,338 @@ namespace Syncfusion.Blazor.Grids.Internal
             else
             {
                 return new RowModelGenerator<T>(Parent).GenerateRow(ReflectionExtension.TryCreateInstance<T>(), 0, isAdd);
+            }
+        }
+
+        #endregion
+
+        #region Cell Datasource Save Helpers
+
+        internal async Task SaveCellToDatasourceAsync(object primaryKeyValue, string columnField, object? newValue)
+        {
+            // Find row by primary key
+            var originalRowData = await FindRowByPrimaryKeyAsync(primaryKeyValue).ConfigureAwait(true);
+
+            if (originalRowData == null)
+                return;
+
+            // Build updated row
+            var updatedRowData = BuildCellUpdateRowData(originalRowData, columnField, newValue);
+
+            // Build event args
+            var actionArgs = await BuildActionEventArgsForUpdateAsync(updatedRowData, originalRowData).ConfigureAwait(true);
+            var rowUpdatingArgs = await BuildRowUpdatingEventArgsAsync(updatedRowData, originalRowData).ConfigureAwait(true);
+
+            // Execute update (fires events → backend → refresh UI)
+            await ExecuteSingleCellUpdateAsync(actionArgs, rowUpdatingArgs).ConfigureAwait(true);
+        }
+
+        internal async Task SaveCellsToDatasourceAsync(List<CellUpdate> cellUpdates)
+        {
+            // Step 1: Build cell changes
+            var cellChanges = new List<Edit<T>.CellChangeItem<T>>();
+
+            foreach (var update in cellUpdates)
+            {
+                if (string.IsNullOrWhiteSpace(update.ColumnField))
+                    continue;
+
+                var originalRowData = await FindRowByPrimaryKeyAsync(update.PrimaryKeyValue).ConfigureAwait(true);
+                if (originalRowData == null)
+                    continue;
+
+                var updatedRowData = BuildCellUpdateRowData(
+                    originalRowData, update.ColumnField, update.NewValue);
+
+                cellChanges.Add(new Edit<T>.CellChangeItem<T>
+                {
+                    PrimaryKeyValue = update.PrimaryKeyValue,
+                    ColumnField = update.ColumnField,
+                    OriginalRowData = originalRowData,
+                    UpdatedRowData = updatedRowData
+                });
+            }
+
+            if (cellChanges.Count == 0)
+                return;
+
+            // Step 2: Merge same-PK rows (returns early on duplicate detection)
+            var mergedRows = MergeCellChangesByPrimaryKey(cellChanges);
+
+            if (mergedRows == null || mergedRows.Count == 0)
+                return;
+
+            // Step 3: Build BatchChanges
+            var batchChanges = new BatchChanges<T>
+            {
+                ChangedRecords = mergedRows.Select(x => x.MergedData).ToList()
+            };
+
+            // Step 4: Get primary key field
+            var primaryKeyFields = await Parent.GetPrimaryKeyFieldNamesAsync().ConfigureAwait(true);
+            if (primaryKeyFields == null || primaryKeyFields.Count == 0)
+                return;
+
+            var primaryKeyField = primaryKeyFields.First();
+
+            // Step 5: Call DataModule.SaveChanges()
+            var saveSuccess = await Parent.DataModule!.SaveChanges(batchChanges, primaryKeyField).ConfigureAwait(true);
+
+            if (!saveSuccess)
+                return;
+
+            // Step 6: Update grid rows
+            foreach (var mergedRow in mergedRows)
+            {
+                var gridRow = Parent.Rows.FirstOrDefault(r =>
+                {
+                    var rowPK = Parent.PropHelper?.GetObject(primaryKeyField, r.Data);
+                    return Equals(rowPK, mergedRow.PrimaryKeyValue);
+                });
+
+                if (gridRow != null)
+                    gridRow.Data = mergedRow.MergedData;
+            }
+
+            // Step 7: Refresh UI
+            await Parent.ModelChanged(
+                new ActionEventArgs<T> { RequestType = Action.Refresh },
+                requestType: "Save").ConfigureAwait(true);
+        }
+
+        /// <summary>
+        /// Internal class to track a single cell change during batch operations.
+        /// </summary>
+        internal class CellChangeItem<TData>
+        {
+            /// <summary>
+            /// Primary key value of the row containing the cell to update.
+            /// </summary>
+            public object PrimaryKeyValue { get; set; } = null!;
+
+            /// <summary>
+            /// Field name of the column to update.
+            /// </summary>
+            public string ColumnField { get; set; } = string.Empty;
+
+            /// <summary>
+            /// Original row data before modification.
+            /// </summary>
+            public TData OriginalRowData { get; set; } = default!;
+
+            /// <summary>
+            /// Updated row data with cell value applied.
+            /// </summary>
+            public TData UpdatedRowData { get; set; } = default!;
+        }
+
+        /// <summary>
+        /// Internal class representing a row with merged cell changes (multiple cells from same row).
+        /// </summary>
+        internal class MergedRowData<TData>
+        {
+            /// <summary>
+            /// Primary key value identifying the row.
+            /// </summary>
+            public object PrimaryKeyValue { get; set; } = null!;
+
+            /// <summary>
+            /// Final merged row data with all cell updates applied.
+            /// </summary>
+            public TData MergedData { get; set; } = default!;
+        }
+
+        /// <summary>
+        /// Finds a row in the grid by its primary key value.
+        /// </summary>
+        /// <param name="primaryKeyValue">The primary key value to search for.</param>
+        /// <returns>The row data if found; null otherwise.</returns>
+        internal async Task<T?> FindRowByPrimaryKeyAsync(object primaryKeyValue)
+        {
+            if (primaryKeyValue == null)
+                return default;
+            IEnumerable<T>? allRecords;
+            if(Parent?.DataManager?.DataAdaptor?.IsRemote() == true || Parent?.DataManager?.Adaptor == Adaptors.CustomAdaptor)
+            {
+                allRecords = await Parent.GetCurrentViewRecordsAsync().ConfigureAwait(true);
+            }
+            else
+            {
+                allRecords = Parent?.DataSource;
+
+            }
+            if (allRecords == null || !allRecords.Any())
+                return default;
+
+            var primaryKeyFields = await Parent.GetPrimaryKeyFieldNamesAsync().ConfigureAwait(true);
+            if (primaryKeyFields == null || primaryKeyFields.Count == 0)
+                return default;
+
+            foreach (var record in allRecords)
+            {
+                var recordPKValue = await GetPrimaryKeyValue(record).ConfigureAwait(true);
+                var recordPKString = recordPKValue?.FirstOrDefault();
+
+                if (recordPKString?.Equals(primaryKeyValue?.ToString(), StringComparison.Ordinal) == true)
+                    return record;
+            }
+
+            return default;
+        }
+
+        /// <summary>
+        /// Builds an updated row by cloning the original and applying a single cell value change.
+        /// </summary>
+        /// <param name="originalRow">The original row to clone.</param>
+        /// <param name="columnField">The field name of the cell to update.</param>
+        /// <param name="newValue">The new value for the cell.</param>
+        /// <returns>The updated row with the cell change applied.</returns>
+        internal T BuildCellUpdateRowData(T originalRow, string columnField, object? newValue)
+        {
+            CloneRowData(originalRow);
+            SetValue(newValue, columnField);
+            return (T)CloneData!;
+        }
+
+        /// <summary>
+        /// Builds an ActionEventArgs for backend row update operation.
+        /// </summary>
+        /// <param name="updatedRow">The updated row data.</param>
+        /// <param name="originalRow">The original row data before update.</param>
+        /// <returns>ActionEventArgs configured for row update.</returns>
+        internal async Task<ActionEventArgs<T>> BuildActionEventArgsForUpdateAsync(T updatedRow, T originalRow)
+        {
+            var primaryKeys = await Parent.GetPrimaryKeyFieldNamesAsync().ConfigureAwait(true);
+            var currentViewRecords = await Parent.GetCurrentViewRecordsAsync().ConfigureAwait(true);
+            
+            var args = new ActionEventArgs<T>()
+            {
+                RequestType = Action.Save,
+                PrimaryKeys = primaryKeys?.ToArray()!,
+                Type = "ActionBegin",
+                Data = updatedRow,
+                RowData = originalRow,
+                Cancel = false,
+                PreviousData = originalRow,
+                Action = "Edit"
+            };
+
+            return args;
+        }
+
+        /// <summary>
+        /// Builds a RowUpdatingEventArgs for row update operation.
+        /// </summary>
+        /// <param name="updatedRow">The updated row data.</param>
+        /// <param name="originalRow">The original row data before update.</param>
+        /// <returns>RowUpdatingEventArgs configured for row update.</returns>
+        internal async Task<RowUpdatingEventArgs<T>> BuildRowUpdatingEventArgsAsync(T updatedRow, T originalRow)
+        {
+            var primaryKeys = await Parent.GetPrimaryKeyFieldNamesAsync().ConfigureAwait(true);
+
+            var args = new RowUpdatingEventArgs<T>()
+            {
+                PrimaryKeys = primaryKeys?.ToArray()!,
+                Data = updatedRow,
+                Cancel = false,
+                PreviousData = originalRow,
+                Action = SaveActionType.Edited
+            };
+
+            return args;
+        }
+
+        /// <summary>
+        /// Executes a single cell update by firing events and calling the backend.
+        /// </summary>
+        /// <param name="actionArgs">The ActionEventArgs for the update operation.</param>
+        /// <param name="rowUpdatingArgs">The RowUpdatingEventArgs for the update operation.</param>
+        internal async Task ExecuteSingleCellUpdateAsync(ActionEventArgs<T> actionArgs, RowUpdatingEventArgs<T> rowUpdatingArgs)
+        {
+            if (Parent.GridEvents?.RowUpdating.HasDelegate == true)
+            {
+                await (Parent.GridEvents?.RowUpdating.InvokeAsync(rowUpdatingArgs))!.ConfigureAwait(true)!;
+            }
+
+            await Parent.EventAggregator.NotifyAsync("RowUpdating", rowUpdatingArgs).ConfigureAwait(true);
+
+            IsAdd = false;
+
+            if (Parent.DataModule != null)
+                await Parent.DataModule.GetData(actionArgs, eventArgs: rowUpdatingArgs, requestType: "Save").ConfigureAwait(true);
+
+            IsAdd = Parent.EditSettings!.ShowAddNewRow ? true : false;
+
+            await Parent.ModelChanged(
+                new ActionEventArgs<T>() { Cancel = false, RequestType = Action.Refresh },
+                requestType: "Save",
+                eventArgs: rowUpdatingArgs,
+                isSavingTriggered: true).ConfigureAwait(true);
+        }
+
+        /// <summary>
+        /// Merges multiple cell changes by primary key, combining all changes for the same row into a single update.
+        /// Detects duplicate field updates (same field updated multiple times for same PK) and returns null if found.
+        /// </summary>
+        /// <param name="cellChanges">List of cell changes to merge.</param>
+        /// <returns>List of merged row data, or null if duplicate field updates detected.</returns>
+        internal List<MergedRowData<T>>? MergeCellChangesByPrimaryKey(List<CellChangeItem<T>> cellChanges)
+        {
+            if (cellChanges == null || cellChanges.Count == 0)
+                return null;
+
+            var groupedByPK = cellChanges.GroupBy(x => x.PrimaryKeyValue, new PrimaryKeyComparer());
+            var mergedRows = new List<MergedRowData<T>>();
+
+            foreach (var group in groupedByPK)
+            {
+                var fieldsUpdated = new HashSet<string>();
+                var mergedRowData = (T)CloneUtils.CloneStaticObjectType(group.First().OriginalRowData, typeof(T), false)!;
+
+                foreach (var change in group)
+                {
+                    // Check for duplicate field updates within same row
+                    if (fieldsUpdated.Contains(change.ColumnField))
+                        return null; // Duplicate detected
+
+                    fieldsUpdated.Add(change.ColumnField);
+
+                    // Apply the field update to merged row
+                    ReflectionExtension.SetValue(
+                        mergedRowData,
+                        change.ColumnField,
+                        Parent.PropHelper?.GetObject(change.ColumnField, change.UpdatedRowData),
+                        true,
+                        options: new SetOptions() { CreateInstanceForComplexType = true });
+                }
+
+                mergedRows.Add(new MergedRowData<T>
+                {
+                    PrimaryKeyValue = group.Key,
+                    MergedData = mergedRowData
+                });
+            }
+
+            return mergedRows;
+        }
+
+        /// <summary>
+        /// Comparer for primary key values (handles type conversion for comparison).
+        /// </summary>
+        private class PrimaryKeyComparer : IEqualityComparer<object>
+        {
+            public bool Equals(object? x, object? y)
+            {
+                if (x == null && y == null)
+                    return true;
+                if (x == null || y == null)
+                    return false;
+                return x.ToString()?.Equals(y.ToString(), StringComparison.Ordinal) ?? false;
+            }
+
+            public int GetHashCode(object obj)
+            {
+                return obj?.ToString()?.GetHashCode() ?? 0;
             }
         }
 

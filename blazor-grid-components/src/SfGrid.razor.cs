@@ -2034,6 +2034,9 @@ namespace Syncfusion.Blazor.Grids
         {
             bool cancel = false;
 
+            if(eventArgs == null)
+                return false;
+
             switch (requestType)
             {
                 case "Paging":

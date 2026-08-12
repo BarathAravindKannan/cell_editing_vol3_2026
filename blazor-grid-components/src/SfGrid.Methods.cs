@@ -2600,6 +2600,78 @@ namespace Syncfusion.Blazor.Grids
         }
 
         /// <summary>
+        /// Saves a single cell directly to the datasource.
+        /// </summary>
+        /// <param name="primaryKeyValue">The primary key value of the row containing the cell to save.</param>
+        /// <param name="columnField">The field name of the column to save.</param>
+        /// <param name="newValue">The new value for the cell.</param>
+        /// <remarks>
+        /// This method works only when <see cref="GridEditSettings.Mode"/> is <see cref="EditMode.Cell"/>.
+        /// </remarks>
+        /// <example>
+        /// <code>
+        /// <![CDATA[
+        /// <button @onclick="SaveSingleCellHandler">Save Cell</button>
+        /// <SfGrid @ref="grid" DataSource="@Orders">
+        ///     <GridEditSettings AllowEditing="true" Mode="EditMode.Cell" />
+        /// </SfGrid>
+        /// @code {
+        ///     private SfGrid<Order> grid = null!;
+        ///     private async Task SaveSingleCellHandler()
+        ///     {
+        ///         // Save the cell with primary key "10248" in the "Freight" column to value 50.5
+        ///         await grid.SaveCellToDatasourceAsync("10248", "Freight", 50.5);
+        ///     }
+        /// }
+        /// ]]>
+        /// </code>
+        /// </example>
+        public async Task SaveCellToDatasourceAsync(object primaryKeyValue, string columnField, object? newValue)
+        {
+            if (EditSettings?.AllowEditing == false || EditModule == null || EditModule.IsCellEditMode() == false || string.IsNullOrWhiteSpace(columnField))
+                return;
+            await EditModule.SaveCellToDatasourceAsync(primaryKeyValue, columnField, newValue);
+        }
+
+        /// <summary>
+        /// Saves multiple cells directly to the datasource when in Cell Edit Mode.
+        /// </summary>
+        /// <param name="cellUpdates">List of cell update operations to perform.</param>
+        /// <remarks>
+        /// This method works only when <see cref="GridEditSettings.Mode"/> is <see cref="EditMode.Cell"/>.
+        /// Multiple cell updates targeting the same row are automatically merged into a single row update.
+        /// </remarks>
+        /// <example>
+        /// <code>
+        /// <![CDATA[
+        /// <button @onclick="SaveMultipleCellsHandler">Save Multiple Cells</button>
+        /// <SfGrid @ref="grid" DataSource="@Orders">
+        ///     <GridEditSettings AllowEditing="true" Mode="EditMode.Cell" />
+        /// </SfGrid>
+        /// @code {
+        ///     private SfGrid<Order> grid = null!;
+        ///     private async Task SaveMultipleCellsHandler()
+        ///     {
+        ///         var cellUpdates = new List<CellUpdate>
+        ///         {
+        ///             new CellUpdate { PrimaryKeyValue = "10248", ColumnField = "Freight", NewValue = 50.5 },
+        ///             new CellUpdate { PrimaryKeyValue = "10248", ColumnField = "ShippedDate", NewValue = new DateTime(2024, 1, 15) },
+        ///             new CellUpdate { PrimaryKeyValue = "10249", ColumnField = "Freight", NewValue = 35.25 }
+        ///         };
+        ///         await grid.SaveCellsToDatasourceAsync(cellUpdates);
+        ///     }
+        /// }
+        /// ]]>
+        /// </code>
+        /// </example>
+        public async Task SaveCellsToDatasourceAsync(List<CellUpdate> cellUpdates)
+        {
+            if (EditSettings?.AllowEditing == false || EditModule == null || EditModule.IsCellEditMode() == false || cellUpdates == null || cellUpdates.Count == 0)
+                return;
+            await EditModule.SaveCellsToDatasourceAsync(cellUpdates);
+        }
+
+        /// <summary>
         /// Selects a cell by the given index.
         /// </summary>
         /// <param name="cellIndex">The row and cell index of the cell to be selected. For example (0, 1).</param>

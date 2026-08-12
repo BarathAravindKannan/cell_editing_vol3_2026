@@ -1369,7 +1369,7 @@ namespace Syncfusion.Blazor.Grids.Internal
             switch (column.Type)
             {
                 case CommandButtonType.Edit:
-                    if (!Parent.EditSettings!.Mode.Equals(EditMode.Batch))
+                    if (!Parent.EditModule.IsBatchEditMode() && !Parent.EditModule.IsCellEditMode())
                     {
                         await Parent.EditModule.StartEdit(row).ConfigureAwait(true);
                     }

@@ -7597,4 +7597,25 @@ public class EmptyRecordTemplateContext
         /// </remarks>
         public int ColumnIndex { get; set; }
     }
+
+    /// <summary>
+    /// Represents a single cell update operation for multiple cell-to-datasource saving.
+    /// </summary>
+    public class CellUpdate
+    {
+        /// <summary>
+        /// Gets or sets the primary key value of the row containing the cell to update.
+        /// </summary>
+        public object PrimaryKeyValue { get; set; } = null!;
+
+        /// <summary>
+        /// Gets or sets the field name of the column to update.
+        /// </summary>
+        public string ColumnField { get; set; } = string.Empty;
+
+        /// <summary>
+        /// Gets or sets the new value for the cell.
+        /// </summary>
+        public object? NewValue { get; set; }
+    }
 }

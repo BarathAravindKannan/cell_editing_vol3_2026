@@ -281,6 +281,12 @@ namespace Syncfusion.Blazor.Grids.Internal
             => keyCombination?.Contains("ShiftEnter", StringComparison.Ordinal) == true;
 
         /// <summary>
+        /// Determines if the provided key combination is "F2" key.
+        /// </summary>
+        private static bool IsF2KeyPressed(string? keyCombination)
+            => keyCombination?.Contains("F2", StringComparison.Ordinal) == true;
+
+        /// <summary>
         /// Determines if the provided key combination is "Tab" key.
         /// </summary>
         private static bool IsTabKeyPressed(string? keyCombination)
@@ -295,12 +301,12 @@ namespace Syncfusion.Blazor.Grids.Internal
         /// <summary>
         /// Determines if Enter key should be handled in Cell edit mode.
         /// </summary>
-        private bool ShouldHandleEnterInCellEditMode(Cell<object>? cell, string? keyCombination, bool isTabKey, bool isShiftTabKey)
+        private bool ShouldHandleEnterAndF2InCellEditMode(Cell<object>? cell, string? keyCombination, bool isTabKey, bool isShiftTabKey)
         {
             return _parent.EditSettings?.Mode == EditMode.Cell
                 && IsEditableCell(cell!)
                 && (IsEnterKeyPressed(keyCombination)
-                || IsShiftEnterKeyPressed(keyCombination))
+                || IsShiftEnterKeyPressed(keyCombination) || IsF2KeyPressed(keyCombination))
                 && !isTabKey && !isShiftTabKey;
         }
 
@@ -312,7 +318,7 @@ namespace Syncfusion.Blazor.Grids.Internal
         /// </summary>
         private async Task HandleEnterKeyInCellEditMode(Row<object>? row, Cell<object>? cell, string? keyCombination)
         {
-            if (cell?.IsEdit != true && !_parent.IsEdit && IsEnterKeyPressed(keyCombination))
+            if (cell?.IsEdit != true && !_parent.IsEdit && (IsEnterKeyPressed(keyCombination) || IsF2KeyPressed(keyCombination)))
             {
                 await _parent.EditModule!.EditCell(row!, cell!).ConfigureAwait(true);
             }
@@ -583,7 +589,7 @@ namespace Syncfusion.Blazor.Grids.Internal
                 return;
             }
 
-            if (ShouldHandleEnterInCellEditMode(cell, keyCombination, isTabKey, isShiftTabKey))
+            if (ShouldHandleEnterAndF2InCellEditMode(cell, keyCombination, isTabKey, isShiftTabKey))
             {
                 await HandleEnterKeyInCellEditMode(row, cell, keyCombination).ConfigureAwait(true);
                 if(cell?.IsEdit == false)
@@ -1136,7 +1142,7 @@ namespace Syncfusion.Blazor.Grids.Internal
                     await _parent.AddRecordAsync().ConfigureAwait(true);
                     break;
                 case "F2":
-                    if(e != null && !e.AltKey && !e.CtrlKey && !e.ShiftKey)
+                    if(e != null && !e.AltKey && !e.CtrlKey && !e.ShiftKey && _parent?.EditModule?.IsCellEditMode() == false)
                     {
                         await _parent.StartEditAsync().ConfigureAwait(true);
                     }

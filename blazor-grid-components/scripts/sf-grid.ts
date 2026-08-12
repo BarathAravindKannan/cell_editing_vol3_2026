@@ -443,11 +443,12 @@ const Grid: object = {
             if (!isNullOrUndefined(gridInstance) && !isNullOrUndefined(gridInstance.element)) {   
                 const inputElement: HTMLInputElement | null = gridInstance.element.querySelector('#' + elementId);
                 if (!isNullOrUndefined(inputElement)) {
-                    event.preventDefault();
-                    inputElement.value = value;
-                    // Trigger the input event so the component (SfDatePicker/SfNumericTextBox/SfTextBox)
-                    // becomes aware of the change and can update its internal state.
-                    inputElement.dispatchEvent(new Event('input', { bubbles: true }));
+                    setTimeout(() => {
+                        inputElement.value = value;
+                        // Trigger the input event so the component (SfDatePicker/SfNumericTextBox/SfTextBox)
+                        // becomes aware of the change and can update its internal state.
+                        inputElement.dispatchEvent(new Event('input', { bubbles: true }));
+                    }, 0);
                 }
             }
         } catch (e) {
@@ -809,7 +810,7 @@ const Grid: object = {
             return;
         }
         let complexElement: HTMLElement = gridInstance.element.querySelector(complexField);
-        if (isNullOrUndefined(complexElement) && this.options.editMode === 'Cell' && (cellUid !== null && cellUid.trim() !== "")) {
+        if (isNullOrUndefined(complexElement) && gridInstance.options.editMode === 'Cell' && (cellUid !== null && cellUid.trim() !== "")) {
             complexElement = gridInstance.element.querySelector(`td[data-uid="${cellUid}"] input:not([type="hidden"]`);
         }
         if (field !== '' && complexElement === null && complexField.includes('___')) {

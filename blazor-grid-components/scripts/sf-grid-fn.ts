@@ -1220,7 +1220,7 @@ export class SfGrid {
                 this.dotNetRef.invokeMethodAsync('FilterPopupClose');
             }
         }
-        if (this.options.editMode === 'Batch' && isNullOrUndefined(formElement) && (!cellElement || (!isNullOrUndefined(targetGridId) && (this.element.id !== targetGridId))) && !toolbar && !this.targetIsFilterDialog(e) && this.element.querySelector('.e-gridform')) {
+        if ((this.options.editMode === 'Batch' || this.options.editMode === 'Cell') && isNullOrUndefined(formElement) && (!cellElement || (!isNullOrUndefined(targetGridId) && (this.element.id !== targetGridId))) && !toolbar && !this.targetIsFilterDialog(e) && this.element.querySelector('.e-gridform')) {
             this.dotNetRef.invokeMethodAsync('UpdateChanges');
         }
         if (!Browser.isDevice) {
@@ -1964,7 +1964,7 @@ export class SfGrid {
         }
         if (((e.action === 'enter' && elementTag !== 'TEXTAREA') ||
             (e.action === 'ctrlPlusEnter' && elementTag === 'TEXTAREA')) &&
-            isGridEditForm && this.options.editMode !== 'Batch' && this.options.editMode !== 'Cell' &&
+            isGridEditForm && this.options.editMode !== 'Batch' &&
             ((allow && (e.target as Element).getAttribute('aria-expanded') === 'false') || !allow)) {
             if (this.options.showAddNewRow && this.options.showColumnChooser) {
                 e.stopPropagation();
