@@ -87,13 +87,13 @@ namespace Syncfusion.Blazor.Grids.Internal
                 {
                     if (footerCols.Count > 0)
                     {
-                        if (footerCols.TryGetValue(visibleColumns[j].Field, out GridAggregateColumn? val))
+                        if (visibleColumns[j].Field != null && footerCols.TryGetValue(visibleColumns[j].Field, out GridAggregateColumn? val))
                         {
                             var type = $"{footerCols[visibleColumns[j].Field].Type}".ToLower(System.Globalization.CultureInfo.CurrentCulture);
                             var value = aggregates != null && aggregates.Any() && aggregates.ContainsKey($"{footerCols[visibleColumns[j].Field].Field}" + " - " + type) ? aggregates[$"{footerCols[visibleColumns[j].Field].Field}" + " - " + type] : 0;
                             if (value != null && footerCols[visibleColumns[j].Field].Format != null)
                             {
-                                value = DataUtil.GetFormattedValue(value, footerCols[visibleColumns[j].Field].Format);
+                                value = DataUtil.GetFormattedValue(value, footerCols[visibleColumns[j].Field].Format!);
                             }
 
                             aggrCells.Add(GenerateFooterSummary(visibleColumns[j], footerCols[visibleColumns[j].Field], null!, CellType.Summary, value!, (int)visibleColumns[j].Index));

@@ -40,8 +40,8 @@
 
     private void WireEventsOnce()
     {
-        Parent.EventAggregator.Add("DisableOrEnableAddForm", DisableOrEnableAddForm);
-        Parent.EventAggregator.Add("ResetAddFormValues", ResetAddFormValues);
+        Parent?.EventAggregator.Add("DisableOrEnableAddForm", DisableOrEnableAddForm);
+        Parent?.EventAggregator.Add("ResetAddFormValues", ResetAddFormValues);
     }
 
     #endregion
@@ -90,11 +90,11 @@
         {
             return;
         }
-        Parent.EditModule.AddFormDetails(args!);
+        Parent?.EditModule?.AddFormDetails(args!);
         await InvokeAsync(() => StateHasChanged());
         if (args != null && (string)args != "Save" && (string)args != "Edit" && (string)args != "Delete")
         {
-            var frozenEdit = Parent!.FreezeModule.GetFrozenCount() > 0;
+            var frozenEdit = Parent!.FreezeModule?.GetFrozenCount() > 0;
             await Parent.EditModule!.FocusEditableCell(frozenEdit);
         }
     }

@@ -86,46 +86,60 @@
         {
             <div class="e-frozenrow-border"></div>
         }
-        <div class="@GetContentClass()">
-            <div class="@GetContentClassName()" data-sf-style="@GetContentStyle()" @onclick="@EditModule!.HandleContentClickEdit">
-                @if (_isLoaded)
+        @if (_isLoaded && EnableDomVirtualization && !EnableVirtualization)
+        {
+            @* DOM Virtualization: GridDomVirtualContent owns the entire e-gridcontent structure *@
+            var domVirtualContentParameter = new GridContentParameters()
+            {
+                Data = CurrentViewData,
+                IsHeader = false
+            };
+            <GridDomVirtualContent TContent="TValue" ContentParameters="domVirtualContentParameter"></GridDomVirtualContent>
+        }
+        else
+        {
+            @* Regular rendering: GridContent or GridVirtualContent renders inside e-content *@
+            <div class="@GetContentClass()">
+                <div class="@GetContentClassName()" data-sf-style="@GetContentStyle()" @onclick="@EditModule!.HandleContentClickEdit">
+                    @if (_isLoaded)
+                    {
+                        if (!EnableVirtualization && !EnableColumnVirtualization)
+                        {
+                            var contentParameter = new GridContentParameters()
+                            {
+                                Data = CurrentViewData,
+                                IsHeader = false
+                            };
+                            <GridContent TContent="TValue" ContentParameters="contentParameter"></GridContent>
+                        }
+                        else if (EnableVirtualization || EnableColumnVirtualization)
+                        {
+                            var virtualContentParameter = new GridVirtualContentParameters()
+                            {
+                                Data = CurrentViewData,
+                                QueriedData = VirtualScrollModule!.QueriedCurrentViewData,
+                                RowStartIndex = VirtualScrollModule.RowStartIndex,
+                                RowEndIndex = VirtualScrollModule.RowEndIndex,
+                                RowQueryStartIndex = VirtualScrollModule.RowQueryStartIndex,
+                                RowQueryEndIndex = VirtualScrollModule.RowQueryEndIndex,
+                                StartColumnIndex = VirtualScrollModule.StartColumnIndex,
+                                EndColumnIndex = VirtualScrollModule.EndColumnIndex,
+                                TranslateX = VirtualScrollModule.TranslateX,
+                                VirtualTableWidth = VirtualScrollModule.GetVTableWidth(),
+                                NextRowToNavigate = VirtualScrollModule.NextRowToNavigate
+                            };
+                            <GridVirtualContent TContent="TValue" VirtualContentParameter=virtualContentParameter></GridVirtualContent>
+                        }
+                    }
+                </div>
+                @if (FreezeModule!.GetFrozenCount() != 0 && EnableColumnVirtualization)
                 {
-                    if (!EnableVirtualization && !EnableColumnVirtualization)
-                    {
-                        var contentParameter = new GridContentParameters()
-                        {
-                            Data = CurrentViewData,
-                            IsHeader = false
-                        };
-                        <GridContent TContent="TValue" ContentParameters="contentParameter"></GridContent>
-                    }
-                    else if (EnableVirtualization || EnableColumnVirtualization)
-                    {
-                        var virtualContentParameter = new GridVirtualContentParameters()
-                        {
-                            Data = CurrentViewData,
-                            QueriedData = VirtualScrollModule!.QueriedCurrentViewData,
-                            RowStartIndex = VirtualScrollModule.RowStartIndex,
-                            RowEndIndex = VirtualScrollModule.RowEndIndex,
-                            RowQueryStartIndex = VirtualScrollModule.RowQueryStartIndex,
-                            RowQueryEndIndex = VirtualScrollModule.RowQueryEndIndex,
-                            StartColumnIndex = VirtualScrollModule.StartColumnIndex,
-                            EndColumnIndex = VirtualScrollModule.EndColumnIndex,
-                            TranslateX = VirtualScrollModule.TranslateX,
-                            VirtualTableWidth = VirtualScrollModule.GetVTableWidth(),
-                            NextRowToNavigate = VirtualScrollModule.NextRowToNavigate
-                        };
-                        <GridVirtualContent TContent="TValue" VirtualContentParameter=virtualContentParameter></GridVirtualContent>
-                    }
+                    <div class="e-movablescrollbar">
+                            <div class="e-movablechild"></div>
+                    </div>
                 }
             </div>
-            @if (FreezeModule!.GetFrozenCount() != 0 && EnableColumnVirtualization)
-            {
-                <div class="e-movablescrollbar">
-                        <div class="e-movablechild"></div>
-                </div>
-            }
-        </div>
+        }
         @if (Aggregates?.Count > 0)
         {
             <RefreshAggregate TValue="TValue"></RefreshAggregate>

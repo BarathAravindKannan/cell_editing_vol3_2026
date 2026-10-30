@@ -6,12 +6,21 @@
     <div class="e-checkbox-wrapper e-css @WrapperClass @ClassName @RtlClassName" @onclick="ClickHandler">
         @if (RequireInput)
         {
-            string ariaAttribute = AriaLabel.ContainsKey("aria-labelledby") ? "aria-labelledby" : AriaLabel.ContainsKey("aria-label") ? "aria-label" : null!;
+            string? ariaAttribute = null;
+            if (AriaLabel.ContainsKey("aria-labelledby"))
+            {
+                ariaAttribute = "aria-labelledby";
+            }
+            else if (AriaLabel.ContainsKey("aria-label"))
+            {
+                ariaAttribute = "aria-label";
+            }
+
             string checkboxClass = CCClass ?? CBSelectAllClass ?? "e-checkselect e-focus";
             string tabIndex = CCClass != null ? "0" : "-1";
-            string ariaValue = ariaAttribute != null ? AriaLabel[ariaAttribute] : null!;
+            string? ariaValue = (ariaAttribute != null && AriaLabel.TryGetValue(ariaAttribute, out var value)) ? value : null;
             var inputAttributes = new Dictionary<string, object>{{ "class", checkboxClass },{ "type", "checkbox" },{ "checked", Checked },{ "tabindex", tabIndex }};
-            if (ariaAttribute != null)
+            if (ariaAttribute != null && ariaValue != null)
             {
                 inputAttributes.Add(ariaAttribute, ariaValue);
             }
@@ -82,7 +91,7 @@
         }
         @if (Lable != null)
         {
-            <span class="e-label @CheckBoxClass" id="@AriaLabel["aria-labelledby"]">
+            <span class="e-label @CheckBoxClass" id="@(AriaLabel.TryGetValue("aria-labelledby", out var ariaId) ? ariaId : "")">
                 @if (Column != null && Column.FilterItemTemplate != null && CheckBoxClass.Contains("e-fltrcheck"))
                 {
                     var Args = new FilterItemTemplateContext() { Value = Lable, Column = Column, Record = Records };

@@ -65,7 +65,7 @@ namespace Syncfusion.Blazor.Grids
                 rules = ValidationRules.ToRules(ValidationRules.ToInstance(meta.Validations));
                 if (meta.Validations.TryGetValue("messages", out object? messages))
                 {
-                    rules.Messages = messages as Dictionary<string, object>;
+                    rules.Messages = messages as Dictionary<string, object> ?? new Dictionary<string, object>();
                 }
             }
 
@@ -133,7 +133,7 @@ namespace Syncfusion.Blazor.Grids
                     rules = ValidationRules.ToRules(ValidationRules.ToInstance(meta.Validations));
                     if (meta.Validations.TryGetValue("messages", out object? messages))
                     {
-                        rules.Messages = messages as Dictionary<string, object>;
+                        rules.Messages = messages as Dictionary<string, object> ?? new Dictionary<string, object>();
                     }
                 }
 

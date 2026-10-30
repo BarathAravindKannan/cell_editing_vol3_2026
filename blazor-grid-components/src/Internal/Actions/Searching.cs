@@ -51,8 +51,12 @@ namespace Syncfusion.Blazor.Grids.Internal
             if ((!string.IsNullOrEmpty(_parent.SearchSettings!.Key) && filteredColumn.AllowSearching) || string.IsNullOrEmpty(_parent.SearchSettings.Key))
             {
                 Query? query = isComplex ? await foreignKeyModule.GenerateColumnQuery(filteredColumn).ConfigureAwait(true) : foreignKeyModule.GenerateQuery(filteredColumn, (data as IEnumerable<object>)!, false, true) as Query;
-                query!.Params = _parent.Query?.Params;
-                filteredColumn.ColumnData = await filteredColumn.GetData(query.Queries).ConfigureAwait(true);
+                // Safe: Check query is not null before accessing properties
+                if (query != null)
+                {
+                    query.Params = _parent.Query?.Params;
+                    filteredColumn.ColumnData = await filteredColumn.GetData(query.Queries).ConfigureAwait(true);
+                }
             }
         }
 
@@ -156,7 +160,7 @@ namespace Syncfusion.Blazor.Grids.Internal
                     searchKey = string.Empty;
                     isEscapeKeyPressed = false;
                 }
-                await _parent?.SearchAsync(searchKey)!;
+                await (_parent?.SearchAsync(searchKey)!).ConfigureAwait(true);
             }
 
             if (keyEventArgs?.Key == "Escape")
@@ -186,11 +190,11 @@ namespace Syncfusion.Blazor.Grids.Internal
         internal async Task CancelIconClickSearch()
         {
             _parent!.SearchClearIcon = string.Empty;
-            await _parent.SearchAsync(string.Empty);
+            await _parent.SearchAsync(string.Empty).ConfigureAwait(true);
             await _parent.InvokeMethod("sfBlazor.Grid.searchClear", new object[]
             {
                 _parent.DataId, $"{_parent.ID}_ToolbarSearchBox"
-            });
+            }).ConfigureAwait(true);
         }
 
         #endregion

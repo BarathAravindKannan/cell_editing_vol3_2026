@@ -1,4 +1,3 @@
-﻿
 @typeparam TContent
 
 @namespace Syncfusion.Blazor.Grids.Internal
@@ -29,19 +28,21 @@
 
     internal async void FilterCompUpdate(object args)
     {
-        if (args != null && ((bool)args))
+        try
         {
-            //Need to handle for stacked header
-            Parent!.HeaderRows[0].Cells.Where(c => c.Column?.Uid == Parent.FilterModule?.FilterIconColumn?.Uid).ToList()[0].IsFocused = true;
-            Parent.HeaderRows[0].Cells.Where(c => c.Column?.Uid == Parent.FilterModule?.FilterIconColumn?.Uid).ToList()[0].ShowFocusLine = true;
+            if (Parent!.EnableAdaptiveUI)
+            {
+                await Parent.CallStateHasChangedAsync();
+            }
+            else
+            {
+                StateHasChanged();
+            }
         }
-        if (Parent!.EnableAdaptiveUI)
+        catch (Exception ex)
         {
-            await Parent.CallStateHasChangedAsync();
-        }
-        else
-        {
-            StateHasChanged();
+            // Log exception to prevent unhandled exception crashes
+            System.Diagnostics.Debug.WriteLine($"Error in FilterCompUpdate: {ex.Message}");
         }
     }
 

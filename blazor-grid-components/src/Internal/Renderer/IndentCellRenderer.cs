@@ -5,6 +5,7 @@ using Syncfusion.Blazor.Internal;
 using Syncfusion.ExcelExport;
 using System;
 using System.Collections.Generic;
+using System.Globalization;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
@@ -33,7 +34,7 @@ namespace Syncfusion.Blazor.Grids.Internal
                 builder.OpenElement(sequence++, "th");
                 builder.AddAttribute(sequence++, "class", cellClassName);
                 builder.AddAttribute(sequence++, "data-sf-style", StyleText);
-                builder.AddAttribute(sequence++, "tabindex", cell.TabIndex);
+                builder.AddAttribute(sequence++, "tabindex", cell.TabIndex.ToString(CultureInfo.InvariantCulture));
                 builder.AddAttribute(sequence++, "data-uid", cell.Uid);
                 builder.AddAttribute(sequence++, "scope", "col");
                 builder.CloseElement();
@@ -43,8 +44,8 @@ namespace Syncfusion.Blazor.Grids.Internal
                 // Render TD for regular indent
                 builder.OpenElement(sequence++, "td");
                 builder.AddAttribute(sequence++, "class", GetIndentClass(row, cell));
-                builder.AddAttribute(sequence++, "data-sf-style", GridRowBase<TRow>.GetIndentStyle(row, cell));
-                builder.AddAttribute(sequence++, "tabindex", cell.TabIndex);
+                builder.AddAttribute(sequence++, "data-sf-style", GridUtils.GetIndentStyle(row, cell));
+                builder.AddAttribute(sequence++, "tabindex", cell.TabIndex.ToString(CultureInfo.InvariantCulture));
                 builder.AddAttribute(sequence++, "data-uid", cell.Uid);
                 builder.CloseElement();
             }
@@ -52,32 +53,6 @@ namespace Syncfusion.Blazor.Grids.Internal
         #endregion
 
         #region Helper Methods
-
-        private static string GetIndentStyle(Row<object> row, Cell<object> cell)
-        {
-            var styleText = string.Empty;
-            var indent = 0;
-
-            for (int i = 0; i < row.Cells.Count; i++)
-            {
-                if (row.Cells[i] == cell)
-                {
-                    if (i > 0)
-                    {
-                        indent = 30 * i;
-                    }
-                    styleText = $"Left: {indent}px";
-                    break;
-                }
-            }
-
-            if (string.IsNullOrEmpty(styleText))
-            {
-                styleText = "Left: 0px";
-            }
-
-            return styleText;
-        }
 
         private string GetIndentClass(Row<object> row, Cell<object> cell)
         {

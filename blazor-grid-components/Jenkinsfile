@@ -89,6 +89,20 @@ node(isProtectedBranch() ? 'BlazorComponent' : 'BlazorComponents') {
                     }
                 }
 
+                stage("SAST-Scan"){
+                    try{
+                        if(!blazor.isProtectedBranch()) {
+                            blazor.runShell('gulp SASTScan');
+                            blazor.runShell('gulp SASTScanReport');
+                        }
+                    }
+                    finally{
+                        if(fileExists('SASTReport')){
+                            archiveArtifacts artifacts: 'SASTReport/**'
+                        }
+                    }
+                }
+                
                 stage('Code Analysis') {
                     try {
                         if(!blazor.isProtectedBranch()){
@@ -106,24 +120,34 @@ node(isProtectedBranch() ? 'BlazorComponent' : 'BlazorComponents') {
                         }
                     }
                 }
-            
-                // stage('Coverage Analysis'){
-                //     try {
-                //         if(!blazor.isProtectedBranch()){
-                //             blazor.runShell('npm run coverage-analysis');
-                //             if (fileExists('CCReport')){
-                //                 archiveArtifacts artifacts: 'CCReport/', excludes: null;
-                //             }
-                //         }
-                //     }
-                //     catch (Exception e){
-                //         if (fileExists('CCReport')){
-                //             archiveArtifacts artifacts: 'CCReport/', excludes: null;
-                //         }
-                //         error(e);
-                //         deleteDir();                    
-                //     }
-                // }
+                stage('EsLint Validation') {
+                    try {
+                        if(!blazor.isProtectedBranch()){
+                            blazor.runShell('npm run eslint-validation');
+                        }
+                    }
+                    catch (Exception e){
+                        error(e);
+                        deleteDir();  
+                    }
+                }
+                 stage('Coverage Analysis'){
+                     try {
+                         if(!blazor.isProtectedBranch()){
+                             blazor.runShell('npm run coverage-analysis');
+                             if (fileExists('CCReport')){
+                                 archiveArtifacts artifacts: 'CCReport/', excludes: null;
+                             }
+                         }
+                     }
+                     catch (Exception e){
+                         if (fileExists('CCReport')){
+                             archiveArtifacts artifacts: 'CCReport/', excludes: null;
+                         }
+                         error(e);
+                         deleteDir();                    
+                     }
+                 }
 
                 stage('Generate NuGet') {
                     try{

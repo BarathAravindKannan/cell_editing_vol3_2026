@@ -49,6 +49,7 @@ namespace Syncfusion.Blazor.Grids.Internal
             "SortSettings",
             "EnableVirtualization",
             "EnableColumnVirtualization",
+            "EnableVirtualMaskRow",
             "AllowFiltering",
             "FilterSettings",
             "FrozenRows",
@@ -65,7 +66,9 @@ namespace Syncfusion.Blazor.Grids.Internal
             "Aggregates",
             "CurrentCode",
             "Query",
-            "EnableAltRow"
+            "EnableAltRow",
+            "EnableUndoRedo",
+            "UndoRedoLimit"
         };
 
         internal static bool IsRefreshable(string name)
@@ -141,6 +144,30 @@ namespace Syncfusion.Blazor.Grids.Internal
             IDictionary<string, object> tempAttributes = attributes!.ToDictionary(entry => entry.Key, entry => entry.Value);
             tempAttributes.AddOrUpdateItem("data-sf-style", styleParam);
             return tempAttributes;
+        }
+
+        internal static string GetIndentStyle(Row<object> row, Cell<object> cell)
+        {
+            var styleText = string.Empty;
+            var indent = 0;
+
+            for (int i = 0; i < row.Cells.Count; i++)
+            {
+                if (row.Cells[i] == cell)
+                {
+                    if (i > 0)
+                    {
+                        indent = 30 * i;
+                    }
+                    styleText = $"Left: {indent}px";
+                    break;
+                }
+            }
+            if (string.IsNullOrEmpty(styleText))
+            {
+                styleText = "Left: 0px";
+            }
+            return styleText;
         }
 
         internal static string EnsureUniqueStyles(string existingString, string incomingString)
@@ -433,11 +460,15 @@ namespace Syncfusion.Blazor.Grids.Internal
                 var foreignKeyData = Cell.IsDirty 
                     ? GridUtils.GetForeignData(Cell.Column, Row.EditedData!, Cell.Column.GetForeignData()! ?? Cell.Column.ColumnData!) 
                     : Cell.ForeignKeyData;
-                value = foreignKeyData != null ? DataUtil.GetVal(foreignKeyData as IEnumerable, 0, Cell.Column.ForeignKeyValue) : null!;
+                value = foreignKeyData != null ? DataUtil.GetVal(foreignKeyData as IEnumerable ?? Enumerable.Empty<object>(), 0, Cell.Column.ForeignKeyValue!) : null!;
             }
             else if (!string.IsNullOrEmpty(Cell.Column?.Field))
             {
-                value = DataUtil.GetObject(Cell.Column?.Field, Cell.IsDirty ? Row.EditedData : Row.Data);
+                var sourceData = Cell.IsDirty ? Row.EditedData : Row.Data;
+                if (sourceData != null)
+                {
+                    value = DataUtil.GetObject(Cell.Column.Field, sourceData);
+                }
             }
 
             if (value is Enum enumValue)
@@ -497,7 +528,42 @@ namespace Syncfusion.Blazor.Grids.Internal
             }
             return null!;
         }
-    
+
+        internal static Cell<object>? ResolveCurrentCell(Row<object>? row, Cell<object>? staleCell)
+        {
+            if (row == null || staleCell == null)
+            {
+                return null;
+            }
+            // Preferred match: same Column.Uid (stable across re-render).
+            if (staleCell.Column != null && !string.IsNullOrEmpty(staleCell.Column.Uid))
+            {
+                var byColumnUid = row.Cells?.FirstOrDefault(c => c.Column != null && c.Column.Uid == staleCell.Column.Uid);
+                if (byColumnUid != null)
+                {
+                    return byColumnUid;
+                }
+            }
+            // Fallback 1: same Column.Field.
+            if (staleCell.Column != null && !string.IsNullOrEmpty(staleCell.Column.Field))
+            {
+                var byField = row.Cells?.FirstOrDefault(c => c.Column != null && c.Column.Field == staleCell.Column.Field);
+                if (byField != null)
+                {
+                    return byField;
+                }
+            }
+            // Fallback 2: same Index within the row.
+            if (staleCell.Index.HasValue)
+            {
+                int idx = staleCell.Index.Value;
+                if (row.Cells != null && idx >= 0 && idx < row.Cells.Count)
+                {
+                    return row.Cells[idx];
+                }
+            }
+            return null;
+        }
     }
 
     internal static class GridUtilExtension
@@ -665,9 +731,18 @@ namespace Syncfusion.Blazor.Grids.Internal
         // ctrlRightArrow: 'ctrl+rightarrow'
         internal static bool IsCtrlRightArrow(this KeyboardEventArgs e) => e.CtrlKey && e.IsRightArrow();
 
+        // ctrlZ: 'ctrl+z' - Undo (also supports Cmd+Z on Mac)
+        internal static bool IsCtrlZ(this KeyboardEventArgs e) => (e.CtrlKey || e.MetaKey) && (e.Key == "Z" || e.Key == "z") && !e.ShiftKey;
+
+        // ctrlY: 'ctrl+y' - Redo (also supports Cmd+Y on Mac)
+        internal static bool IsCtrlY(this KeyboardEventArgs e) => (e.CtrlKey || e.MetaKey) && (e.Key == "Y" || e.Key == "y") && !e.ShiftKey;
+
+        // ctrlShiftZ: 'ctrl+shift+z' - Redo (alternative) (also supports Cmd+Shift+Z on Mac)
+        internal static bool IsCtrlShiftZ(this KeyboardEventArgs e) => (e.CtrlKey || e.MetaKey) && e.ShiftKey && (e.Key == "Z" || e.Key == "z");
+
         internal static bool IsMetaOrUnidentified(this KeyboardEventArgs e) => e.Key == "Meta" || e.Key == "Unidentified";
 
-        public static string GetKeyCombination(this KeyboardEventArgs e, bool? isMacDevice = false)
+        public static string GetKeyCombination(this KeyboardEventArgs e, bool? isMacDevice = false, bool isEnableUndoRedo = false)
         {
             string action = null!;
 
@@ -676,7 +751,7 @@ namespace Syncfusion.Blazor.Grids.Internal
                 return action;
             }
 
-            if (e.IsEnter() && !(e.AltKey && (bool)isMacDevice!))
+            if (e.IsEnter() && !(e.AltKey && (isMacDevice ?? false)))
             {
                 action = EnterHandler(e, action);
             }
@@ -776,6 +851,18 @@ namespace Syncfusion.Blazor.Grids.Internal
             else if (e.IsAltW(isMacDevice: isMacDevice ?? false))
             {
                 action = "AltW";
+            }
+            else if (isEnableUndoRedo && e.IsCtrlZ())
+            {
+                action = "CtrlZ";
+            }
+            else if (isEnableUndoRedo && e.IsCtrlY())
+            {
+                action = "CtrlY";
+            }
+            else if (isEnableUndoRedo && e.IsCtrlShiftZ())
+            {
+                action = "CtrlShiftZ";
             }
 
             return action;

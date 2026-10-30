@@ -46,7 +46,7 @@ namespace Syncfusion.Blazor.Grids.Internal
         /// <returns>A task representing the asynchronous operation.</returns>
         public async Task GetForeignKeyData<TModel>(object data, bool isComplex = false, bool isFiltered = false)
         {
-            List<GridColumn> foreignKeyColumns = GetForeignKeyColumns(Parent.Columns!);
+            List<GridColumn> foreignKeyColumns = GetForeignKeyColumnsAsync(Parent.Columns!);
             List<GridColumn> listOfForeginKeyColumns = foreignKeyColumns;
             List<GridFilterColumn>? filterSettingsColumns = Parent.FilterSettings?.Columns;
             if (filterSettingsColumns != null && filterSettingsColumns.Count > 0 && isFiltered)
@@ -281,7 +281,7 @@ namespace Syncfusion.Blazor.Grids.Internal
             bool isFiltered = Parent.AllowFiltering && Parent.FilterSettings != null && Parent.FilterSettings.Columns?.Count > 0;
             bool isSearched = !string.IsNullOrEmpty(Parent.SearchSettings!.Key);
             bool fliterOrSearch = isFiltered || isSearched;
-            bool needForeignKeyAction = fliterOrSearch && (Parent.SearchModule?.IsForeignKeyFiltered(GetForeignKeyColumns(Parent.Columns!)) ?? false);
+            bool needForeignKeyAction = fliterOrSearch && (Parent.SearchModule?.IsForeignKeyFiltered(GetForeignKeyColumnsAsync(Parent.Columns!)) ?? false);
             return needForeignKeyAction;
         }
 
@@ -307,7 +307,7 @@ namespace Syncfusion.Blazor.Grids.Internal
         /// </summary>
         /// <param name="gridColumns">The collection of GridColumn objects to filter. Should be cast-able to List&lt;GridColumn&gt;.</param>
         /// <returns>A list of GridColumn objects that have ForeignKeyValue configured.</returns>
-        internal static List<GridColumn> GetForeignKeyColumns(object gridColumns)
+        internal static List<GridColumn> GetForeignKeyColumnsAsync(object gridColumns)
         {
             var foreignKeyColumns = GridUtils.GetColumns(columns: (gridColumns as List<GridColumn>)!)
                 .Where(column => column.ForeignKeyValue != null).ToList();
@@ -325,7 +325,7 @@ namespace Syncfusion.Blazor.Grids.Internal
         /// <param name="distinctForeignKeyValue">A cache dictionary mapping column keys to item keys and their corresponding foreign key data.</param>
         internal static void FetchForeignKeyRow(Row<object> row, object item, List<GridColumn> GridColumns, Dictionary<object, Dictionary<object, IEnumerable<object>>> distinctForeignKeyValue)
         {
-            var columns = ForeignKey<T>.GetForeignKeyColumns(GridColumns);
+            var columns = ForeignKey<T>.GetForeignKeyColumnsAsync(GridColumns);
 
             foreach (var column in columns)
             {
@@ -368,7 +368,7 @@ namespace Syncfusion.Blazor.Grids.Internal
         /// <param name="item">The data item containing the current foreign key field values.</param>
         public void RefreshForeignKeyRow(Row<object> row, object item)
         {
-            var columns = ForeignKey<T>.GetForeignKeyColumns(Parent.Columns!);
+            var columns = ForeignKey<T>.GetForeignKeyColumnsAsync(Parent.Columns!);
             foreach (var column in columns)
             {
                 var data = new object();

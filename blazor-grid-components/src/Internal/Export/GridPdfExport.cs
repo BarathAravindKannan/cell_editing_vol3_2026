@@ -499,14 +499,15 @@ namespace Syncfusion.Blazor.Grids.Internal
                     IsCustomCommandColumnInclude = PdfExportProps.IncludeCommandColumn;
                     if (PdfExportProps.DataSource != null)
                     {
-                        if (PdfExportProps.DataSource is SfDataManager && GridProperty.DataManager.Json == null)
+                        if (PdfExportProps.DataSource is SfDataManager && GridProperty.DataManager?.Json == null)
                         {
                             GridProperty.DataManager = (SfDataManager)PdfExportProps.DataSource;
                         }
                         else
                         {
 #pragma warning disable BL0005
-                            GridProperty.DataManager.Json = (IEnumerable<object>)PdfExportProps.DataSource;
+                            GridProperty!.DataManager!.Json = (IEnumerable<object>)PdfExportProps.DataSource;
+
                             DataSource = (IEnumerable<object>)PdfExportProps.DataSource;
                         }
                     }
@@ -810,8 +811,8 @@ namespace Syncfusion.Blazor.Grids.Internal
             if (PdfExportProps?.DataSource == null || GridProperty.Aggregates?.Count > 0)
             {
                 DataResult ExportData = await ExportHelper<T>.DataProcess(GridProperty, PdfExportProps == null || PdfExportProps.ExportType == ExportType.AllPages).ConfigureAwait(true);
-                DataSource = (IEnumerable<object>)ExportData.Result;
-                ExportAggregate = (Dictionary<string, object>)ExportData.Aggregates;
+                DataSource = (IEnumerable<object>)(ExportData.Result ?? Enumerable.Empty<object>());
+                ExportAggregate = (Dictionary<string, object>)(ExportData.Aggregates ?? new Dictionary<string, object>());
             }
             List<GridColumn> gridcolumns = GridModel.IsFixedColumnPresent() ? GridModel.RearrangeColumns(GridColumns!) : GridColumns!;
             GridColumns = PdfExportProps?.Columns?.Count > 0 ? GridUtils.GetColumns(GridModel, PdfExportProps.Columns).Clone()! : gridcolumns!;
@@ -883,7 +884,7 @@ namespace Syncfusion.Blazor.Grids.Internal
 
                         if (column == null && GridColumns!.Any(col => col.IsGridForeignColumn))
                         {
-                            var fColsList = ForeignKey<T>.GetForeignKeyColumns(GridColumns!);
+                            var fColsList = ForeignKey<T>.GetForeignKeyColumnsAsync(GridColumns!);
                             column = fColsList.Where(col => col.ForeignKeyValue!.Equals(fieldname, StringComparison.Ordinal)).FirstOrDefault();
                         }
                     }
@@ -1117,11 +1118,12 @@ namespace Syncfusion.Blazor.Grids.Internal
                 List<GridColumn>? gridColumns = (GridProperty != null && GridProperty.IsFixedColumnPresent()) ? GridProperty.RearrangeColumns((List<GridColumn>)GridProperty.Columns!) : ((List<GridColumn>)GridProperty!.Columns!);
                 int ColCount = PdfExportProps?.Columns?.Count > 0 ? PdfExportProps.Columns.Count : gridColumns!.Count;
                 List<GridColumn> columnsForDepthCalculation = (PdfExportProps?.Columns?.Count > 0 ? (List<GridColumn>)(PdfExportProps.Columns.Where(x => x.Visible)).ToList() : ((List<GridColumn>)GridProperty.Columns!)!);
-                ColumnDepth = ExportHelper<T>.MeasureColumnDepth(columnsForDepthCalculation);
+                ColumnDepth = ExportHelper<T>.MeasureColumnDepth(columnsForDepthCalculation, IsTemplateColumnInclude, IsHideColumnInclude, IsCustomCommandColumnInclude, GridProperty!);
                 if (GridColumns?.Count != ColCount || ColumnDepth > 0)
                 {
                     List<GridColumn> stackedColumns = PdfExportProps?.Columns?.Count > 0 ? PdfExportProps.Columns : ((List<GridColumn>)GridProperty.Columns!)!;
-                    stackedColumns = stackedColumns.Where(column => (column.Visible || IsHideColumnInclude) && column.Type != ColumnType.CheckBox && (column.Template == null || IsTemplateColumnInclude) && (column.Commands == null || IsCustomCommandColumnInclude)).ToList();
+                    stackedColumns = stackedColumns.Where(column => (column.Visible || IsHideColumnInclude) && column.Type != ColumnType.CheckBox && (column.Template == null || IsTemplateColumnInclude) && (column.Commands == null || IsCustomCommandColumnInclude) &&
+                    (column.Columns == null || ExportHelper<T>.GetColSpan(column, 0, GridProperty!, IsTemplateColumnInclude, IsHideColumnInclude, IsCustomCommandColumnInclude) > 0)).ToList();
                     ProcessStackedHeader(stackedColumns);
                 }
 
@@ -1227,8 +1229,12 @@ namespace Syncfusion.Blazor.Grids.Internal
             }
             else if (Col.Columns.Count > 0)
             {
-                int ColSpan = ExportHelper<T>.GetColSpan(Col, 0, GridProperty!);
+                int ColSpan = ExportHelper<T>.GetColSpan(Col, 0, GridProperty!, IsTemplateColumnInclude, IsHideColumnInclude, IsCustomCommandColumnInclude);
                 CurrentCellIndex = ExportHelper<T>.GetCurrentPdfCellIndex(SpannedCellIndex, CurrentCellIndex, RowIndex - 1, colIndex);
+                if (ColSpan == 0)
+                {
+                    return;
+                }
                 if (ColSpan > 0)
                 {
                     if (GridProperty != null && !GridProperty.Columns!.Any(column => column.Columns?.Count > 0))
@@ -1268,6 +1274,16 @@ namespace Syncfusion.Blazor.Grids.Internal
 
                 foreach (GridColumn InnerCol in Col.Columns)
                 {
+                    if (ExportHelper<T>.ShouldSkipLeafColumn(InnerCol, IsTemplateColumnInclude, IsCustomCommandColumnInclude))
+                    {
+                        continue;
+                    }
+                    bool skipStacked = InnerCol.Columns != null && ExportHelper<T>.GetColSpan(InnerCol, 0, GridProperty!, IsTemplateColumnInclude, IsHideColumnInclude, IsCustomCommandColumnInclude) == 0;
+                    if (skipStacked)
+                    {
+                        continue;
+                    }
+
                     if (InnerCol.Columns != null)
                     {
                         GenerateStackedRows(InnerCol, RowIndex + 1, --ColDepth, SpannedCellIndex);
@@ -1439,7 +1455,7 @@ namespace Syncfusion.Blazor.Grids.Internal
                         if (groupSummary && ExportHelper<T>.IsGroupingEnabled(GridProperty) && GroupData != null)
                         {
                             GroupKeyValue = summaryCol.Field + " " + "-" + " " + summaryCol.Type.ToString();
-                            SummaryObj = (IDictionary<string, object>)GroupData.Aggregates;
+                            SummaryObj = (IDictionary<string, object>)(GroupData.Aggregates ?? new Dictionary<string, object>());
                         }
 
                         foreach (var SummaryData in SummaryObj!)
@@ -1585,8 +1601,8 @@ namespace Syncfusion.Blazor.Grids.Internal
             exportColumnCount = exportColumnCount > 0 ? exportColumnCount : TotalVisibleColumnsCount;
             int groupCount = ExportHelper<T>.GetGroupColumnsCount(GridProperty!) > 0 ? ExportHelper<T>.GetGroupColumnsCount(GridProperty!) - 1 : 0;
             var colspanLength = exportColumnCount + ExportHelper<T>.GetGroupColumnsCount(GridProperty!);
-            string groupColumnName = context.Field;
-            var groupCol = GridUtils.GetColumnByField(groupColumnName, GridProperty?.Columns!);
+            string groupColumnName = context.Field ?? "";
+            var groupCol = GridUtils.GetColumnByField(groupColumnName!, GridProperty?.Columns!);
             bool flag = (groupCol?.Type == ColumnType.Date || groupCol?.Type == ColumnType.DateTime);
             var keyName = context.Key == null ? (flag ? context.Key : string.Empty) : context.Key;
             string? formatstring = groupCol?.Format;
@@ -1622,8 +1638,8 @@ namespace Syncfusion.Blazor.Grids.Internal
 
             int captionCount = context.CountItems;
             string itemText = captionCount == 1 ? ExportLocalizer!.GetText("Grid_Item") : ExportLocalizer!.GetText("Grid_Items");
-            string txt = context.HeaderText ?? (!string.IsNullOrEmpty(groupCol?.HeaderText) ? groupCol.HeaderText : context.Field);
-            string headerText = txt;
+            string txt = context.HeaderText ?? (!string.IsNullOrEmpty(groupCol?.HeaderText) ? groupCol.HeaderText : context.Field ?? "");
+            string headerText = txt ?? "";
             if (!string.IsNullOrEmpty(groupCol?.ForeignKeyValue) && groupCol?.GetForeignData() != null)
             {
                 object foreignColumnData = groupCol.GetForeignData();
@@ -1635,7 +1651,9 @@ namespace Syncfusion.Blazor.Grids.Internal
             }
 
             string groupKey = headerText.Replace("{{:key}}", Convert.ToString((!string.IsNullOrEmpty(formatstring) ? string.Format(culture, formatstring, keyName) : keyName ?? ""), culture), StringComparison.Ordinal);
+
             RenderCaption(headerText, context, groupCol!, itemText, groupLevel);
+
             if (mergeCount > 0)
             {
                 mergeCount = mergeCount - (groupLevel + 1);
@@ -1699,9 +1717,9 @@ namespace Syncfusion.Blazor.Grids.Internal
         {
             if (!(context.Items is IEnumerable<Group<T>>))
             {
-                GroupRecordCount = context.Items.AsQueryable().Count();
+                GroupRecordCount = context.Items!.AsQueryable().Count();
                 GroupCurrentIndex = 0;
-                foreach (T record in context.Items)
+                foreach (T record in context.Items!)
                 {
                     GroupCurrentIndex++;
                     ProcessRecordRow(record);
@@ -1787,7 +1805,7 @@ namespace Syncfusion.Blazor.Grids.Internal
                             }
                         };
                         eventArgs.ForeignKeyValue = groupCol.ForeignKeyValue;
-                        var foreignData = DataOperations.PerformFiltering(foreignColumnData as IEnumerable<object>, query, "and").ToList();
+                        var foreignData = DataOperations.PerformFiltering(foreignColumnData as IEnumerable<object> ?? Enumerable.Empty<object>(), query, "and").ToList();
                         foreach (var val in foreignData)
                         {
                             eventArgs.ForeignKey = GridPropertyHelper?.GetObject(groupCol.ForeignKeyValue!, val)?.ToString()!;

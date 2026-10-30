@@ -2,6 +2,7 @@
 using Microsoft.AspNetCore.Components.Rendering;
 using Microsoft.AspNetCore.Components.Web;
 using Syncfusion.Blazor.Buttons;
+using System.Globalization;
 using Syncfusion.ExcelExport;
 using System;
 using System.Collections.Generic;
@@ -50,16 +51,16 @@ namespace Syncfusion.Blazor.Grids.Internal
                 builder.AddAttribute(sequence++, "data-sf-style", cellState.StyleText);
 
             builder.AddAttribute(sequence++, "data-uid", cell.Uid);
-            builder.AddAttribute(sequence++, "tabindex", cell.TabIndex);
+            builder.AddAttribute(sequence++, "tabindex", cell.TabIndex.ToString(CultureInfo.InvariantCulture));
             builder.AddMultipleAttributes(sequence++, attributes);
 
             // Click handler
             builder.AddAttribute(sequence++, "onclick", EventCallback.Factory.Create<MouseEventArgs>(this, async (e) =>
             {
                 await CellClickHandlerInternal(e, row, cell, false).ConfigureAwait(true);
-                if (Parent?.AllowSelection == true)
+                if (Parent?.AllowSelection == true && Parent?.FocusModule != null)
                 {
-                    await (Parent.FocusModule?.Refresh(row, cell))!.ConfigureAwait(true);
+                    await Parent.FocusModule.Refresh(row, cell).ConfigureAwait(true);
                 }
             }));
 
@@ -73,12 +74,21 @@ namespace Syncfusion.Blazor.Grids.Internal
             builder.AddAttribute(sequence++, "onblur", EventCallback.Factory.Create(this, async () =>
             {
                 focusClass = string.Empty;
-                await (Parent?.FocusModule?.ClearFocus(row, cell))!.ConfigureAwait(true);
+                if (Parent?.FocusModule != null)
+                {
+                    await Parent.FocusModule.ClearFocus(row, cell).ConfigureAwait(true);
+                }
             }));
 
             // Keydown handler
             builder.AddAttribute(sequence++, "onkeydown", EventCallback.Factory.Create<KeyboardEventArgs>(this,
-                async (e) => await (Parent?.FocusModule?.ProcessKeyDown(e, row, cell))!.ConfigureAwait(true)));
+                async (e) => 
+                {
+                    if (Parent?.FocusModule != null)
+                    {
+                        await Parent.FocusModule.ProcessKeyDown(e, row, cell).ConfigureAwait(true);
+                    }
+                }));
             builder.AddEventPreventDefaultAttribute(sequence++, "onkeydown", !IsLastCellInternal(row, cell));
 
             // Render unboundcelldiv with command buttons

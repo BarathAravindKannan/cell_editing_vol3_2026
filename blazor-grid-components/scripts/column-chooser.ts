@@ -1,7 +1,6 @@
 import { SfGrid } from './sf-grid-fn';
-import { calculateRelativeBasedPosition } from '@syncfusion/ej2-popups';
 import { isNullOrUndefined } from '@syncfusion/ej2-base';
-import { Column, OffsetPosition } from './interfaces';
+import { Column } from './interfaces';
 
 /**
  * The `ColumnChooser` module is used to show or hide columns dynamically.
@@ -10,7 +9,7 @@ export class ColumnChooser  {
     private parent: SfGrid;
     private mediaCol: Column[] = [];
     private media: { [key: string]: MediaQueryList } = {};
-    private mediaBindInstance: Object = {};
+    private mediaBindInstance: object = {};
     private mediaColVisibility: { [key: string]: boolean } = {};
 
     constructor(parent: SfGrid) {
@@ -23,10 +22,9 @@ export class ColumnChooser  {
      * @returns {void}
      * @hidden
      */
-    public renderColumnChooser(): any {
+    public renderColumnChooser(): void {
         const dlgelement: HTMLElement = this.parent.element.querySelector('#' + this.parent.element.id + '_ccdlg');
         const stickyHeader : boolean = this.parent.getHeaderContent().parentElement.classList.contains('e-sticky');
-        let newpos: OffsetPosition;
         if (stickyHeader) {
             dlgelement.classList.add('e-sticky');
         }

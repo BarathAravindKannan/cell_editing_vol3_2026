@@ -42,7 +42,7 @@
             return;
         }
 
-        if (!ReferenceEquals(_lastAppliedSelector, CellSelector))
+        if (!ReferenceEquals(_lastAppliedSelector, CellSelector) && Parent?.CellService != null)
         {
             Parent.CellService.CellSelector = CellSelector;
             _lastAppliedSelector = CellSelector;

@@ -142,7 +142,7 @@
             && !Parent.HasAggregateChanges
             && !Parent.HasSortColumnChanges
             && !Parent.HasFilterColumnChanges
-            && !ForeignKey<TContent>.GetForeignKeyColumns(Parent.Columns!).Any();
+            && !ForeignKey<TContent>.GetForeignKeyColumnsAsync(Parent.Columns!).Any();
     }
 
     #endregion

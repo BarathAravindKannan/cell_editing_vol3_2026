@@ -30,6 +30,7 @@ export interface IGridOptions {
     aggregatesCount: number;
     enableVirtualization: boolean;
     enableColumnVirtualization: boolean;
+    enableDomVirtualization: boolean;
     enableVirtualMaskRow: boolean;
     editMode: string;
     newRowPosition: string;
@@ -49,6 +50,7 @@ export interface IGridOptions {
     visibleGroupedRowsCount: number;
     isEdit: boolean;
     isAdd: boolean;
+    enableUndoRedo: boolean;
     allowEditing: boolean;
     selectionMode: string;
     cellSelectionMode: string;
@@ -103,7 +105,6 @@ export interface FreezeLineMovingClientOptions {
 }
 
 export interface BlazorGridElement extends HTMLElement {
-    // eslint-disable-next-line camelcase
     blazor__instance: SfGrid;
 }
 
@@ -336,7 +337,7 @@ export interface Column {
      *
      * @default []
      */
-    columnData?: Object[];
+    columnData?: object[];
 
     /**
      * The CSS styles and attributes of the content cells of a particular column can be customized.
@@ -362,7 +363,7 @@ export interface Column {
      * @default null
      */
 
-    customAttributes?: { [x: string]: Object };
+    customAttributes?: { [x: string]: object };
 
     /**
      * If `displayAsCheckBox` is set to true, it displays the column value as a check box instead of Boolean value.
@@ -376,7 +377,7 @@ export interface Column {
      *
      * @default null
      */
-    dataSource?: Object;
+    dataSource?: object;
 
 
     /**
@@ -509,7 +510,7 @@ export interface Column {
      *
      * @default null
      */
-    validationRules?: Object;
+    validationRules?: object;
 
     /**
      * Defines default values for the component when adding a new record to the Grid.
@@ -754,7 +755,7 @@ export interface InterSection {
     pageHeight?: number;
     debounceEvent?: boolean;
     axes?: string[];
-    virtualScrollHandler?: Function;
+    virtualScrollHandler?: (...args: unknown[]) => unknown;
     totalItems?: number;
     isWheelScroll?: boolean;
     overscanCount?: number;
@@ -794,3 +795,12 @@ export type FocusEditableCellsArgs = {
     editableCellFrozenEdit?: boolean;
 }
 
+/**
+ * @hidden
+ */
+export interface IPasteCell {
+    rowIndex: number;
+    columnIndex: number;
+    columnField: string;
+    value: string;
+}

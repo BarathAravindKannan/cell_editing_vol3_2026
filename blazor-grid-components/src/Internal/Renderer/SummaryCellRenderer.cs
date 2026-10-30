@@ -3,7 +3,7 @@ using Microsoft.AspNetCore.Components.Web;
 using Syncfusion.Blazor.Data;
 using System;
 using System.Collections.Generic;
-
+using System.Globalization;
 namespace Syncfusion.Blazor.Grids.Internal
 {
     /// <summary>
@@ -44,10 +44,12 @@ namespace Syncfusion.Blazor.Grids.Internal
             builder.AddAttribute(sequence++, "class", classNames);
             builder.AddAttribute(sequence++, "aria-label", ariaLabel);
 
-            if (!string.IsNullOrEmpty(StyleText))
-                builder.AddAttribute(sequence++, "data-sf-style", StyleText);
+            string frozenStyle = Parent!.FreezeModule!.ApplyFrozenColumnsStyles(cell.Column!)?.ToLower(CultureInfo.CurrentCulture)!;
+            string style = GridUtils.EnsureUniqueStyles(StyleText, frozenStyle);
+            if (!string.IsNullOrEmpty(style))
+                builder.AddAttribute(sequence++, "data-sf-style", style);
 
-            builder.AddAttribute(sequence++, "tabindex", cell.TabIndex);
+            builder.AddAttribute(sequence++, "tabindex", cell.TabIndex.ToString(CultureInfo.InvariantCulture));
             builder.AddAttribute(sequence++, "data-uid", cell.Uid);
 
             // Click handler
@@ -59,11 +61,23 @@ namespace Syncfusion.Blazor.Grids.Internal
 
             // Blur handler
             builder.AddAttribute(sequence++, "onblur", EventCallback.Factory.Create(this,
-                async () => await Parent!.FocusModule!.ClearFocus(row, cell).ConfigureAwait(true)));
+                async () => 
+                {
+                    if (Parent?.FocusModule != null)
+                    {
+                        await Parent.FocusModule.ClearFocus(row, cell).ConfigureAwait(true);
+                    }
+                }));
 
             // Keydown handler
             builder.AddAttribute(sequence++, "onkeydown", EventCallback.Factory.Create<KeyboardEventArgs>(this,
-                async (e) => await Parent!.FocusModule!.ProcessKeyDown(e, row, cell).ConfigureAwait(true)));
+                async (e) => 
+                {
+                    if (Parent?.FocusModule != null)
+                    {
+                        await Parent.FocusModule.ProcessKeyDown(e, row, cell).ConfigureAwait(true);
+                    }
+                }));
             builder.AddEventPreventDefaultAttribute(sequence++, "onkeydown", !IsLastCellInternal(row, cell));
 
             // Empty cell - no content

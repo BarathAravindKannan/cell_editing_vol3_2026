@@ -126,6 +126,7 @@ else if (IsColumnMenuIconClicked && Parent != null && Parent.EnableAdaptiveUI &&
     private SfContextMenu<MenuItem>? ColumnMenuObj { get; set; }
     private string CHOOSER { get; set; } = "_chooser_";
     private bool IsCheckbox { get; set; } = false;
+    private bool IsItemsChanged { get; set; } = false;
     private ISyncfusionStringLocalizer? Localizer;
     private List<string> HiddentItems = new List<string>();
     private List<string> DisableItems = new List<string>();
@@ -168,6 +169,19 @@ else if (IsColumnMenuIconClicked && Parent != null && Parent.EnableAdaptiveUI &&
         var column = args as GridColumn ?? Parent?.ColumnMenuColumn;
         Parent!.ColumnMenuColumn = column;
         this.targetColumn = column;
+        var newItems = GetItems();
+
+        if ((newItems != null) && ItemsChanged(MenuItems, newItems))
+        {
+            MenuItems = newItems;
+            IsItemsChanged = true;
+            if (Parent.EnableAdaptiveUI)
+            {
+                IsColumnMenuIconClicked = true;
+            }
+            StateHasChanged();
+            return;
+        }
 
         if (Parent.EnableAdaptiveUI)
         {
@@ -191,6 +205,18 @@ else if (IsColumnMenuIconClicked && Parent != null && Parent.EnableAdaptiveUI &&
         }
 
         StateHasChanged();
+    }
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        await base.OnAfterRenderAsync(firstRender);
+        if (IsItemsChanged)
+        {
+            IsItemsChanged = false;
+            if (Parent?.ColumnMenuInstance != null && Parent.ColumnMenuInstance.CssClass.Contains("e-hide-menu"))
+            {
+                await Parent.ColumnMenuInstance.OpenAsync(1, 1).ConfigureAwait(true);
+            }
+        }
     }
 
     protected override void OnAfterRender(bool firstRender)
@@ -233,7 +259,7 @@ else if (IsColumnMenuIconClicked && Parent != null && Parent.EnableAdaptiveUI &&
             {
                 var custom = item as ColumnMenuItemModel;
 #pragma warning disable BL0005
-                var customItem = new MenuItem() { Text = custom?.Text, IconCss = custom?.IconCss, Id = custom?.Id, Items = custom?.Items?.ConvertAll(x => new MenuItem { IconCss = x.IconCss, Id = x.Id, Separator = x.Separator, Text = x.Text, Url = x.Url, Disabled = false, Hidden = false }), Separator = (custom != null && custom.Separator), Url = custom?.Url, Disabled = false, Hidden = false };
+                var customItem = new MenuItem() { Text = custom?.Text ?? string.Empty, IconCss = custom?.IconCss ?? string.Empty, Id = custom?.Id ?? string.Empty, Items = custom?.Items?.ConvertAll(x => new MenuItem { IconCss = x.IconCss, Id = x.Id, Separator = x.Separator, Text = x.Text, Url = x.Url, Disabled = false, Hidden = false }) ?? new List<MenuItem>(), Separator = (custom != null && custom.Separator), Url = custom?.Url ?? string.Empty, Disabled = false, Hidden = false };
 #pragma warning restore BL0005
                 items.Add(customItem);
             }
@@ -549,6 +575,22 @@ else if (IsColumnMenuIconClicked && Parent != null && Parent.EnableAdaptiveUI &&
     #endregion
 
     #region Helper methods
+    private static bool ItemsChanged(List<MenuItem> oldItems, List<MenuItem> newItems)
+    {
+        if (oldItems.Count != newItems.Count)
+            return true;
+
+        for (int i = 0; i < oldItems.Count; i++)
+        {
+            if (oldItems[i].Id != newItems[i].Id || oldItems[i].Text != newItems[i].Text ||
+                oldItems[i].Url != newItems[i].Url || oldItems[i].Hidden != newItems[i].Hidden || oldItems[i].Disabled != newItems[i].Disabled)
+            {
+                return true;
+            }
+        }
+        return false;
+    }
+
     private async Task NotifyColumnVisibilityChangedAsync()
     {
         var parent = Parent!;
@@ -610,6 +652,7 @@ else if (IsColumnMenuIconClicked && Parent != null && Parent.EnableAdaptiveUI &&
     private void InitializeColumnMenuState(ColumnMenuOpenEventArgs columnMenuOpenEventArgs)
     {
         MenuItems = columnMenuOpenEventArgs.Items ?? new List<MenuItem>();
+        var columnMenuItems = (Parent?.ColumnMenuItems as IEnumerable<object>)?.ToList();
         for (int i = 0; i < MenuItems.Count; i++)
         {
             var item = MenuItems[i];
@@ -618,10 +661,10 @@ else if (IsColumnMenuIconClicked && Parent != null && Parent.EnableAdaptiveUI &&
             {
                 this.DisableItems.Add(item.Text);
             }
-            var columnMenuItems = Parent!.ColumnMenuItems;
-            if (columnMenuItems != null)
+
+            if (columnMenuItems != null && i < columnMenuItems.Count)
             {
-                var columnMenuItem = (columnMenuItems as IEnumerable<Object>)?.ToList()[i];
+                var columnMenuItem = columnMenuItems[i];
                 if (columnMenuItem?.GetType().Name != "String" && (columnMenuItem as ColumnMenuItemModel)?.Hide == true)
                 {
                     this.HiddentItems.Add(item.Text);
@@ -672,7 +715,7 @@ else if (IsColumnMenuIconClicked && Parent != null && Parent.EnableAdaptiveUI &&
     {
         var parent = Parent!;
         var gridEvents = parent.GridEvents;
-        var clickItem = new MenuItemModel() { Text = args.Item.Text, IconCss = args.Item.IconCss, Id = args.Item.Id, Items = args.Item.Items != null ? args.Item.Items.ConvertAll(x => new MenuItemModel { IconCss = x.IconCss, Id = x.Id, Separator = x.Separator, Text = x.Text, Url = x.Url }) : null, Separator = args.Item.Separator, Url = args.Item.Url };
+        var clickItem = new MenuItemModel() { Text = args.Item.Text, IconCss = args.Item.IconCss, Id = args.Item.Id, Items = args.Item.Items != null ? args.Item.Items.ConvertAll(x => new MenuItemModel { IconCss = x.IconCss, Id = x.Id, Separator = x.Separator, Text = x.Text, Url = x.Url }) : new List<MenuItemModel>(), Separator = args.Item.Separator, Url = args.Item.Url };
         if (gridEvents?.ColumnMenuItemClicked.HasDelegate == true || parent.IsRenderedFromTreeGrid)
         {
             var actionArgs = new ColumnMenuClickEventArgs() { Element = args.Element, Item = clickItem, Event = args.Event, Column = targetedColumn, Parent = parent };

@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.ComponentModel;
 using System.Runtime.Serialization;
 using System.Text.Json.Serialization;
@@ -638,45 +638,76 @@ namespace Syncfusion.Blazor.Grids
         Batch,
 
         /// <summary>
-        /// Enables cell editing. Cells can be edited and saved without using toolbar buttons.
+        /// Enables cell editing mode in the grid.
         /// </summary>
+        /// <remarks>
+        /// In this mode, individual cells can be edited directly without requiring
+        /// toolbar actions. Changes are committed at the cell level and editing can
+        /// be initiated through user interaction, keyboard shortcuts, or programmatic
+        /// APIs.
+        /// This mode enables cell-focused editing features such as
+        /// <see cref="GridEditSettings.EnterKeyDirection"/> and <see cref="GridEditSettings.AllowEditOnKeyPress"/>
+        /// </remarks>
         [EnumMember(Value = "Cell")]
         Cell,
     }
 
     /// <summary>
-    /// Defines the navigation direction of the Enter key while a cell is in edit mode.
+    /// Specifies how the Enter key navigates between cells when editing is enabled
+    /// in <see cref="EditMode.Cell"/>.
     /// </summary>
     /// <remarks>
-    /// This setting only takes effect when <see cref="GridEditSettings.Mode"/> is
-    /// <see cref="EditMode.Cell"/>. For other edit modes the Enter key keeps its
-    /// existing behaviour.
+    /// This setting determines the focus movement after the current cell value is
+    /// saved by pressing the Enter key.
+    /// <list type="bullet">
+    /// <item>
+    /// <description><see cref="None"/>: Saves the cell value and keeps focus in the current cell.</description>
+    /// </item>
+    /// <item>
+    /// <description><see cref="NextRow"/>: Moves focus to the next editable row in the same column.</description>
+    /// </item>
+    /// <item>
+    /// <description><see cref="NextColumn"/>: Moves focus to the next editable column in the current row.</description>
+    /// </item>
+    /// </list>
+    /// Pressing <c>Shift+Enter</c> saves the current cell value and performs the opposite navigation of the configured <see cref="EnterKeyDirection"/>.
+    /// This property is applicable only when
+    /// <see cref="GridEditSettings.Mode"/> is set to
+    /// <see cref="EditMode.Cell"/>.
     /// </remarks>
     [JsonConverter(typeof(JsonStringEnumConverter))]
     public enum EnterKeyDirection
     {
         /// <summary>
-        /// Enter key performs no navigation. The current cell is saved and focus
-        /// stays on the same cell.
+        /// Saves the current cell value and retains focus on the same cell.
         /// </summary>
+        /// <remarks>
+        /// No navigation occurs after the value is committed.
+        /// </remarks>
         [EnumMember(Value = "None")]
         None,
 
         /// <summary>
-        /// Enter key moves focus to the next editable cell in the same column
-        /// (downwards). When the last row is reached, focus stays on the current
-        /// cell.
+        /// Moves focus to the next editable cell in the same column after the
+        /// current cell value is saved.
         /// </summary>
-        [EnumMember(Value = "Row")]
-        Row,
+        /// <remarks>
+        /// Navigation proceeds downward through the grid rows. When the last
+        /// editable row is reached, focus remains on the current cell.
+        /// </remarks>
+        [EnumMember(Value = "NextRow")]
+        NextRow,
 
         /// <summary>
-        /// Enter key moves focus to the next editable cell on the same row
-        /// (rightwards). When the last column is reached, focus stays on the
-        /// current cell.
+        /// Moves focus to the next editable cell in the same row after the
+        /// current cell value is saved.
         /// </summary>
-        [EnumMember(Value = "Column")]
-        Column,
+        /// <remarks>
+        /// Navigation proceeds across columns from left to right. When the last
+        /// editable column is reached, focus remains on the current cell.
+        /// </remarks>
+        [EnumMember(Value = "NextColumn")]
+        NextColumn,
     }
 
     /// <summary>
@@ -2117,5 +2148,588 @@ namespace Syncfusion.Blazor.Grids
         /// <para>Executes the <see cref="Row"/> pass first and then the <see cref="Column"/> pass, giving a full two-direction merge sequence.</para>
         /// </remarks>
         HorizontalAndVertical
+    }
+
+    /// <summary>
+    /// Defines the kinds of batch edit actions that can be recorded and navigated through the Undo/Redo history.
+    /// </summary>
+    /// <remarks>
+    /// Each value identifies a specific kind of grid mutation so the Undo/Redo manager can replay or revert it accurately.
+    /// </remarks>
+    [JsonConverter(typeof(JsonStringEnumConverter))]
+    public enum UndoRedoActionType
+    {
+        /// <summary>
+        /// No action has been recorded, or the value is uninitialized. This is the default value and exists to distinguish an in-flight,
+        /// not-yet-populated action from a genuine recorded mutation.
+        /// </summary>
+        [EnumMember(Value = "None")]
+        None = 0,
+
+        /// <summary>
+        /// Represents a change to a single cell's value.
+        /// </summary>
+        /// <remarks>
+        /// This action covers every single-cell value mutation performed in batch edit mode, including clearing
+        /// a cell with the Delete key, which is recorded as a <see cref="CellEdit"/> from the previous value to
+        /// the new empty value. No separate action type is recorded for cell clearing. A cancelled batch edit
+        /// (<see cref="Syncfusion.Blazor.Grids.GridEditSettings.Mode"/> = <see cref="EditMode.Batch"/>
+        /// dismissed via Escape or the toolbar) discards both the undo and redo stacks by design rather than
+        /// pushing a reverse action, so the cancelled edit is intentionally absent from the history.
+        /// </remarks>
+        [EnumMember(Value = "CellEdit")]
+        CellEdit = 1,
+
+        /// <summary>
+        /// Represents a row that was newly added to the grid.
+        /// </summary>
+        [EnumMember(Value = "RowAdd")]
+        RowAdd = 2,
+
+        /// <summary>
+        /// Represents a row that was removed from the grid.
+        /// </summary>
+        [EnumMember(Value = "RowDelete")]
+        RowDelete = 3,
+
+        /// <summary>
+        /// Represents a multi-cell paste operation; the entire paste is reverted or reapplied as a single atomic unit.
+        /// </summary>
+        [EnumMember(Value = "Paste")]
+        Paste = 4,
+
+        /// <summary>
+        /// Represents a fill-handle pattern operation; the entire fill is reverted or reapplied as a single atomic unit.
+        /// </summary>
+        [EnumMember(Value = "AutoFill")]
+        AutoFill = 5
+    }
+
+    /// <summary>
+    /// Specifies the built-in WebMCP tools and configuration values supported by an
+    /// <see cref="SfGrid{TValue}"/> instance.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Use members of this enumeration with
+    /// <see cref="GridWebMcpTool.Command"/> to configure, customize, enable,
+    /// disable, or rename WebMCP tools exposed by the grid.
+    /// </para>
+    /// <para>
+    /// The <see cref="None"/> member represents the default unconfigured state
+    /// and should not be used for a configured tool entry. The
+    /// <see cref="Custom"/> member identifies an application-defined tool whose
+    /// execution is handled through
+    /// <see cref="GridEvents{TValue}.OnWebMcpExecute"/>.
+    /// </para>
+    /// <para>
+    /// All remaining members represent built-in grid tools. Built-in tool
+    /// metadata, such as names, descriptions, and input schemas, can be
+    /// customized through <see cref="GridWebMcpTool"/> without changing the
+    /// underlying functionality associated with the command.
+    /// </para>
+    /// <para>
+    /// The available tools support data retrieval, navigation, sorting,
+    /// filtering, grouping, selection, editing, exporting, layout management,
+    /// clipboard operations, state management, and other grid interactions.
+    /// </para>
+    /// </remarks>
+    [JsonConverter(typeof(JsonStringEnumConverter))]
+    public enum GridWebMcpToolCommand
+    {
+        /// <summary>
+        /// Indicates that no tool command has been specified.
+        /// </summary>
+        /// <remarks>
+        /// This is the default value of <see cref="GridWebMcpTool.Command"/> and
+        /// does not represent a valid tool configuration.
+        /// </remarks>
+        [EnumMember(Value = "none")]
+        None,
+
+        /// <summary>
+        /// Specifies an application-defined custom tool.
+        /// </summary>
+        /// <remarks>
+        /// When this value is used, tool execution is handled through the
+        /// <see cref="GridEvents{TValue}.OnWebMcpExecute"/> event. The application
+        /// is responsible for processing the request and providing a result.
+        /// </remarks>
+        [EnumMember(Value = "custom")]
+        Custom,
+
+        /// <summary>
+        /// Retrieves the records currently selected in the grid.
+        /// </summary>
+        [EnumMember(Value = "getSelectedRecords")]
+        GetSelectedRecords,
+
+        /// <summary>
+        /// Retrieves the indexes of the currently selected rows.
+        /// </summary>
+        [EnumMember(Value = "getSelectedRowIndexes")]
+        GetSelectedRowIndexes,
+
+        /// <summary>
+        /// Retrieves the records that satisfy the current filter criteria.
+        /// </summary>
+        [EnumMember(Value = "getFilteredRecords")]
+        GetFilteredRecords,
+
+        /// <summary>
+        /// Retrieves the records currently displayed in the grid view.
+        /// </summary>
+        [EnumMember(Value = "getCurrentViewRecords")]
+        GetCurrentViewRecords,
+
+        /// <summary>
+        /// Retrieves the column definition associated with the specified field.
+        /// </summary>
+        [EnumMember(Value = "getColumnByField")]
+        GetColumnByField,
+
+        /// <summary>
+        /// Retrieves the columns that are currently visible.
+        /// </summary>
+        [EnumMember(Value = "getVisibleColumns")]
+        GetVisibleColumns,
+
+        /// <summary>
+        /// Retrieves the indexes of selected row cells.
+        /// </summary>
+        [EnumMember(Value = "getSelectedRowCellIndexes")]
+        GetSelectedRowCellIndexes,
+
+        /// <summary>
+        /// Retrieves the columns that are currently hidden.
+        /// </summary>
+        [EnumMember(Value = "getHiddenColumns")]
+        GetHiddenColumns,
+
+        /// <summary>
+        /// Retrieves the index of a column by its field name.
+        /// </summary>
+        [EnumMember(Value = "getColumnIndexByField")]
+        GetColumnIndexByField,
+
+        /// <summary>
+        /// Retrieves the unique identifier associated with a column field.
+        /// </summary>
+        [EnumMember(Value = "getUidByColumnField")]
+        GetUidByColumnField,
+
+        /// <summary>
+        /// Navigates to the specified page.
+        /// </summary>
+        [EnumMember(Value = "navigateToPage")]
+        NavigateToPage,
+
+        /// <summary>
+        /// Finds matching content and highlights the results.
+        /// </summary>
+        [EnumMember(Value = "findAndHighlight")]
+        FindAndHighlight,
+
+        /// <summary>
+        /// Sorts the grid by a single column.
+        /// </summary>
+        [EnumMember(Value = "sortByColumn")]
+        SortByColumn,
+
+        /// <summary>
+        /// Applies sorting to multiple columns.
+        /// </summary>
+        [EnumMember(Value = "sortColumns")]
+        SortColumns,
+
+        /// <summary>
+        /// Applies sorting to multiple columns after clearing existing sorting.
+        /// </summary>
+        [EnumMember(Value = "sortColumnsWithClear")]
+        SortColumnsWithClear,
+
+        /// <summary>
+        /// Removes all sorting applied to the grid.
+        /// </summary>
+        [EnumMember(Value = "clearSorting")]
+        ClearSorting,
+
+        /// <summary>
+        /// Removes sorting from the specified columns.
+        /// </summary>
+        [EnumMember(Value = "clearSortingByFields")]
+        ClearSortingByFields,
+
+        /// <summary>
+        /// Applies filtering to a column.
+        /// </summary>
+        [EnumMember(Value = "filterByColumn")]
+        FilterByColumn,
+
+        /// <summary>
+        /// Removes all active filters from the grid.
+        /// </summary>
+        [EnumMember(Value = "clearFiltering")]
+        ClearFiltering,
+
+        /// <summary>
+        /// Selects one or more rows.
+        /// </summary>
+        [EnumMember(Value = "selectRows")]
+        SelectRows,
+
+        /// <summary>
+        /// Selects rows within a specified range.
+        /// </summary>
+        [EnumMember(Value = "selectRowsByRange")]
+        SelectRowsByRange,
+
+        /// <summary>
+        /// Clears the current selection.
+        /// </summary>
+        [EnumMember(Value = "clearSelection")]
+        ClearSelection,
+
+        /// <summary>
+        /// Clears the current cell selection without clearing row selection.
+        /// </summary>
+        [EnumMember(Value = "clearCellSelection")]
+        ClearCellSelection,
+
+        /// <summary>
+        /// Selects a single cell.
+        /// </summary>
+        [EnumMember(Value = "selectCell")]
+        SelectCell,
+
+        /// <summary>
+        /// Selects multiple cells.
+        /// </summary>
+        [EnumMember(Value = "selectCells")]
+        SelectCells,
+
+        /// <summary>
+        /// Selects cells within a specified range.
+        /// </summary>
+        [EnumMember(Value = "selectCellsByRange")]
+        SelectCellsByRange,
+
+        /// <summary>
+        /// Updates the value of the specified cell.
+        /// </summary>
+        [EnumMember(Value = "setCellValue")]
+        SetCellValue,
+
+        /// <summary>
+        /// Updates the data associated with the specified row.
+        /// </summary>
+        [EnumMember(Value = "setRowData")]
+        SetRowData,
+
+        /// <summary>
+        /// Saves the current cell edit.
+        /// </summary>
+        [EnumMember(Value = "saveCell")]
+        SaveCell,
+
+        /// <summary>
+        /// Places a cell into edit mode.
+        /// </summary>
+        [EnumMember(Value = "editCell")]
+        EditCell,
+
+        /// <summary>
+        /// Performs create, update, or delete operations.
+        /// </summary>
+        [EnumMember(Value = "crudLifecycle")]
+        CrudLifecycle,
+
+        /// <summary>
+        /// Deletes a data row by its current-view index.
+        /// </summary>
+        [EnumMember(Value = "deleteRow")]
+        DeleteRow,
+
+        /// <summary>
+        /// Exports grid data to an Excel file.
+        /// </summary>
+        [EnumMember(Value = "excelExport")]
+        ExcelExport,
+
+        /// <summary>
+        /// Exports grid data to a PDF file.
+        /// </summary>
+        [EnumMember(Value = "pdfExport")]
+        PdfExport,
+
+        /// <summary>
+        /// Enables or disables grid rendering.
+        /// </summary>
+        [EnumMember(Value = "preventRender")]
+        PreventRender,
+
+        /// <summary>
+        /// Groups the grid by the specified column.
+        /// </summary>
+        [EnumMember(Value = "groupColumn")]
+        GroupByColumn,
+
+        /// <summary>
+        /// Removes grouping from the specified column.
+        /// </summary>
+        [EnumMember(Value = "ungroupColumn")]
+        UngroupColumn,
+
+        /// <summary>
+        /// Expands all grouped rows.
+        /// </summary>
+        [EnumMember(Value = "expandAllGroups")]
+        ExpandAllGroups,
+
+        /// <summary>
+        /// Collapses all grouped rows.
+        /// </summary>
+        [EnumMember(Value = "collapseAllGroups")]
+        CollapseAllGroups,
+
+        /// <summary>
+        /// Removes all grouping applied to the grid.
+        /// </summary>
+        [EnumMember(Value = "clearGrouping")]
+        ClearGrouping,
+
+        /// <summary>
+        /// Searches the grid using the specified text.
+        /// </summary>
+        [EnumMember(Value = "searchText")]
+        SearchText,
+
+        /// <summary>
+        /// Displays the specified hidden columns.
+        /// </summary>
+        [EnumMember(Value = "showColumns")]
+        ShowColumns,
+
+        /// <summary>
+        /// Hides the specified columns.
+        /// </summary>
+        [EnumMember(Value = "hideColumns")]
+        HideColumns,
+
+        /// <summary>
+        /// Reorders one or more columns relative to another column.
+        /// </summary>
+        [EnumMember(Value = "reorderColumn")]
+        ReorderColumn,
+
+        /// <summary>
+        /// Moves one or more columns to the location of another column.
+        /// </summary>
+        [EnumMember(Value = "reorderColumns")]
+        ReorderColumns,
+
+        /// <summary>
+        /// Reorders a column from one index to another.
+        /// </summary>
+        [EnumMember(Value = "reorderColumnByIndex")]
+        ReorderColumnByIndex,
+
+        /// <summary>
+        /// Reorders a column to the specified target index.
+        /// </summary>
+        [EnumMember(Value = "reorderColumnByTargetIndex")]
+        ReorderColumnByTargetIndex,
+
+        /// <summary>
+        /// Automatically adjusts column widths to fit their content.
+        /// </summary>
+        [EnumMember(Value = "autoFitColumns")]
+        AutoFitColumns,
+
+        /// <summary>
+        /// Opens the column chooser dialog.
+        /// </summary>
+        [EnumMember(Value = "openColumnChooser")]
+        OpenColumnChooser,
+
+        /// <summary>
+        /// Prints the grid.
+        /// </summary>
+        [EnumMember(Value = "printGrid")]
+        PrintGrid,
+
+        /// <summary>
+        /// Copies selected rows or cells to the clipboard.
+        /// </summary>
+        [EnumMember(Value = "copyToClipboard")]
+        CopyToClipboard,
+
+        /// <summary>
+        /// Pastes clipboard content into the grid.
+        /// </summary>
+        [EnumMember(Value = "pasteFromClipboard")]
+        PasteFromClipboard,
+
+        /// <summary>
+        /// Displays the grid's loading indicator.
+        /// </summary>
+        [EnumMember(Value = "showSpinner")]
+        ShowSpinner,
+
+        /// <summary>
+        /// Hides the grid's loading spinner.
+        /// </summary>
+        [EnumMember(Value = "hideSpinner")]
+        HideSpinner,
+
+        /// <summary>
+        /// Refreshes the grid data and UI.
+        /// </summary>
+        [EnumMember(Value = "refreshGrid")]
+        RefreshGrid,
+
+        /// <summary>
+        /// Refreshes the grid's column definitions.
+        /// </summary>
+        [EnumMember(Value = "refreshColumns")]
+        RefreshColumns,
+
+        /// <summary>
+        /// Refreshes the grid header.
+        /// </summary>
+        [EnumMember(Value = "refreshHeader")]
+        RefreshHeader,
+
+        /// <summary>
+        /// Moves focus to the grid.
+        /// </summary>
+        [EnumMember(Value = "focusGrid")]
+        FocusGrid,
+
+        /// <summary>
+        /// Scrolls the grid to bring the specified cell into view.
+        /// </summary>
+        [EnumMember(Value = "scrollIntoView")]
+        ScrollIntoView,
+
+        /// <summary>
+        /// Expands or collapses the detail row associated with a record.
+        /// </summary>
+        [EnumMember(Value = "expandCollapseDetailRow")]
+        ExpandCollapseDetailRow,
+
+        /// <summary>
+        /// Expands all detail rows.
+        /// </summary>
+        [EnumMember(Value = "expandAllDetailRows")]
+        ExpandAllDetailRows,
+
+        /// <summary>
+        /// Collapses all detail rows.
+        /// </summary>
+        [EnumMember(Value = "collapseAllDetailRows")]
+        CollapseAllDetailRows,
+
+        /// <summary>
+        /// Merges the specified rectangular range of cells.
+        /// </summary>
+        [EnumMember(Value = "mergeCells")]
+        MergeCells,
+
+        /// <summary>
+        /// Merges multiple cell ranges.
+        /// </summary>
+        [EnumMember(Value = "mergeCellsBulk")]
+        MergeCellsBulk,
+
+        /// <summary>
+        /// Removes the merged region anchored at the specified cell.
+        /// </summary>
+        [EnumMember(Value = "unmergeCells")]
+        UnmergeCells,
+
+        /// <summary>
+        /// Removes multiple merged regions.
+        /// </summary>
+        [EnumMember(Value = "unmergeCellsBulk")]
+        UnmergeCellsBulk,
+
+        /// <summary>
+        /// Removes all merged regions.
+        /// </summary>
+        [EnumMember(Value = "unmergeAll")]
+        UnmergeAll,
+
+        /// <summary>
+        /// Retrieves a column definition by its unique identifier.
+        /// </summary>
+        [EnumMember(Value = "getColumnByUid")]
+        GetColumnByUid,
+
+        /// <summary>
+        /// Retrieves the field names of all grid columns.
+        /// </summary>
+        [EnumMember(Value = "getColumnFieldNames")]
+        GetColumnFieldNames,
+
+        /// <summary>
+        /// Retrieves the formatted value of a cell in the current view.
+        /// </summary>
+        [EnumMember(Value = "getCellValue")]
+        GetCellValue,
+
+        /// <summary>
+        /// Inspects or applies a batch-edit workflow.
+        /// </summary>
+        [EnumMember(Value = "batchEditWorkflow")]
+        BatchEditWorkflow,
+
+        /// <summary>
+        /// Updates row or cell data without entering edit mode.
+        /// </summary>
+        [EnumMember(Value = "updateGridData")]
+        UpdateGridData,
+
+        /// <summary>
+        /// Reorders a row within the current view.
+        /// </summary>
+        [EnumMember(Value = "reorderRow")]
+        ReorderRow,
+
+        /// <summary>
+        /// Reads, loads, or resets the persisted grid state.
+        /// </summary>
+        [EnumMember(Value = "persistGridState")]
+        PersistGridState,
+
+        /// <summary>
+        /// Updates the grid page size.
+        /// </summary>
+        [EnumMember(Value = "updatePageSize")]
+        UpdatePageSize,
+
+        /// <summary>
+        /// Updates the pager's external message.
+        /// </summary>
+        [EnumMember(Value = "updateExternalMessage")]
+        UpdateExternalMessage,
+
+        /// <summary>
+        /// Performs undo and redo history operations.
+        /// </summary>
+        [EnumMember(Value = "undoRedoHistory")]
+        UndoRedoHistory,
+
+        /// <summary>
+        /// Retrieves metadata about the active edit context.
+        /// </summary>
+        [EnumMember(Value = "getEditState")]
+        GetEditState,
+
+        /// <summary>
+        /// Checks whether the grid has pending batch edits.
+        /// </summary>
+        [EnumMember(Value = "isDirty")]
+        IsDirty
     }
 }

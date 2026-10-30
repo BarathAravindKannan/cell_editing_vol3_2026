@@ -1,4 +1,4 @@
-﻿using Microsoft.AspNetCore.Components.Forms;
+using Microsoft.AspNetCore.Components.Forms;
 using Syncfusion.Blazor.Data;
 using Syncfusion.Blazor.Internal;
 using System;
@@ -58,6 +58,8 @@ namespace Syncfusion.Blazor.Grids.Internal
         internal object? CloneData { get; set; }
 
         internal bool IsEmptyRowRendered { get; set; }
+
+        internal bool IsDeleteAction { get; set; }
 
         #endregion
 
@@ -170,7 +172,7 @@ namespace Syncfusion.Blazor.Grids.Internal
                     var isDynamic = typeof(IDynamicMetaObjectProvider).IsAssignableFrom(propInfo?.PropertyType);
                     if (isDynamic)
                     {
-                        object tempObj = ReflectionExtension.TryCreateInstance(propInfo?.PropertyType);
+                        object tempObj = ReflectionExtension.TryCreateInstance(propInfo?.PropertyType!);
                         propInfo?.SetValue(CloneData, tempObj);
                     }
                 }
@@ -195,10 +197,18 @@ namespace Syncfusion.Blazor.Grids.Internal
                     EditContext = EditContext,
                     Parent = Parent
                 };
-                await SfBaseUtils.InvokeEvent<ActionEventArgs<T>>(Parent.GridEvents?.OnActionBegin, args).ConfigureAwait(true);
+                await SfBaseUtils.InvokeEvent<ActionEventArgs<T>>(Parent.GridEvents?.OnActionBegin!, args).ConfigureAwait(true);
                 await Parent.EventAggregator.NotifyAsync("ActionBegin", args).ConfigureAwait(true);
-                await SfBaseUtils.InvokeEvent<RowCreatingEventArgs<T>>(Parent.GridEvents?.RowCreating, eventArgs).ConfigureAwait(true);
+                if (Parent.IsRenderedFromTreeGrid)
+                {
+                    eventArgs.Index = args.Index;
+                }
+                await SfBaseUtils.InvokeEvent<RowCreatingEventArgs<T>>(Parent.GridEvents?.RowCreating!, eventArgs).ConfigureAwait(true);
                 await Parent.EventAggregator.NotifyAsync("RowCreating", eventArgs).ConfigureAwait(true);
+                if (Parent.IsRenderedFromTreeGrid)
+                {
+                    args.Index = eventArgs.Index;
+                }
                 if (Parent.EnableVirtualization)
                 {
                     if (Parent.GridEvents?.OnActionBegin.HasDelegate == true || Parent.IsRenderedFromTreeGrid)
@@ -215,7 +225,10 @@ namespace Syncfusion.Blazor.Grids.Internal
                 {
                     return;
                 }
-
+                if (Parent.IsFindToolbarEnabled())
+                {
+                    Parent.FindHightLightModule?.ClearSearchHighlightOnFormOpenAsync().ConfigureAwait(true);
+                }
                 var cData = CloneData;
                 EnsureDataAndEditContext(ref cData!, args, eventArgs: eventArgs);
                 CloneData = cData;
@@ -244,12 +257,20 @@ namespace Syncfusion.Blazor.Grids.Internal
                             {
                                 if (Parent.IsRenderedFromTreeGrid && (Parent as IGrid).GridTemplates?.DetailTemplate != null && Parent.Rows.Where(row => row.IsAddedTop).ToList().Count > 0)
                                 {
+                                    if ((int)args.Index == -1 || (int)args.Index * 2 > Parent.Rows.Count)
+                                    {
+                                        return;
+                                    }
                                     Parent.Rows.Insert((int)args.Index * 2, Row);
                                     Row.IsAddedTop = true;
                                     ind = (int)args.Index * 2;
                                 }
                                 else
                                 {
+                                    if ((int)args.Index == -1 || (int)args.Index > Parent.Rows.Count)
+                                    {
+                                        return;
+                                    }
                                     Parent.Rows.Insert((int)args.Index, Row);
                                     Row.IsAddedTop = true;
                                     ind = (int)args.Index;
@@ -326,7 +347,7 @@ namespace Syncfusion.Blazor.Grids.Internal
                 Parent.EventAggregator.Trigger("HeaderStateChanged", null!);
                 Parent.EventAggregator.Trigger("ToolbarStateChanged", null!);
                 args.Type = "actionComplete";
-                await SfBaseUtils.InvokeEvent<ActionEventArgs<T>>(Parent.GridEvents?.OnActionComplete, args).ConfigureAwait(true);
+                await SfBaseUtils.InvokeEvent<ActionEventArgs<T>>(Parent.GridEvents?.OnActionComplete!, args).ConfigureAwait(true);
                 await Parent.EventAggregator.NotifyAsync("ActionComplete", args).ConfigureAwait(true);
                 var rowAddedArgs = new RowCreatedEventArgs<T>()
                 {
@@ -334,7 +355,7 @@ namespace Syncfusion.Blazor.Grids.Internal
                     Index = eventArgs.Index,
                     EditContext = eventArgs.EditContext,
                 };
-                await SfBaseUtils.InvokeEvent<RowCreatedEventArgs<T>>(Parent.GridEvents?.RowCreated, rowAddedArgs).ConfigureAwait(true);
+                await SfBaseUtils.InvokeEvent<RowCreatedEventArgs<T>>(Parent.GridEvents?.RowCreated!, rowAddedArgs).ConfigureAwait(true);
                 await Parent.EventAggregator.NotifyAsync("RowCreated", rowAddedArgs).ConfigureAwait(true);
             }
             if (Parent.FreezeModule!.GetFrozenCount() > 0)
@@ -381,12 +402,10 @@ namespace Syncfusion.Blazor.Grids.Internal
             var Data = Row.EditedData ?? Row.Data;
             CloneRowData(Data!);
             // AllowEditOnKeyPress: when the editor is opened by a printable key
-            // press, store the typed character in Cell metadata rather than calling
-            // SetValue() directly. This avoids reflection-based type conversion
-            // failures (e.g., string "a" -> DateTime). The prefill character is
+            // press, store the typed character in Cell metadata, the prefill character is
             // applied to the rendered input via JavaScript injection in the
             // edit cell component's OnAfterRenderAsync lifecycle.
-            if (prefillChar != null && Cell != null)
+            if (!string.IsNullOrEmpty(prefillChar))
             {
                 Cell.PrefillChar = prefillChar;
             }
@@ -395,7 +414,8 @@ namespace Syncfusion.Blazor.Grids.Internal
             IsLastRow = Parent.Rows?.OrderByDescending(x => x.Index).FirstOrDefault() == Row;
             EditContext = CloneData != null ? new EditContext(CloneData) : null!;
             var Keys = await Parent.GetPrimaryKeyFieldNamesAsync().ConfigureAwait(true);
-            if ((((Keys.Count != 0 && Keys[0].Equals(Cell.Column?.Field, StringComparison.Ordinal) && !Cell.IsDirty) || (!Cell.Column!.AllowEditing && !Cell?.IsDirty == true && Row?.Action != EditAction.Added)) && !IsAdd) || (!Cell!.Column.AllowAdding && Row?.Action == EditAction.Added))
+            bool isCellPrimaryKey = Keys != null && Keys.Count != 0 && Keys.Any(k => k.Equals(Cell.Column?.Field, StringComparison.Ordinal));
+            if ((((isCellPrimaryKey && !Cell.IsDirty) || (!Cell.Column!.AllowEditing && !Cell?.IsDirty == true && Row?.Action != EditAction.Added)) && !IsAdd) || (!Cell!.Column!.AllowAdding && Row?.Action == EditAction.Added))
             {
                 Cell!.EditDisabled = true;
                 return;
@@ -415,48 +435,12 @@ namespace Syncfusion.Blazor.Grids.Internal
                 Column = Cell.Column,
                 Parent = Parent
             };
-            // Cell mode: CellEditing is the dedicated begin-edit event.
-            // OnCellEdit is intentionally suppressed in Cell mode so users have a clean
-            // API surface. Existing Batch/Normal callers still receive OnCellEdit.
-            if (Parent.EditSettings?.Mode != EditMode.Cell)
+            await SfBaseUtils.InvokeEvent<CellEditArgs<T>>(Parent.GridEvents?.OnCellEdit!, args).ConfigureAwait(true);
+            await Parent.EventAggregator.NotifyAsync("CellEdit", args).ConfigureAwait(true);
+            if (args.Cancel)
             {
-                await SfBaseUtils.InvokeEvent<CellEditArgs<T>>(Parent.GridEvents?.OnCellEdit, args).ConfigureAwait(true);
-                await Parent.EventAggregator.NotifyAsync("CellEdit", args).ConfigureAwait(true);
-                if (args.Cancel)
-                {
-                    return;
-                }
+                return;
             }
-            else
-            {
-                var cellEditingArgs = new CellEditingEventArgs<T>()
-                {
-                    Cancel = false,
-                    ColumnName = args.ColumnName,
-                    Column = args.Column,
-                    RowData = args.RowData,
-                    Data = args.Data,
-                    IsForeignKey = args.IsForeignKey,
-                    ForeignKeyData = args.ForeignKeyData,
-                    ValidationRules = args.ValidationRules,
-                    Value = args.Value,
-                    PrimaryKey = args.PrimaryKey,
-                    EditContext = args.EditContext,
-                    RowIndex = Row?.Index ?? -1
-
-                };
-                await SfBaseUtils.InvokeEvent<CellEditingEventArgs<T>>(Parent.GridEvents?.CellEditing, cellEditingArgs).ConfigureAwait(true);
-                await Parent.EventAggregator.NotifyAsync("CellEditing", cellEditingArgs).ConfigureAwait(true);
-                if (cellEditingArgs.Cancel)
-                {
-                    return;
-                }
-                // Propagate cell-mode cancellation back to the shared args so that
-                // downstream code (EnsureDataAndEditContext) sees a consistent Cancel state.
-                args.Cancel = cellEditingArgs.Cancel;
-                args.EditContext = cellEditingArgs.EditContext;
-            }
-
             var cData = CloneData;
             EnsureDataAndEditContext(ref cData!, cellEditArgs: args);
             CloneData = cData;
@@ -464,11 +448,15 @@ namespace Syncfusion.Blazor.Grids.Internal
             {
                 await Parent.ClearSelectionAsync().ConfigureAwait(true);
             }
-            Row.IsDirty = true;
+            Row!.IsDirty = true;
             Cell.IsEdit = true;
             Parent.IsEdit = true;
             Parent.PreventRender();
             Parent.SoftRefresh = true;
+            if(IsCellEditMode())
+            {
+                Parent.EventAggregator.Trigger("ToolbarStateChanged", null!);
+            }
             if (Parent.AllowSelection && !Parent.SelectionSettings!.PersistSelection && !IsCheckBoxOnly())
             {
                 await Parent.SelectRowAsync((int)Row.Index!).ConfigureAwait(true);
@@ -482,14 +470,36 @@ namespace Syncfusion.Blazor.Grids.Internal
         internal async Task UpdateRow(double index, object data)
         {
             CloneRowData(data);
-            var currentViewRecords = await Parent.GetCurrentViewRecordsAsync().ConfigureAwait(true);
-            var originalRow = currentViewRecords[(int)index];
-            var updatedRow = (T)data;
-
-            var actionArgs = await BuildActionEventArgsForUpdateAsync(updatedRow, originalRow).ConfigureAwait(true);
-            var rowUpdatingArgs = await BuildRowUpdatingEventArgsAsync(updatedRow, originalRow).ConfigureAwait(true);
-
-            await ExecuteSingleCellUpdateAsync(actionArgs, rowUpdatingArgs).ConfigureAwait(true);
+            var PrimaryKeys = await Parent.GetPrimaryKeyFieldNamesAsync().ConfigureAwait(true);
+            var args = new ActionEventArgs<T>()
+            {
+                RequestType = Action.Save,
+                PrimaryKeys = PrimaryKeys?.ToArray()!,
+                Type = "ActionBegin",
+                Data = (T)data,
+                RowData = (await Parent.GetCurrentViewRecordsAsync().ConfigureAwait(true))[(int)index],
+                Cancel = false,
+                PreviousData = (await Parent.GetCurrentViewRecordsAsync().ConfigureAwait(true))[(int)index],
+                Action = "Edit"
+            };
+            var saveEventArgs = new RowUpdatingEventArgs<T>()
+            {
+                PrimaryKeys = PrimaryKeys?.ToArray()!,
+                Data = (T)data,
+                Cancel = false,
+                PreviousData = (await Parent.GetCurrentViewRecordsAsync().ConfigureAwait(true))[(int)index],
+                Action = SaveActionType.Edited
+            };
+            if (Parent.GridEvents?.RowUpdating.HasDelegate == true)
+            {
+                await (Parent.GridEvents?.RowUpdating.InvokeAsync(saveEventArgs))!.ConfigureAwait(true)!;
+            }
+            await Parent.EventAggregator.NotifyAsync("RowUpdating", saveEventArgs).ConfigureAwait(true);
+            Parent.EditModule!.IsAdd = false;
+            if (Parent.DataModule != null)
+                await Parent.DataModule.GetData(args, eventArgs: saveEventArgs, requestType: "Save").ConfigureAwait(true);
+            Parent.EditModule.IsAdd = Parent.EditSettings!.ShowAddNewRow ? true : false;
+            await Parent.ModelChanged(new ActionEventArgs<T>() { Cancel = false, RequestType = Action.Refresh }, requestType: "Save", eventArgs: saveEventArgs, isSavingTriggered: true).ConfigureAwait(true);
         }
 
         internal async Task SaveCell(bool ForceSave = false, bool isDelete = false, bool isEscapeKey = false, bool focusLastGridCell = false, bool focusFirstCellOnShiftTab = false)
@@ -506,7 +516,7 @@ namespace Syncfusion.Blazor.Grids.Internal
                 {
                     ForceValidate = false;
                     var Result = ErrorResult.Find(_ => _.FieldName == OriginalCell!.Column?.Field);
-                    Result = Result == null ? ErrorResult.Find(_ => OriginalCell!.Column!.Field.Contains(_.FieldName, StringComparison.CurrentCulture)) : Result;
+                    Result = Result == null ? ErrorResult.Find(_ => OriginalCell!.Column!.Field.Contains(_.FieldName ?? "", StringComparison.CurrentCulture)) : Result;
                     if (ErrorResult.Count != 0 && Result != null)
                     {
                         var Row = IsAdd ?
@@ -519,12 +529,12 @@ namespace Syncfusion.Blazor.Grids.Internal
                             IsEmptyRowRendered = true;
                             Parent.EventAggregator.Trigger("RowStateChanged", Parent.Rows);
                         }
-                        if (!position.ContainsKey(GetComplexName(Result.Uid ?? Result.FieldName)) || Parent.EditSettings?.Mode == EditMode.Cell)
+                        if (!position.ContainsKey(GetComplexName(Result.Uid ?? Result.FieldName!)) || IsCellEditMode())
                         {
                             await InvokeValidation(new List<ValidationResult>() { Result }).ConfigureAwait(true);
                             await Parent.InvokeMethod(
                                 "sfBlazor.Grid.focusCell",
-                                Parent.DataId, OriginalCell?.Column?.Field, IsAdd).ConfigureAwait(true);
+                                Parent.DataId, OriginalCell?.Column?.Field!, IsAdd).ConfigureAwait(true);
                         }
                         return;
                     }
@@ -542,10 +552,13 @@ namespace Syncfusion.Blazor.Grids.Internal
             if (!ForceSave)
             {
                 var PreviousVal = Parent.PropHelper?.GetObject(OriginalCell!.Column!.Field, OriginalRow!.Data!);
+               
                 if (OriginalRow != null && OriginalRow.EditedData != null)
+
                 {
                     PreviousVal = Parent.PropHelper?.GetObject(OriginalCell!.Column!.Field, OriginalRow.EditedData);
                 }
+
                 OriginalRow!.EditedData = CloneData!;
                 var EditedValue = Parent.PropHelper?.GetObject(OriginalCell!.Column!.Field, OriginalRow.EditedData);
                 
@@ -567,7 +580,7 @@ namespace Syncfusion.Blazor.Grids.Internal
                     OriginalRow.IsDirty = GridUtils.CompareValues<object>(args.PreviousValue, args.Value);
                 }
                 OriginalRow.EditedData = OriginalRow.IsDirty || IsCellEditMode() ? CloneData! : null!;
-                await SfBaseUtils.InvokeEvent<CellSaveArgs<T>>(Parent.GridEvents?.OnCellSave, args).ConfigureAwait(true);
+                await SfBaseUtils.InvokeEvent<CellSaveArgs<T>>(Parent.GridEvents?.OnCellSave!, args).ConfigureAwait(true);
                 await Parent.EventAggregator.NotifyAsync("CellSave", args).ConfigureAwait(true);
                 if (args.Cancel)
                 {
@@ -629,18 +642,70 @@ namespace Syncfusion.Blazor.Grids.Internal
             }
             if (!ForceSave)
             {
-                await SfBaseUtils.InvokeEvent<CellSavedArgs<T>>(Parent.GridEvents?.CellSaved, cellSavedArgs!).ConfigureAwait(true);
+                await SfBaseUtils.InvokeEvent<CellSavedArgs<T>>(Parent.GridEvents?.CellSaved!, cellSavedArgs!).ConfigureAwait(true);
                 await Parent.EventAggregator.NotifyAsync("CellSaved", cellSavedArgs!).ConfigureAwait(true);
+                bool isNewlyAddedRow = (OriginalRow?.Action ?? EditAction.None) == EditAction.Added;
+                bool valueChanged = cellSavedArgs != null && 
+                    GridUtils.CompareValues<object>(cellSavedArgs.PreviousValue!, cellSavedArgs.Value!);
+                
+                if (!isNewlyAddedRow && cellSavedArgs != null && Parent.UndoRedoManager != null && Parent.EditSettings != null && Parent.EditSettings.EnableUndoRedo == true && Parent.EditSettings?.Mode == EditMode.Batch &&  valueChanged)
+                {
+                    if (Parent.UndoRedoManager != null && Parent.UndoRedoManager.IsActiveBatchPending && 
+                        Parent.UndoRedoManager.ActiveBatchType == UndoRedoActionType.Paste)
+                    {
+                        Parent.UndoRedoManager.BufferCellChange(
+                            OriginalRow?.Index ?? -1,
+                            OriginalCell.Index ?? -1,
+                            OriginalCell.Column?.Field,
+                            cellSavedArgs!.PreviousValue,
+                            cellSavedArgs.Value,
+                            OriginalCell.Column);
+                    }
+                    else
+                    {
+                        Parent.UndoRedoManager?.RecordCellEditAction(
+                            OriginalRow?.Index ?? -1,
+                            OriginalCell.Index ?? -1,
+                            OriginalCell.Column?.Field,
+                            cellSavedArgs!.PreviousValue,
+                            cellSavedArgs.Value,
+                            OriginalCell.Column);
+                    }
+                }
+                else if (isNewlyAddedRow &&
+                         Parent.EditSettings?.EnableUndoRedo == true &&
+                         Parent.EditSettings?.Mode == EditMode.Batch &&
+                         Parent.UndoRedoManager != null &&
+                         Parent.UndoRedoManager.IsEnabled &&
+                         OriginalRow != null)
+                {
+                    var rowIndex = OriginalRow.Index ?? -1;
+                    var wasUpdated = Parent.UndoRedoManager.UpdateLastRowAddAction(rowIndex, (T)OriginalRow.EditedData!);
+                    
+                    if (wasUpdated)
+                    {
+                        Parent.UndoRedoManager.TriggerUndoRedoStackChanged();
+                    }
+                }
             }
         }
 
         internal async Task DeleteRecord(string fieldname = null!, object data = null!)
         {
+            var primaryKeyFields = string.IsNullOrEmpty(fieldname)
+                ? null
+                : new List<string> { fieldname };
+
+            await DeleteRecord(primaryKeyFields, data).ConfigureAwait(true);
+        }
+
+        internal async Task DeleteRecord(IReadOnlyList<string>? primaryKeyFields, object data)
+        {
             Parent.FocusModule!.SelectedCellIndex = await Parent.EditModule!.GetSelectedCellIndex().ConfigureAwait(true);
             if (Parent.EditSettings?.Mode == EditMode.Batch)
             {
                 await SaveCell(isDelete: true).ConfigureAwait(true);
-                await BulkDelete(fieldname, data, true).ConfigureAwait(true);
+                await BulkDelete(primaryKeyFields, data, true).ConfigureAwait(true);
                 if (ErrorResult.Count > 0)
                 {
                     ClearRules();
@@ -674,22 +739,44 @@ namespace Syncfusion.Blazor.Grids.Internal
             }
             else
             {
-                var deletedRow = Parent.SelectionModule?.SelectedRow();
+                var primaryKeys = await Parent.GetPrimaryKeyFieldNamesAsync().ConfigureAwait(true);
+                Row<object>? deletedRow = null;
+                if (data != null && primaryKeys?.Count > 0 && Parent.EditSettings != null && Parent.EditSettings.EnableUndoRedo == true)
+                {
+                    foreach (var row in Parent.Rows ?? Enumerable.Empty<Row<object>>())
+                    {
+                        if (row.Data != null && await MatchCompositeKeyAsync(row.Data, data, primaryKeys).ConfigureAwait(true))
+                        {
+                            deletedRow = row;
+                            break;
+                        }
+                    }
+                }
+                if (deletedRow == null && Parent.SelectionModule != null)
+                {
+                    deletedRow = Parent.SelectionModule.SelectedRow();
+                }
+
                 var columns = GridUtils.GetColumns(Parent);
                 EditRowIndex = columns.Any(x => x.Type == ColumnType.CheckBox) ? -1 : deletedRow?.Index;
                 if (deletedRow != null)
                 {
                     deletedRow.Action = EditAction.Deleted;
+
                 }
-                var primaryKeys = await Parent.GetPrimaryKeyFieldNamesAsync().ConfigureAwait(true);
+
+                var deleteData = (T)data! ?? Parent.SelectedRecords[0];
+                var deletePrimaryKeyObjs = await GetPrimaryKeyValueAsObject(deleteData).ConfigureAwait(true);
+                var deletePrimaryKeyStrings = await GetPrimaryKeyValue(deleteData!).ConfigureAwait(true);
                 var args = new ActionEventArgs<T>()
                 {
                     RequestType = Action.Delete,
                     Type = "ActionBegin",
                     Cancel = false,
-                    RowData = (T)data ?? Parent.SelectedRecords[0],
+                    RowData = (T)data! ?? Parent.SelectedRecords[0],
                     Data = (T)data! ?? Parent.SelectedRecords[0],
                     PrimaryKeys = primaryKeys?.ToArray()!,
+                    PrimaryKeyValue = deletePrimaryKeyStrings != null && deletePrimaryKeyStrings.Count > 0 ? deletePrimaryKeyStrings[0] : null!,
                     Action = "Delete"
                 };
                 var deleteEventArgs = new RowDeletingEventArgs<T>()
@@ -704,7 +791,7 @@ namespace Syncfusion.Blazor.Grids.Internal
                 }
                 if (Parent.FocusModule != null)
                     Parent.FocusModule.IsChildFocused = false;
-                await Parent.ModelChanged(args, eventArgs: deleteEventArgs, requestType: "Delete", isDeleteAction: fieldname != null && data != null).ConfigureAwait(true);
+                await Parent.ModelChanged(args, eventArgs: deleteEventArgs, requestType: "Delete", isDeleteAction: primaryKeys != null && primaryKeys.Count > 0 && data != null).ConfigureAwait(true);
             }
         }
 
@@ -720,7 +807,7 @@ namespace Syncfusion.Blazor.Grids.Internal
                 {
                     return true;
                 }
-                else if (!Column.IsPrimaryKey && !Parent.GroupSettings!.ShowGroupedColumn && !Column.Visible && Parent.GroupSettings.Columns != null && Parent.GroupSettings.Columns.Any(col => col.Equals(Column.Field, StringComparison.Ordinal)))
+                else if (Column.AllowEditing && !Column.IsPrimaryKey && !Parent.GroupSettings!.ShowGroupedColumn && !Column.Visible && Parent.GroupSettings.Columns != null && Parent.GroupSettings.Columns.Any(col => col.Equals(Column.Field, StringComparison.Ordinal)))
                 {
                     return true;
                 }
@@ -769,7 +856,7 @@ namespace Syncfusion.Blazor.Grids.Internal
                 Index = 0,
                 Parent = Parent
             };
-            await SfBaseUtils.InvokeEvent<BeforeBatchAddArgs<T>>(Parent.GridEvents?.OnBatchAdd, args).ConfigureAwait(true);
+            await SfBaseUtils.InvokeEvent<BeforeBatchAddArgs<T>>(Parent.GridEvents?.OnBatchAdd!, args).ConfigureAwait(true);
             await Parent.EventAggregator.NotifyAsync("BatchAdd", args).ConfigureAwait(true);
             if (args.Cancel)
             {
@@ -812,8 +899,7 @@ namespace Syncfusion.Blazor.Grids.Internal
         {
             await SaveCell().ConfigureAwait(true);
             var PrimaryFields = await Parent.GetPrimaryKeyFieldNamesAsync().ConfigureAwait(true);
-            var PrimaryKey = PrimaryFields.Count != 0 ? PrimaryFields[0] : null;
-            var BatchChanges = GetBatchChanges();
+            BatchChanges<T>? BatchChanges = GetBatchChanges();
 
             if (Parent.GridEvents?.OnBatchSave.HasDelegate == true || Parent.IsRenderedFromTreeGrid)
             {
@@ -831,12 +917,14 @@ namespace Syncfusion.Blazor.Grids.Internal
                 if (args.Cancel)
                     return;
             }
-
-            var ChangesUpdated = await Parent.DataModule!.SaveChanges(BatchChanges, PrimaryKey!).ConfigureAwait(true);
+            var primaryKeys = PrimaryFields.Count != 0 ? PrimaryFields : null;
+            var ChangesUpdated = await Parent.DataModule!.InvokeSaveChanges(BatchChanges, primaryKeys!.ToArray()).ConfigureAwait(true);
             if (!ChangesUpdated)
             {
                 return;
             }
+            // Clear() is safe to call regardless of IsEnabled (no-ops when disabled), so no IsEnabled check is needed.
+            Parent.UndoRedoManager?.Clear();
 
             HasBatchChanges = false;
             Parent.Rows?.ForEach(row =>
@@ -862,6 +950,10 @@ namespace Syncfusion.Blazor.Grids.Internal
             {
                 Parent.ReactiveAggregateModule.OriginalCells.Clear();
             }
+            if (Parent.IsFindToolbarEnabled() && Parent.FindHightLightModule != null && !string.IsNullOrEmpty(Parent.FindHightLightModule.SearchHighlightKey))
+            {
+                Parent.EventAggregator.Trigger("ClearSearchHighlight", null!);
+            }
         }
         
         private int AddRows(Row<object> row, int index = 0)
@@ -883,6 +975,13 @@ namespace Syncfusion.Blazor.Grids.Internal
             RefreshRowIndex();
             row.IsDirty = true;
             row.Action = EditAction.Added;
+            if (Parent.UndoRedoManager != null && Parent.EditSettings != null && Parent.EditSettings.EnableUndoRedo == true && CloneData != null)
+            {
+                Parent.UndoRedoManager.RecordRowAddAction(
+                    (T)CloneData,
+                    addedRowIndex >= 0 ? addedRowIndex : row.Index ?? -1,
+                    Parent.EditSettings?.NewRowPosition ?? NewRowPosition.Bottom);
+            }
             return addedRowIndex;
         }
 
@@ -956,11 +1055,23 @@ namespace Syncfusion.Blazor.Grids.Internal
         private async Task BatchUpdates(List<T> batchChanges, String action, List<T> Data)
         {
             var primaryKeyFields = await Parent.GetPrimaryKeyFieldNamesAsync().ConfigureAwait(true);
-            var primaryKeyField = primaryKeyFields.Count > 0 ? primaryKeyFields[0] : null;
+            if (primaryKeyFields == null || primaryKeyFields.Count == 0)
+            {
+                return;
+            }
+
             foreach (var data in batchChanges)
             {
-                var key = Parent.PropHelper?.GetObject(primaryKeyField!, data);
-                var index = Data.FindIndex(item => Parent.PropHelper?.GetObject(primaryKeyField!, item)?.ToString() == key?.ToString());
+                var index = -1;
+                for (var i = 0; i < Data.Count; i++)
+                {
+                    if (await Parent.EditModule!.MatchCompositeKeyAsync(Data[i], data, primaryKeyFields).ConfigureAwait(true))
+                    {
+                        index = i;
+                        break;
+                    }
+                }
+
                 var row = index >= 0 && index < Parent.Rows?.Count ? Parent.Rows[index] : null;
                 if (row != null)
                 {
@@ -974,10 +1085,10 @@ namespace Syncfusion.Blazor.Grids.Internal
                         CloneRowData(row.EditedData! ?? row.Data!);
                         foreach (var cell in row.Cells)
                         {
-                            cell.IsDirty = cell.Column!.AllowEditing ? GridUtils.CompareValues<object>(Parent.PropHelper?.GetObject(cell.Column.Field, row.Data!)!, Parent.PropHelper!.GetObject(cell.Column.Field, data)) : false;
+                            cell.IsDirty = cell.Column!.AllowEditing ? GridUtils.CompareValues<object>(Parent.PropHelper?.GetObject(cell.Column.Field, row.Data!)!, Parent.PropHelper?.GetObject(cell.Column.Field, data)!) : false;
                             if (cell.IsDirty)
                             {
-                                SetValue(DataUtil.GetObject(cell.Column.Field, data), cell.Column.Field);
+                                SetValue(DataUtil.GetObject(cell.Column.Field, data!), cell.Column.Field);
                             }
                         }
                         row.IsDirty = row.Cells.Any(_ => _.IsDirty);
@@ -1000,9 +1111,8 @@ namespace Syncfusion.Blazor.Grids.Internal
             return false;
         }
 
-        private async Task BulkDelete(string Field, object data, bool isDelete = false)
+        internal async Task BulkDelete(IReadOnlyList<string>? compositeKeys, object data, bool isDelete = false)
         {
-            var field = Field;
             if (!isDelete && EditContext != null && !EditContext.Validate())
             {
                 await SaveCell(true, isDelete).ConfigureAwait(true);
@@ -1012,11 +1122,15 @@ namespace Syncfusion.Blazor.Grids.Internal
             var dataRow = new Row<object>();
             if (data != null && rows != null)
             {
+                var primaryKeyFields = await Parent.GetPrimaryKeyFieldNamesAsync().ConfigureAwait(true);
                 foreach (var row in rows)
                 {
-                    var primaryKey = (await GetPrimaryKeyValue(row.Data!).ConfigureAwait(true)).Count != 0 ? (await GetPrimaryKeyValue(row.Data!).ConfigureAwait(true))[0] : string.Empty;
-                    var dataKey = (await GetPrimaryKeyValue(data).ConfigureAwait(true)).Count != 0 ? (await GetPrimaryKeyValue(data).ConfigureAwait(true))[0] : string.Empty;
-                    if (primaryKey.Equals(dataKey.ToString(), StringComparison.Ordinal))
+                    if (row.Data == null)
+                    {
+                        continue;
+                    }
+
+                    if (await MatchCompositeKeyAsync(row.Data, data, primaryKeyFields).ConfigureAwait(true))
                     {
                         dataRow = row;
                         break;
@@ -1033,7 +1147,7 @@ namespace Syncfusion.Blazor.Grids.Internal
                 Parent = Parent
             };
             EditRowIndex = EditRowIndex ?? (int?)args.RowIndex;
-            await SfBaseUtils.InvokeEvent<BeforeBatchDeleteArgs<T>>(Parent.GridEvents?.OnBatchDelete, args).ConfigureAwait(true);
+            await SfBaseUtils.InvokeEvent<BeforeBatchDeleteArgs<T>>(Parent.GridEvents?.OnBatchDelete!, args).ConfigureAwait(true);
             await Parent.EventAggregator.NotifyAsync("BatchDelete", args).ConfigureAwait(true);
             if (args.Cancel)
             {
@@ -1058,13 +1172,29 @@ namespace Syncfusion.Blazor.Grids.Internal
             {
                 _.IsDirty = true;
                 _.Action = EditAction.Deleted;
+                if (Parent.UndoRedoManager != null && Parent.EditSettings != null && Parent.EditSettings.EnableUndoRedo == true && (_.EditedData != null || _.Data != null))
+                {
+                    var rowDataToStore = (T?)(_.EditedData ?? _.Data);
+                    Parent.UndoRedoManager.RecordRowDeleteAction(rowDataToStore, _.Index ?? -1);
+                }
             });
+            if (Parent.UndoRedoManager != null && Parent.EditSettings != null && Parent.EditSettings.EnableUndoRedo == true)
+            {
+                Parent.UndoRedoManager.TriggerUndoRedoStackChanged();
+            }
             Parent.EventAggregator.Trigger("ToolbarStateChanged", null!);
             await Parent.SelectRowAsync(args.RowIndex + 1).ConfigureAwait(true);
         }
 
         internal async Task BatchClose(bool escapeKey = false)
         {
+            if (Parent.EditSettings?.EnableUndoRedo == true &&
+                Parent.UndoRedoManager != null && !Parent.IsEdit)
+            {
+                Parent.UndoRedoManager.Clear();
+                Parent.EventAggregator.Trigger("UndoRedoStackChanged", null!);
+            }
+
             var batchChanges = GetBatchChanges();
             var editedRow = Parent.Rows?.Where(s => s.Cells?.Any(c => c.IsEdit) ?? false).FirstOrDefault();
             EditRowIndex = editedRow?.Index ?? EditRowIndex;
@@ -1362,15 +1492,15 @@ namespace Syncfusion.Blazor.Grids.Internal
                     }
                     else if (result!.IsValid)
                     {
-                        if (ErrorResult.Any(x => x.FieldName == result.FieldName) || (Columns.Any(x => x.Field.Contains('.', StringComparison.Ordinal)) && ErrorResult.Any(x => result.FieldName.Contains(x.FieldName, StringComparison.CurrentCulture))))
+                        if (ErrorResult.Any(x => x.FieldName == result.FieldName) || (Columns.Any(x => x.Field.Contains('.', StringComparison.Ordinal)) && ErrorResult.Any(x => result.FieldName!.Contains(x.FieldName ?? "", StringComparison.CurrentCulture))))
                         {
                             var Count = ErrorResult.Count;
                             ErrorResult.Remove(ErrorResult.Find(x => x.Uid == result.Uid)!);
-                            if (Columns.Any(x => x.Field.Contains('.', StringComparison.Ordinal)) && ErrorResult.Any(x => result.Uid != null && result.Uid.Contains(x.Uid, System.StringComparison.CurrentCulture)))
+                            if (Columns.Any(x => x.Field.Contains('.', StringComparison.Ordinal)) && ErrorResult.Any(x => result.Uid != null && result.Uid.Contains(x.Uid ?? "", System.StringComparison.CurrentCulture)))
                             {
                                 ErrorResult.Remove(result);
                             }
-                            position.Remove(GetComplexName(result.Uid ?? result.FieldName));
+                            position.Remove(GetComplexName(result.Uid ?? result.FieldName!));
                             if (ValueChanged || TemplateColumn || TemplateProp || Count > 0)
                             {
                                 Parent.EventAggregator.Trigger("ShowValidationMessage", null!);
@@ -1499,12 +1629,11 @@ namespace Syncfusion.Blazor.Grids.Internal
         {
             if (Parent != null && Parent.EditSettings != null && Parent.EditSettings.Mode.Equals(EditMode.Batch) && Parent.EditSettings.AllowEditOnSingleClick && !cell.Column!.IsPrimaryKey && !(cell.Column?.Type == ColumnType.CheckBox))
             {
-                await SingleClickHandler(row, cell).ConfigureAwait(true);
-                return true;
+                return await SingleClickHandler(row, cell).ConfigureAwait(true);
             }
             return false;
         }
-        internal async Task SingleClickHandler(Row<object> row, Cell<object> cell)
+        internal async Task<bool> SingleClickHandler(Row<object> row, Cell<object> cell)
         {
             var keys = await Parent.GetPrimaryKeyFieldNamesAsync().ConfigureAwait(true);
             if (Parent != null && Parent.IsEdit)
@@ -1513,23 +1642,25 @@ namespace Syncfusion.Blazor.Grids.Internal
                 await ValidateNextCell().ConfigureAwait(true);
                 if (Parent.IsEdit)
                 {
-                    return;
+                    return true;
                 }
             }
-            if (keys != null && keys.Count != 0 && keys[0].Equals(cell.Column?.Field, StringComparison.Ordinal) && !cell.IsDirty && !IsAdd)
+            bool isCellPrimaryKey = keys != null && keys.Count != 0 && keys.Any(k => k.Equals(cell.Column?.Field, StringComparison.Ordinal));
+            if (isCellPrimaryKey && !cell.IsDirty && !IsAdd)
             {
                 cell.EditDisabled = true;
-                return;
+                return true;
             }
 
             if (cell != null && cell.Column != null && !cell.Column.AllowEditing)
             {
-                return;
+                return false;
             }
 
 
 
             await EditCell(row, cell!).ConfigureAwait(true);
+            return true;
         }
 
         internal async Task DblClickHandler(Row<object> Row, Cell<object> Cell)
@@ -1572,6 +1703,10 @@ namespace Syncfusion.Blazor.Grids.Internal
                     {
                         Parent.SelectionModule.IsBatchModeDoubleClick = true;
                     }
+                    if (Parent.IsFindToolbarEnabled())
+                    {
+                        Parent.FindHightLightModule?.ClearSearchHighlightOnFormOpenAsync().ConfigureAwait(true);
+                    }
                     await EditCell(Row, Cell).ConfigureAwait(true);
                     if (Parent.SelectionModule != null)
                     {
@@ -1595,7 +1730,7 @@ namespace Syncfusion.Blazor.Grids.Internal
         {
             if (Parent.IsEdit)
             {
-                if (Parent.EditSettings != null && !IsBatchEditMode() && !IsCellEditMode())
+                if (Parent.EditSettings != null && !IsBatchEditMode())
                 {
                     if (row.IsEdit != true)
                     {
@@ -1739,12 +1874,12 @@ namespace Syncfusion.Blazor.Grids.Internal
                 if (result != null)
                 {
                     focus.Cancel = true;
-                    if (!position.ContainsKey(GetComplexName(result.FieldName)))
+                    if (!position.ContainsKey(GetComplexName(result.FieldName!)))
                     {
                         await InvokeValidation(new List<ValidationResult>() { result }).ConfigureAwait(true);
                     }
 
-                    await Parent.InvokeMethod("sfBlazor.Grid.focusCell", Parent.DataId, focus.Cell?.Column?.Field, IsAdd).ConfigureAwait(true);
+                    await Parent.InvokeMethod("sfBlazor.Grid.focusCell", Parent.DataId, focus.Cell?.Column?.Field!, IsAdd).ConfigureAwait(true);
                 }
             }
 
@@ -1843,7 +1978,7 @@ namespace Syncfusion.Blazor.Grids.Internal
 
             if (i != 0)
             { // Generic with dynamic complex data
-                dynamicData = DataUtil.GetDynamicValue(dynamicData != null ? dynamicData as DynamicObject : data?.GetType().GetProperty(Fields?[i - 1]!)?.GetValue(data) as DynamicObject, Fields?[i]);
+                dynamicData = DataUtil.GetDynamicValue((dynamicData != null ? dynamicData as DynamicObject : data?.GetType().GetProperty(Fields?[i - 1]!)?.GetValue(data) as DynamicObject)!, Fields?[i]!);
                 if (i == (Complex - 1) && dynamicData != null)
                 {
                     Type dynamicDataType = dynamicData.GetType();
@@ -1857,7 +1992,7 @@ namespace Syncfusion.Blazor.Grids.Internal
             }
             else
             {
-                dynamicData = DataUtil.GetDynamicValue(dynamicData != null ? dynamicData as DynamicObject : data as DynamicObject, Fields?[i]);
+                dynamicData = DataUtil.GetDynamicValue((dynamicData != null ? dynamicData as DynamicObject : data as DynamicObject)!, Fields?[i]!);
 
                 if (i == (Complex - 1) && dynamicData != null)
                 {
@@ -1887,7 +2022,7 @@ namespace Syncfusion.Blazor.Grids.Internal
 
             if (i != 0)
             { // Generic with expandoObject complex data
-                customData = customData != null ? (customData is ExpandoObject ? DataUtil.GetExpandoValue(customData as ExpandoObject, Fields[i - 1]) : customData.GetType().GetProperty(Fields[i - 1])?.GetValue(customData))! : data.GetType().GetProperty(Fields[i - 1])?.GetValue(data)!;
+                customData = customData != null ? (customData is ExpandoObject ? DataUtil.GetExpandoValue((customData as ExpandoObject)!, Fields[i - 1]) : customData.GetType().GetProperty(Fields[i - 1])?.GetValue(customData))! : data.GetType().GetProperty(Fields[i - 1])?.GetValue(data)!;
                 dynamicType = customData != null ? DataUtil.GetColumnType(new List<object>() { customData }, true) : null!;
                 if (dynamicType != null && dynamicType.TryGetValue(Fields[i], out Type? value))
                 {
@@ -2008,16 +2143,16 @@ namespace Syncfusion.Blazor.Grids.Internal
             {
                 if (targetRowdata != null && rowObject != null && targetColumn != null)
                 {
-                    await Parent.EditCellAsync((int)rowObject.Index!, targetColumn.Field);
+                    await Parent.EditCellAsync((int)rowObject.Index!, targetColumn.Field).ConfigureAwait(true);
                 }
             }
             else
             {
                 if (!Parent.EditSettings.ShowAddNewRow)
                 {
-                    await Parent.EndEditAsync();
+                    await Parent.EndEditAsync().ConfigureAwait(true);
                 }
-                await StartEdit(rowObject);
+                await StartEdit(rowObject).ConfigureAwait(true);
             }
         }
 
@@ -2025,27 +2160,34 @@ namespace Syncfusion.Blazor.Grids.Internal
         {
             if (Parent.EditSettings!.Mode != EditMode.Batch && !Parent.EditSettings.ShowAddNewRow)
             {
-                await Parent.EndEditAsync();
+                await Parent.EndEditAsync().ConfigureAwait(true);
             }
             if (Parent.SelectedRecords.Count == 1)
             {
-                await Parent.DeleteRecordAsync(targetColumn.Field, targetRowdata!);
+                await Parent.DeleteRecordAsync(targetColumn.Field, targetRowdata!).ConfigureAwait(true);
             }
             else
             {
-                await Parent.DeleteRecordAsync();
+                await Parent.DeleteRecordAsync().ConfigureAwait(true);
             }
         }
 
-        internal Row<object>? GetSelectedRowForEdit()
+        internal async Task<Row<object>?> GetSelectedRowForEdit()
         {
+            bool isDetailTemplateUsed = (Parent as IGrid).GridTemplates?.DetailTemplate != null;
+            bool isValidRowIndex = Parent.SelectedRowIndex >= 0 && Parent.SelectedRowIndex < Parent.Rows?.Count;
+            if (Parent.IsRenderedFromTreeGrid && isDetailTemplateUsed && Parent.IsEdit && isValidRowIndex)
+            {
+                await Parent.CloseEditAsync().ConfigureAwait(true);
+            }
             Row<object> Row = new Row<object>();
             if (Parent.SelectedRecords.Count > 0)
             {
-                var selectedRowIndex = Parent.Rows.Where(_ => _.IsSelected).Select(x => x.Index).FirstOrDefault();
-                if (selectedRowIndex != null && selectedRowIndex > -1)
+                var rows = Parent.Rows;
+                var selectedRowIndex = rows?.Where(_ => _.IsSelected).Select(x => x.Index).FirstOrDefault() ?? -1;
+                if (selectedRowIndex != -1 && rows != null)
                 {
-                    Row = Parent.Rows.Find(_ => _.Index == selectedRowIndex)!;
+                    Row = rows.Find(_ => _.Index == selectedRowIndex) ?? Row;
                 }
                 else
                 {
@@ -2054,6 +2196,18 @@ namespace Syncfusion.Blazor.Grids.Internal
             }
             else
             {
+                if (Parent.IsRenderedFromTreeGrid && Parent.AllowSelection && !Parent.EnableVirtualization && 
+                    Parent.Rows != null && isValidRowIndex && isDetailTemplateUsed &&
+                    Parent.SelectionSettings?.Mode == SelectionMode.Row)
+                {
+                    Row = Parent.Rows.FirstOrDefault(row => row.IsDataRow && !row.IsDetailRow && row.Visible &&
+                        !row.IsRowSelectionCancelled && row.Index == Parent.SelectedRowIndex)!;
+                    if (Row != null)
+                    {
+                        return Row;
+                    }
+                }
+
                 AlertMessage = "EditAlert";
                 Parent.EventAggregator.Trigger("ShowValidationDialog", null!);
                 return null;
@@ -2061,6 +2215,7 @@ namespace Syncfusion.Blazor.Grids.Internal
 
             return Row;
         }
+
 
         internal (List<string> EnableItems, List<string> DisableItems) GetToolbarItemStates()
         {
@@ -2078,7 +2233,7 @@ namespace Syncfusion.Blazor.Grids.Internal
                 DisableItems.Add("Add");
             }
 
-            if (Edit != null && Edit.AllowEditing && HasData && !IsCellEditMode())
+            if (Edit != null && Edit.AllowEditing && HasData)
             {
                 EnableItems.Add("Edit");
             }
@@ -2108,6 +2263,31 @@ namespace Syncfusion.Blazor.Grids.Internal
                     DisableItems.Add("Update");
                     DisableItems.Add("Cancel");
                 }
+                if (Edit != null && Edit.EnableUndoRedo && Parent.UndoRedoManager != null)
+                {
+                    if (Parent.UndoRedoManager.UndoCount > 0)
+                    {
+                        EnableItems.Add("Undo");
+                    }
+                    else
+                    {
+                        DisableItems.Add("Undo");
+                    }
+
+                    if (Parent.UndoRedoManager.RedoCount > 0)
+                    {
+                        EnableItems.Add("Redo");
+                    }
+                    else
+                    {
+                        DisableItems.Add("Redo");
+                    }
+                }
+                else
+                {
+                    DisableItems.Add("Undo");
+                    DisableItems.Add("Redo");
+                }
             }
             else
             {
@@ -2121,6 +2301,8 @@ namespace Syncfusion.Blazor.Grids.Internal
                     DisableItems.Add("Update");
                     DisableItems.Add("Cancel");
                 }
+                DisableItems.Add("Undo");
+                DisableItems.Add("Redo");
             }
 
             return (EnableItems, DisableItems);
@@ -2167,37 +2349,16 @@ namespace Syncfusion.Blazor.Grids.Internal
         {
             return Parent.EditSettings?.Mode == EditMode.Batch;
         }
-
-        /// <summary>
-        /// Determines if the current edit operation should commit Cell mode values to the data source.
-        /// </summary>
-        private bool ShouldCommitCellValueInEditMode()
+        internal async Task InvokeApplyPrefillToInput(bool isFromNumericEdit = false)
         {
-            return Parent.EditSettings?.Mode == EditMode.Cell && OriginalRow != null && OriginalCell != null
-                && OriginalCell.Column != null && CloneData != null;
-        }
-
-        /// <summary>
-        /// Commits a validated cell value to the bound data source (Cell mode only).
-        /// Must be called only after EditContext.Validate() passes.
-        /// </summary>
-        private void CommitCellValueToDataSource()
-        {
-            if (!ShouldCommitCellValueInEditMode())
-                return;
-
-            var cellField = OriginalCell!.Column!.Field;
-            var newValue = Parent.PropHelper?.GetObject(cellField, CloneData);
-            
-            ReflectionExtension.SetValue(
-                OriginalRow!.Data!,
-                cellField,
-                newValue,
-                true,
-                options: new SetOptions() { CreateInstanceForComplexType = true });
-            
-            OriginalCell.Changes = true;
-            OriginalRow.HasDataChanges = true;
+            if (IsCellEditMode() && OriginalCell != null && OriginalCell.PrefillChar != null)
+            {
+                string prefillValue = OriginalCell.PrefillChar;
+                string fieldName = OriginalCell.Column?.Field ?? string.Empty;
+                await Parent.InvokeMethod("sfBlazor.Grid.applyPrefillToInput", Parent.DataId, fieldName, prefillValue, OriginalCell.Uid, isFromNumericEdit).ConfigureAwait(true);
+                // Clear the prefill character so it is not re-applied on subsequent renders.
+                OriginalCell.PrefillChar = null;
+            }
         }
 
         #endregion
@@ -2220,7 +2381,7 @@ namespace Syncfusion.Blazor.Grids.Internal
             return isBottomAdd && Parent.EnableVirtualization ? 0 : (int)EditedRow!.Index!;
         }
 
-        private void RefreshRowIndex()
+        internal void RefreshRowIndex()
         {
             var Index = 0;
             Parent.Rows?.ForEach(Row =>
@@ -2250,13 +2411,17 @@ namespace Syncfusion.Blazor.Grids.Internal
                     PreventDataClone = false,
                     Parent = Parent
                 };
-                await SfBaseUtils.InvokeEvent<ActionEventArgs<T>>(Parent.GridEvents?.OnActionBegin, startArgs).ConfigureAwait(true);
+                await SfBaseUtils.InvokeEvent<ActionEventArgs<T>>(Parent.GridEvents?.OnActionBegin!, startArgs).ConfigureAwait(true);
                 await Parent.EventAggregator.NotifyAsync("ActionBegin", startArgs).ConfigureAwait(true);
-                await SfBaseUtils.InvokeEvent<OnRowEditStartEventArgs>(Parent.GridEvents?.OnRowEditStart, startEditargs).ConfigureAwait(true);
+                await SfBaseUtils.InvokeEvent<OnRowEditStartEventArgs>(Parent.GridEvents?.OnRowEditStart!, startEditargs).ConfigureAwait(true);
                 await Parent.EventAggregator.NotifyAsync("BeforeRowEditing", startEditargs).ConfigureAwait(true);
                 if (startEditargs.Cancel)
                 {
                     return;
+                }
+                if (Parent.IsFindToolbarEnabled())
+                {
+                    Parent.FindHightLightModule?.ClearSearchHighlightOnFormOpenAsync().ConfigureAwait(true);
                 }
                 Parent.EditModule!.IsAdd = false;
                 CloneRowData(Row.Data!, startArgs.PreventDataClone || startEditargs.PreventDataClone);
@@ -2274,7 +2439,7 @@ namespace Syncfusion.Blazor.Grids.Internal
                     Cancel = false,
                     Parent = Parent
                 };
-                await SfBaseUtils.InvokeEvent<BeginEditArgs<T>>(Parent.GridEvents?.OnBeginEdit, args).ConfigureAwait(true);
+                await SfBaseUtils.InvokeEvent<BeginEditArgs<T>>(Parent.GridEvents?.OnBeginEdit!, args).ConfigureAwait(true);
                 await Parent.EventAggregator.NotifyAsync("BeginEdit", args).ConfigureAwait(true);
                 var actionArgs = new ActionEventArgs<T>()
                 {
@@ -2303,9 +2468,9 @@ namespace Syncfusion.Blazor.Grids.Internal
                     EditContext = EditContext,
                     Parent = Parent
                 };
-                await SfBaseUtils.InvokeEvent<ActionEventArgs<T>>(Parent.GridEvents?.OnActionBegin, actionArgs).ConfigureAwait(true);
+                await SfBaseUtils.InvokeEvent<ActionEventArgs<T>>(Parent.GridEvents?.OnActionBegin!, actionArgs).ConfigureAwait(true);
                 await Parent.EventAggregator.NotifyAsync("ActionBegin", actionArgs).ConfigureAwait(true);
-                await SfBaseUtils.InvokeEvent<RowEditingEventArgs<T>>(Parent.GridEvents?.RowEditing, editingEventArgs).ConfigureAwait(true);
+                await SfBaseUtils.InvokeEvent<RowEditingEventArgs<T>>(Parent.GridEvents?.RowEditing!, editingEventArgs).ConfigureAwait(true);
                 await Parent.EventAggregator.NotifyAsync("RowEditing", editingEventArgs).ConfigureAwait(true);
                 if (actionArgs.Cancel || editingEventArgs.Cancel)
                 {
@@ -2349,7 +2514,7 @@ namespace Syncfusion.Blazor.Grids.Internal
                 Parent.EventAggregator.Trigger("RowStateChanged", firstRow!);
                 Parent.EventAggregator.Trigger("ToolbarStateChanged", null!);
                 actionArgs.Type = "ActionComplete";
-                await SfBaseUtils.InvokeEvent<ActionEventArgs<T>>(Parent.GridEvents?.OnActionComplete, actionArgs).ConfigureAwait(true);
+                await SfBaseUtils.InvokeEvent<ActionEventArgs<T>>(Parent.GridEvents?.OnActionComplete!, actionArgs).ConfigureAwait(true);
                 await Parent.EventAggregator.NotifyAsync("ActionComplete", actionArgs).ConfigureAwait(true);
                 var editedArgs = new RowEditedEventArgs<T>()
                 {
@@ -2361,7 +2526,7 @@ namespace Syncfusion.Blazor.Grids.Internal
                     EditContext = editingEventArgs.EditContext,
                     Parent = Parent
                 };
-                await SfBaseUtils.InvokeEvent<RowEditedEventArgs<T>>(Parent.GridEvents?.RowEdited, editedArgs).ConfigureAwait(true);
+                await SfBaseUtils.InvokeEvent<RowEditedEventArgs<T>>(Parent.GridEvents?.RowEdited!, editedArgs).ConfigureAwait(true);
                 await Parent.EventAggregator.NotifyAsync("RowEdited", editedArgs).ConfigureAwait(true);
 
             }
@@ -2389,7 +2554,7 @@ namespace Syncfusion.Blazor.Grids.Internal
                     Parent.IsEdit = true;
                 }
             }
-            if (Parent.EditSettings?.Mode == EditMode.Cell && !IsAdd)
+            if (Parent.EditSettings?.Mode == EditMode.Cell && !IsAdd) // If Add operation, the flow goes like normal edit for editmode.cell
             {
                 if (Parent.IsEdit)
                 {
@@ -2434,6 +2599,10 @@ namespace Syncfusion.Blazor.Grids.Internal
                 else
                 {
                     await BatchSave().ConfigureAwait(true);
+                    if (Parent.IsFindToolbarEnabled() && Parent.FindHightLightModule != null && !string.IsNullOrEmpty(Parent.FindHightLightModule.SearchHighlightKey))
+                    {
+                        Parent.EventAggregator.Trigger("ClearSearchHighlight", null!);
+                    }
                 }
             }
             else
@@ -2445,7 +2614,7 @@ namespace Syncfusion.Blazor.Grids.Internal
                 }
                 ForceValidate = true;
                 bool isTabKey = keyCombination != null && keyCombination.Equals("Tab", StringComparison.Ordinal);
-                if (!EditContext.Validate() && !IsCellEditMode())
+                if (!EditContext.Validate() && (!IsCellEditMode() || (IsCellEditMode() && IsAdd)))
                 {
                     ForceValidate = false;
                     if (ErrorResult.Count > 0) // Handled for identity and cols hidden
@@ -2453,7 +2622,7 @@ namespace Syncfusion.Blazor.Grids.Internal
                         var ValidateFields = new List<ValidationResult>();
                         foreach (var key in ErrorResult)
                         {
-                            if (!position.ContainsKey(GetComplexName(key.Uid ?? key.FieldName)))
+                            if (!position.ContainsKey(GetComplexName(key.Uid ?? key.FieldName!)))
                             {
                                 ValidateFields.Add(key);
                             }
@@ -2473,7 +2642,7 @@ namespace Syncfusion.Blazor.Grids.Internal
                                 {
                                     await InvokeValidation(ValidateFields).ConfigureAwait(true);
                                     int editableRowIndex = Parent.EditSettings != null && Parent.EditSettings.Mode.Equals(EditMode.Normal) && Parent.EditSettings.NewRowPosition == NewRowPosition.Top ? 0 :
-                                        Parent.AllowGrouping && Parent.GroupSettings != null && Parent.GroupSettings.Columns?.Length > 0 ? Parent.VirtualScrollModule!.VisibleGroupRows.Count : Parent.TotalItemCount;
+                                        Parent.AllowGrouping && Parent.GroupSettings != null && Parent.GroupSettings.Columns?.Length > 0 ? Parent.VirtualScrollModule?.VisibleGroupRows?.Count ?? 0 : Parent.TotalItemCount;
                                     await Parent.InvokeMethod("sfBlazor.Grid.scrollIntoView", new object[] { Parent.DataId, -1, editableRowIndex, -1, Parent.EditSettings?.NewRowPosition == NewRowPosition.Bottom }).ConfigureAwait(true);
                                 }
                                 else if (Parent.GroupSettings?.Columns == null || Parent.GroupSettings.Columns.Length == 0)
@@ -2511,6 +2680,7 @@ namespace Syncfusion.Blazor.Grids.Internal
                 ForceValidate = false;
                 var Primarykeys = await Parent.GetPrimaryKeyFieldNamesAsync().ConfigureAwait(true);
                 var primaryKeyValues = await GetPrimaryKeyValue(CloneData!).ConfigureAwait(true);
+                var primaryKeyObjects = await GetPrimaryKeyValueAsObject(CloneData!).ConfigureAwait(true);
                 var args = new ActionEventArgs<T>()
                 {
                     RowData = (T)EditedRow?.Data!,
@@ -2522,7 +2692,7 @@ namespace Syncfusion.Blazor.Grids.Internal
                     Code = KeyCode!,
                     Cancel = false,
                     PrimaryKeys = Primarykeys?.ToArray() ?? new List<String>().ToArray(),
-                    PrimaryKeyValue = primaryKeyValues != null && primaryKeyValues.Count > 0 ? primaryKeyValues[0] : null!
+                    PrimaryKeyValue = primaryKeyValues != null && primaryKeyValues.Count > 0 ? primaryKeyValues[0] : null!,
                 };
                 var saveEventArgs = new RowUpdatingEventArgs<T>()
                 {
@@ -2533,7 +2703,7 @@ namespace Syncfusion.Blazor.Grids.Internal
                     KeyCode = KeyCode!,
                     Cancel = false,
                     PrimaryKeys = Primarykeys?.ToArray() ?? new List<String>().ToArray(),
-                    PrimaryKeyValue = primaryKeyValues != null && primaryKeyValues.Count > 0 ? primaryKeyValues[0] : null!
+                    PrimaryKeyValue = primaryKeyValues != null && primaryKeyValues.Count > 0 ? primaryKeyValues[0] : null!,
                 };
                 bool isBottomNewRowPosition = Parent.EditSettings!.NewRowPosition.Equals(NewRowPosition.Bottom);
                 if(!IsCellEditMode())
@@ -2624,6 +2794,10 @@ namespace Syncfusion.Blazor.Grids.Internal
                     else if (Parent.EditSettings.Mode == EditMode.Dialog && !Parent.SelectionSettings!.CheckboxOnly && Parent.SelectionModule != null && EditedRow != null)
                     {
                         await Parent.SelectionModule.SelectRowAndCell(EditRowIndex, args.RowIndex, cell!, isCellMode, isBothMode).ConfigureAwait(true);
+                        if (Parent.EnableAdaptiveUI && Parent.Toolbar != null)
+                        {
+                            Parent.EventAggregator.Trigger("ToolbarStateChanged", null!);
+                        }
                     }                    
                 }
 
@@ -2666,7 +2840,7 @@ namespace Syncfusion.Blazor.Grids.Internal
                     }
                 }
 
-                if (selectedRow != null && cellIndex != null && !ignoreFocus && args.Action != "Add" && !(isFirstContentCellFocused && isFilterBar && isShiftTabKey))
+                if (selectedRow != null && cellIndex != null && !ignoreFocus && args.Action != "Add" && !(isFirstContentCellFocused && isFilterBar && isShiftTabKey) && !IsCellEditMode())
                 {
                     var cellObject = selectedRow.Cells.Where(_ => _.Index == (int)cellIndex).FirstOrDefault();
                     await Parent.FocusModule!.Focus(selectedRow.Uid!, cellObject?.Uid!, "UpdateRecord", cellColIndex: cellObject?.Index + 1 ?? -1).ConfigureAwait(true);
@@ -2688,9 +2862,13 @@ namespace Syncfusion.Blazor.Grids.Internal
             }
         }
 
-        internal async Task CloseEdit(bool escapeKey = false)
+        internal async Task CloseEdit(bool escapeKey = false, bool preventFocus = false)
         {
             Parent.PreventRender(false);
+            if (Parent.IsFindToolbarEnabled())
+            {
+                Parent.EventAggregator.Trigger("RefreshSearchHighlight", null!);
+            }
             bool isFromAddForm = false;
             Parent.FocusModule!.SelectedCellIndex = await Parent.EditModule!.GetSelectedCellIndex().ConfigureAwait(true);
             if (Parent.EditSettings != null && Parent.EditSettings.ShowAddNewRow)
@@ -2747,44 +2925,10 @@ namespace Syncfusion.Blazor.Grids.Internal
                     PrimaryKeys = (await Parent.GetPrimaryKeyFieldNamesAsync().ConfigureAwait(true))?.ToArray()!,
                     Parent = Parent
                 };
-                await SfBaseUtils.InvokeEvent<ActionEventArgs<T>>(Parent.GridEvents?.OnActionBegin, args).ConfigureAwait(true);
+                await SfBaseUtils.InvokeEvent<ActionEventArgs<T>>(Parent.GridEvents?.OnActionBegin!, args).ConfigureAwait(true);
                 await Parent.EventAggregator.NotifyAsync("ActionBegin", args).ConfigureAwait(true);
-                await SfBaseUtils.InvokeEvent<EditCancelingEventArgs<T>>(Parent.GridEvents?.EditCanceling, cancelEventArgs).ConfigureAwait(true);
+                await SfBaseUtils.InvokeEvent<EditCancelingEventArgs<T>>(Parent.GridEvents?.EditCanceling!, cancelEventArgs).ConfigureAwait(true);
                 await Parent.EventAggregator.NotifyAsync("Cancelling", cancelEventArgs).ConfigureAwait(true);
-                // Cell mode: fire CellEditCanceling (cancellable) before allowing cancel to proceed.
-                // Capture the cell data here (before any state reset) so CellEditCanceled
-                // can fire after the existing EditCanceled with the discarded value intact.
-                CellEditCanceledEventArgs<T>? cellCanceledArgs = null;
-                if (Parent.EditSettings?.Mode == EditMode.Cell && OriginalRow != null && OriginalCell?.Column != null)
-                {
-                    var discardedValue = Parent.PropHelper?.GetObject(OriginalCell.Column.Field!, CloneData);
-                    var cellCancelingArgs = new CellEditCancelingEventArgs<T>()
-                    {
-                        Cancel = false,
-                        ColumnName = OriginalCell.Column.Field,
-                        Column = OriginalCell.Column,
-                        RowData = (T?)OriginalRow.Data,
-                        RowIndex = OriginalRow.Index ?? -1,
-                        PrimaryKeys = cancelEventArgs.PrimaryKeys,
-                        DiscardedValue = discardedValue
-                    };
-                    await SfBaseUtils.InvokeEvent<CellEditCancelingEventArgs<T>>(Parent.GridEvents?.CellEditCanceling, cellCancelingArgs).ConfigureAwait(true);
-                    await Parent.EventAggregator.NotifyAsync("CellEditCanceling", cellCancelingArgs).ConfigureAwait(true);
-                    if (cellCancelingArgs.Cancel)
-                    {
-                        return;
-                    }
-                    // Stash for the post-reset CellEditCanceled fire.
-                    cellCanceledArgs = new CellEditCanceledEventArgs<T>()
-                    {
-                        ColumnName = cellCancelingArgs.ColumnName,
-                        Column = cellCancelingArgs.Column,
-                        RowData = (T?)OriginalRow.Data,
-                        RowIndex = cellCancelingArgs.RowIndex,
-                        PrimaryKeys = cellCancelingArgs.PrimaryKeys,
-                        DiscardedValue = cellCancelingArgs.DiscardedValue
-                    };
-                }
                 if (args.Cancel || cancelEventArgs.Cancel)
                 {
                     return;
@@ -2796,7 +2940,7 @@ namespace Syncfusion.Blazor.Grids.Internal
                 }
 
                 ClearRules();
-                if (IsAdd && Parent.EditSettings!.Mode.Equals(EditMode.Normal))
+                if (IsAdd && (Parent.EditSettings!.Mode.Equals(EditMode.Normal) || IsCellEditMode()))
                 {
                     Parent.Rows?.Remove(row!);
                 }
@@ -2845,25 +2989,18 @@ namespace Syncfusion.Blazor.Grids.Internal
                 }
 
                 Parent.EventAggregator.Trigger("ToolbarStateChanged", null!);
-                await SfBaseUtils.InvokeEvent<ActionEventArgs<T>>(Parent.GridEvents?.OnActionComplete, args).ConfigureAwait(true);
+                await SfBaseUtils.InvokeEvent<ActionEventArgs<T>>(Parent.GridEvents?.OnActionComplete!, args).ConfigureAwait(true);
                 await Parent.EventAggregator.NotifyAsync("ActionComplete", args).ConfigureAwait(true);
-                await SfBaseUtils.InvokeEvent<EditCanceledEventArgs<T>>(Parent.GridEvents?.EditCanceled, cancelEventArgs).ConfigureAwait(true);
+                await SfBaseUtils.InvokeEvent<EditCanceledEventArgs<T>>(Parent.GridEvents?.EditCanceled!, cancelEventArgs).ConfigureAwait(true);
                 await Parent.EventAggregator.NotifyAsync("Cancelled", cancelEventArgs).ConfigureAwait(true);
-                // Cell mode: fire CellEditCanceled (non-cancellable) using the data captured
-                // before the state reset. No state mutation, no new logic.
-                if (cellCanceledArgs != null)
-                {
-                    await SfBaseUtils.InvokeEvent<CellEditCanceledEventArgs<T>>(Parent.GridEvents?.CellEditCanceled, cellCanceledArgs).ConfigureAwait(true);
-                    await Parent.EventAggregator.NotifyAsync("CellEditCanceled", cellCanceledArgs).ConfigureAwait(true);
-                }
                 bool isFocused = await Parent.InvokeMethod<bool>("sfBlazor.Grid.focusNextFrame", false, new object[] { Parent.DataId }).ConfigureAwait(true);
                 var cellIndex = Parent.FocusModule?.SelectedCellIndex;
-                if (cellIndex != null && selectedRowIndex != null && !isFromAddForm)
+                if (!preventFocus && cellIndex != null && selectedRowIndex != null && !isFromAddForm)
                 {
                     var selectedRow = Parent.Rows?.Find(_ => _.Index == selectedRowIndex);
                     if (selectedRow != null && Parent.FocusModule != null)
                     {
-                        int cellEditCellIndex = Parent.EditSettings.Mode != EditMode.Cell ? selectedRow.Cells[(int)cellIndex].Index + 1 ?? -1 : selectedRow.Cells.Where(cell => cell.CellType == CellType.Data).ToList()[(int)cellIndex].Index + 1 ?? -1;
+                        int cellEditCellIndex = !IsCellEditMode() ? selectedRow.Cells[(int)cellIndex].Index + 1 ?? -1 : selectedRow.Cells.Where(cell => cell.CellType == CellType.Data).ToList()[(int)cellIndex].Index + 1 ?? -1;
                         await Parent.FocusModule.Focus(selectedRow.Uid!, selectedRow.Cells[(int)cellIndex].Uid, "CancelEdit", cellColIndex: cellEditCellIndex).ConfigureAwait(true);
                     }
                 }
@@ -2942,7 +3079,52 @@ namespace Syncfusion.Blazor.Grids.Internal
 
             return primaryKeyValues;
         }
-        
+
+        internal async Task<List<object?>?> GetPrimaryKeyValueAsObject(object? Data)
+        {
+            var primaryKeys = await Parent.GetPrimaryKeyFieldNamesAsync().ConfigureAwait(true);
+            if (Data == null)
+            {
+                return null;
+            }
+
+            var primaryKeyValues = new List<object?>(primaryKeys?.Count ?? 0);
+            if (primaryKeys != null)
+            {
+                foreach (var key in primaryKeys)
+                {
+                    primaryKeyValues.Add(Parent.PropHelper?.GetObject(key, Data));
+                }
+            }
+
+            return primaryKeyValues;
+        }
+
+        internal async Task<bool> MatchCompositeKeyAsync(object? candidateData, object? targetData, IReadOnlyList<string>? primaryKeyFields)
+        {
+            if (candidateData == null || targetData == null || primaryKeyFields == null || primaryKeyFields.Count == 0 || Parent == null)
+            {
+                return false;
+            }
+
+            var candidateKeyValues = await GetPrimaryKeyValueAsObject(candidateData).ConfigureAwait(true);
+            var targetKeyValues = await GetPrimaryKeyValueAsObject(targetData).ConfigureAwait(true);
+            if (candidateKeyValues == null || targetKeyValues == null || candidateKeyValues.Count == 0 || targetKeyValues.Count == 0)
+            {
+                return false;
+            }
+
+            if (primaryKeyFields.Count > 1)
+            {
+                return new CompositeKey(candidateKeyValues.ToArray()).Equals(new CompositeKey(targetKeyValues.ToArray()));
+            }
+
+            var primaryKeyField = primaryKeyFields[0];
+            var candidateValue = Parent.PropHelper?.GetObject(primaryKeyField, candidateData);
+            var targetValue = Parent.PropHelper?.GetObject(primaryKeyField, targetData);
+            return !GridUtils.CompareValues(candidateValue, targetValue);
+        }
+
         internal void SetValue<TValue>(TValue Value, string Field, object cloneData = null!)
         {
             cloneData = cloneData ?? CloneData!;
@@ -2952,7 +3134,7 @@ namespace Syncfusion.Blazor.Grids.Internal
             }
             ValueChanged = true;
 
-            ReflectionExtension.SetValue(cloneData, Field, Value, true, options: new SetOptions()
+            ReflectionExtension.SetValue(cloneData, Field, Value!, true, options: new SetOptions()
             {
                 CreateInstanceForComplexType = true
             });
@@ -2963,8 +3145,11 @@ namespace Syncfusion.Blazor.Grids.Internal
         private object GetValueForNullable(DynamicObject item, object value, string property)
         {
             var rowData = Parent.Rows?.FirstOrDefault(x => x.Data is DynamicObject dynamicObj && dynamicObj != null && DataUtil.GetDynamicValue(dynamicObj, property) != null);
-            item = (rowData?.Data as DynamicObject)!;
-            value = DataUtil.GetDynamicValue(item, property);
+            if (rowData?.Data is DynamicObject dynamicObject)
+            {
+                item = dynamicObject;
+                value = DataUtil.GetDynamicValue(item, property);
+            }
             return value;
         }
 
@@ -2986,36 +3171,113 @@ namespace Syncfusion.Blazor.Grids.Internal
 
         internal async Task SetCellValue(object key, string field, object value)
         {
-            Row<object>? TargetRow = null;
-            var Rows = Parent.Rows?.FindAll(_ => _.IsDataRow);
-            if (Rows != null)
-            {
-                foreach (var Row in Rows)
-                {
-                    var PrimaryKey = (await GetPrimaryKeyValue(Row.Data!).ConfigureAwait(true))?.FirstOrDefault();
-                    if (PrimaryKey?.Equals(key?.ToString(), StringComparison.Ordinal) == true)
-                    {
-                        TargetRow = Row;
-                        break;
-                    }
-                }
-            }
+            List<CellUpdate> cellUpdates = new List<CellUpdate>{ new CellUpdate{ColumnField = field, NewValue = value, PrimaryKeyValue = key } }; 
+            await SetCellValue(cellUpdates).ConfigureAwait(true);
+            return;
+        }
 
-            if (TargetRow == null)
+        internal async Task SetCellValue(IReadOnlyDictionary<string, object>? primaryKeyValues, string field, object value)
+        {
+            if (primaryKeyValues == null || primaryKeyValues.Count == 0)
             {
                 return;
             }
+            List<CellUpdate> cellUpdates = new List<CellUpdate> { new CellUpdate { ColumnField = field, NewValue = value, PrimaryKeyValues = primaryKeyValues } };
+            await SetCellValue(cellUpdates).ConfigureAwait(true);
+            return;
+        }
 
-            CloneRowData(TargetRow.Data!);
-            SetValue(value, field);
-            var Changes = new BatchChanges<T>();
-            Changes.ChangedRecords = new List<T>() { (T)CloneData! };
-            if (Parent.DataModule != null)
+        internal async Task SetCellValue(IReadOnlyList<CellUpdate> cellUpdates = null!)
+        {
+            if(cellUpdates == null || cellUpdates.Count == 0)
             {
-
-                await Parent.DataModule.SaveChanges(Changes, (await Parent.GetPrimaryKeyFieldNamesAsync().ConfigureAwait(true))?.FirstOrDefault()!).ConfigureAwait(true);
+                return;
             }
-            await Parent.DataProcess().ConfigureAwait(true);
+            var keyFields = await Parent.GetPrimaryKeyFieldNamesAsync().ConfigureAwait(true);
+            if (keyFields == null || keyFields.Count == 0)
+            {
+                return;
+            }
+            await SetCellValueCompositeAsync(cellUpdates.ToList(), keyFields).ConfigureAwait(true);
+        }
+
+        private async Task SetCellValueCompositeAsync(List<CellUpdate> cellUpdates, IReadOnlyList<string> keyFields)
+        {
+            var rowDataByPK = new Dictionary<CompositeKey, T>();
+            var Rows = Parent.Rows?.FindAll(_ => _.IsDataRow);
+            var keyFieldsArr = keyFields.ToArray();
+
+            for (int i = 0; i < cellUpdates.Count; i++)
+            {
+                var update = cellUpdates[i];
+                if (Rows == null || update == null)
+                {
+                    break;
+                }
+
+                CompositeKey targetKey = BuildUpdateCompositeKey(update, keyFieldsArr);
+
+                // Check if we already have a working copy for this composite key
+                if (rowDataByPK.TryGetValue(targetKey, out T? existingRowData))
+                {
+                    // Use the existing working copy (has accumulated changes)
+                    CloneRowData(existingRowData!);
+                }
+                else
+                {
+                    // First time seeing this composite key, find the matching row
+                    var found = false;
+                    foreach (var Row in Rows)
+                    {
+                        var rowKeyValues = await GetPrimaryKeyValueAsObject(Row.Data!).ConfigureAwait(true);
+                        if (rowKeyValues == null || rowKeyValues.Count == 0)
+                        {
+                            continue;
+                        }
+                        if (targetKey.Equals(new CompositeKey(rowKeyValues.ToArray())))
+                        {
+                            CloneRowData(Row.Data!);
+                            found = true;
+                            break;
+                        }
+                    }
+                    if (!found)
+                    {
+                        continue;
+                    }
+                }
+
+                // Apply the cell value change
+                SetValue(update.NewValue!, update.ColumnField!);
+
+                // Store/update the working copy for this composite key
+                rowDataByPK[targetKey] = (T)CloneData!;
+            }
+
+            // After all updates, persist all accumulated rows using composite-key persistence.
+            // InvokeSaveChanges already routes to either the legacy string overload (length==1) or the composite IReadOnlyList<string> overload.
+            var updatedRecords = new List<T>(rowDataByPK.Values);
+            if (updatedRecords.Count > 0 && Parent.DataModule != null)
+            {
+                var Changes = new BatchChanges<T> { ChangedRecords = updatedRecords };
+                await Parent.DataModule.InvokeSaveChanges(Changes, keyFieldsArr).ConfigureAwait(true);
+                await Parent.DataProcess().ConfigureAwait(true);
+            }
+        }
+
+        // Positional projection of a CellUpdate's PK info into a CompositeKey aligned with the grid's PK field order.
+        private static CompositeKey BuildUpdateCompositeKey(CellUpdate update, string[] keyFields)
+        {
+            List<object> positional = new List<object>(keyFields.Length);
+            if (update.PrimaryKeyValues != null && update.PrimaryKeyValues.Count > 0)
+            {
+                positional =SfGrid<T>.BuildPositionalKeyValues(update.PrimaryKeyValues, keyFields);
+            }
+            else if (update.PrimaryKeyValue != null)
+            {
+                positional.Add(update.PrimaryKeyValue);
+            }
+            return new CompositeKey(positional.ToArray());
         }
 
         #endregion
@@ -3026,127 +3288,52 @@ namespace Syncfusion.Blazor.Grids.Internal
         {
             var dataField = await Parent.GetColumnByFieldAsync(fieldName).ConfigureAwait(true);
             var dropField = await Parent.GetColumnByFieldAsync(columnname).ConfigureAwait(true);
-            if (dropField?.Format != null && dataField?.ValueType == dropField?.ValueType)
+
+            if (dropField?.Format != null && dataField?.ValueType == dropField.ValueType)
             {
-                var Row = Parent.Rows?.FirstOrDefault(_ => _.Index == valueIndex);
-                CloneRowData(Row?.EditedData ?? Row?.Data!);
-                value = DataUtil.GetObject(columnname, CloneData)?.ToString()!;
+                var row = Parent.Rows?.FirstOrDefault(_ => _.Index == valueIndex);
+                CloneRowData(row?.EditedData ?? row?.Data!);
+                value = DataUtil.GetObject(columnname, CloneData!)?.ToString()!;
             }
+
             if (dataField != null && !dataField.IsPrimaryKey)
             {
-                if (dataField.ValueType == typeof(string))
+                var TargetRow = Parent.Rows?.Find(_ => _.Index == rowIndex);
+                var preFillValue = TargetRow != null ? Parent.PropHelper?.GetObject(fieldName, TargetRow.Data!) : null;
+                object? convertedValue = await GetCellPasteValueAsync(fieldName, value).ConfigureAwait(true);
+                await UpdateCell(rowIndex, fieldName, convertedValue!).ConfigureAwait(true);
+                if (Parent.UndoRedoManager != null && Parent.EditSettings != null && Parent.EditSettings.EnableUndoRedo == true && Parent.EditSettings?.Mode == EditMode.Batch && convertedValue != null)
                 {
-                    await UpdateCell(rowIndex, fieldName, value).ConfigureAwait(true);
-                }
-                else if ((dataField.ValueType == typeof(bool) || dataField.ValueType == typeof(bool?)) && bool.TryParse(value, out var newboolean))
-                {
-                    await UpdateCell(rowIndex, fieldName, newboolean).ConfigureAwait(true);
-                }
-                else if (dataField.ValueType?.IsEnum == true && Enum.TryParse(typeof(T).GetProperty(fieldName)?.PropertyType!, value, out var newenum))
-                {
-                    await UpdateCell(rowIndex, fieldName, newenum).ConfigureAwait(true);
-                }
-                else if (dataField.ValueType == typeof(char) && char.TryParse(value, out var newChar))
-                {
-                    await UpdateCell(rowIndex, fieldName, newChar).ConfigureAwait(true);
-                }
-                else if ((dataField.ValueType == typeof(DateTime) || dataField.ValueType == typeof(DateTime?)))
-                {
-                    if (DateTime.TryParseExact(value, dataField.Format, CultureInfo.InvariantCulture, DateTimeStyles.None, out var newformatdatetime))
+                    var columnIndex = TargetRow?.Cells
+                        ?.Find(_ => _.Column?.Field?.Equals(fieldName, StringComparison.Ordinal) == true)
+                        ?.Index ?? -1;
+
+                    if (Parent.UndoRedoManager.IsBatchActive)
                     {
-                        await UpdateCell(rowIndex, fieldName, newformatdatetime).ConfigureAwait(true);
+                        Parent.UndoRedoManager.BufferCellChange(
+                            (int)rowIndex,
+                            (int)columnIndex,
+                            fieldName,
+                            preFillValue,
+                            convertedValue,
+                            dataField);
                     }
-                    else if (DateTime.TryParse(value, out var newdatetime))
+                    else if (GridUtils.CompareValues<object>(preFillValue!, convertedValue!))
                     {
-                        await UpdateCell(rowIndex, fieldName, newdatetime).ConfigureAwait(true);
+                        Parent.UndoRedoManager.RecordCellEditAction(
+                            (int)rowIndex,
+                            (int)columnIndex,
+                            fieldName,
+                            preFillValue,
+                            convertedValue,
+                            dataField);
                     }
-                }
-                else if ((dataField.ValueType == typeof(Guid) || dataField.ValueType == typeof(Guid?)) && Guid.TryParse(value, out var newguid))
-                {
-                    await UpdateCell(rowIndex, fieldName, newguid).ConfigureAwait(true);
-                }
-                else if ((dataField.ValueType == typeof(DateTimeOffset) || dataField.ValueType == typeof(DateTimeOffset?)))
-                {
-                    if (DateTimeOffset.TryParse(value, out var newdateTimeOffset))
-                    {
-                        await UpdateCell(rowIndex, fieldName, newdateTimeOffset).ConfigureAwait(true);
-                    }
-                    else if (DateTimeOffset.TryParseExact(value, dataField.Format, CultureInfo.InvariantCulture, DateTimeStyles.None, out var newformatteddateTimeOffset))
-                    {
-                        await UpdateCell(rowIndex, fieldName, newformatteddateTimeOffset).ConfigureAwait(true);
-                    }
-                }
-                else if ((dataField.ValueType == typeof(DateOnly) || dataField.ValueType == typeof(DateOnly?)))
-                {
-                    if (DateOnly.TryParse(value, out var newdateonly))
-                    {
-                        await UpdateCell(rowIndex, fieldName, newdateonly).ConfigureAwait(true);
-                    }
-                    else if (DateOnly.TryParseExact(value, dataField.Format, CultureInfo.InvariantCulture, DateTimeStyles.None, out var newformatdateonly))
-                    {
-                        await UpdateCell(rowIndex, fieldName, newformatdateonly).ConfigureAwait(true);
-                    }
-                }
-                else if ((dataField.ValueType == typeof(TimeOnly) || dataField.ValueType == typeof(TimeOnly?)) && TimeOnly.TryParse(value, out var newtimeonly))
-                {
-                    await UpdateCell(rowIndex, fieldName, newtimeonly).ConfigureAwait(true);
-                }
-                else if ((dataField.ValueType == typeof(int) || dataField.ValueType == typeof(int?)) && int.TryParse(value, out var newint))
-                {
-                    await UpdateCell(rowIndex, fieldName, newint).ConfigureAwait(true);
-                }
-                else if ((dataField.ValueType == typeof(long) || dataField.ValueType == typeof(long?)) && long.TryParse(value, out var newint64))
-                {
-                    await UpdateCell(rowIndex, fieldName, newint64).ConfigureAwait(true);
-                }
-                else
-                {
-                    await UpdateCellValidation(dataField, rowIndex, fieldName, value).ConfigureAwait(true);
                 }
             }
 
             Parent.EventAggregator.Trigger("ToolbarStateChanged", null!);
         }
 
-        private async Task UpdateCellValidation(GridColumn dataField, double rowIndex, string fieldName, string value)
-        {
-            if ((dataField.ValueType == typeof(float) || dataField.ValueType == typeof(float?)) && float.TryParse(value, out var newfloat))
-            {
-                await UpdateCell(rowIndex, fieldName, newfloat).ConfigureAwait(true);
-            }
-            else if ((dataField.ValueType == typeof(decimal) || dataField.ValueType == typeof(decimal?)) && decimal.TryParse(value, out var newdecimal))
-            {
-                await UpdateCell(rowIndex, fieldName, newdecimal).ConfigureAwait(true);
-            }
-            else if ((dataField.ValueType == typeof(double) || dataField.ValueType == typeof(double?)) && double.TryParse(value, out var newdouble))
-            {
-                await UpdateCell(rowIndex, fieldName, newdouble).ConfigureAwait(true);
-            }
-            else if ((dataField.ValueType == typeof(long) || dataField.ValueType == typeof(long?)) && long.TryParse(value, out var newlong))
-            {
-                await UpdateCell(rowIndex, fieldName, newlong).ConfigureAwait(true);
-            }
-            else if ((dataField.ValueType == typeof(ulong) || dataField.ValueType == typeof(ulong?)) && ulong.TryParse(value, out var newulong))
-            {
-                await UpdateCell(rowIndex, fieldName, newulong).ConfigureAwait(true);
-            }
-            else if ((dataField.ValueType == typeof(ushort) || dataField.ValueType == typeof(ushort?)) && ushort.TryParse(value, out var newushort))
-            {
-                await UpdateCell(rowIndex, fieldName, newushort).ConfigureAwait(true);
-            }
-            else if ((dataField.ValueType == typeof(short) || dataField.ValueType == typeof(short?)) && short.TryParse(value, out var newshort))
-            {
-                await UpdateCell(rowIndex, fieldName, newshort).ConfigureAwait(true);
-            }
-            else if ((dataField.ValueType == typeof(uint) || dataField.ValueType == typeof(uint?)) && uint.TryParse(value, out var newuint))
-            {
-                await UpdateCell(rowIndex, fieldName, newuint).ConfigureAwait(true);
-            }
-            else
-            {
-                await UpdateCell(rowIndex, fieldName, null!).ConfigureAwait(true);
-            }
-        }
         internal async Task UpdateAutofillCell(double rowIndex, string fieldName, string columnName, double valueIndex)
         {
             var Row = Parent.Rows?.FirstOrDefault(_ => _.Index == valueIndex);
@@ -3154,26 +3341,63 @@ namespace Syncfusion.Blazor.Grids.Internal
             var valueField = await Parent.GetColumnByFieldAsync(columnName).ConfigureAwait(true);
             if (Row != null && !dataField.IsPrimaryKey && dataField.AllowEditing)
             {
+                var TargetRow = Parent.Rows?.Find(_ => _.Index == rowIndex);
+                var preFillValue = TargetRow != null
+                    ? Parent.PropHelper?.GetObject(fieldName, TargetRow.Data!)
+                    : null;
+
                 CloneRowData(Row.EditedData! ?? Row.Data!);
-                var data = DataUtil.GetObject(columnName, CloneData);
+                var data = DataUtil.GetObject(columnName, CloneData!);
+
+                object? newValue;
                 if (dataField.ValueType == valueField.ValueType)
                 {
+                    newValue = data;
                     await UpdateCell(rowIndex, fieldName, data).ConfigureAwait(true);
                 }
                 else if (dataField.ValueType == typeof(string))
                 {
-                    await UpdateCell(rowIndex, fieldName, data?.ToString()!).ConfigureAwait(true);
+                    newValue = data?.ToString();
+                    await UpdateCell(rowIndex, fieldName, newValue!).ConfigureAwait(true);
                 }
                 else
                 {
+                    newValue = null;
                     await UpdateCell(rowIndex, fieldName, null!).ConfigureAwait(true);
+                }
+                if (Parent.UndoRedoManager != null && Parent.EditSettings != null && Parent.EditSettings.EnableUndoRedo == true && Parent.EditSettings?.Mode == EditMode.Batch)
+                {
+                    var columnIndex = TargetRow?.Cells
+                        ?.Find(_ => _.Column?.Field?.Equals(fieldName, StringComparison.Ordinal) == true)
+                        ?.Index ?? -1;
+
+                    if (Parent.UndoRedoManager.IsBatchActive)
+                    {
+                        Parent.UndoRedoManager.BufferCellChange(
+                            (int)rowIndex,
+                            (int)columnIndex,
+                            fieldName,
+                            preFillValue,
+                            newValue,
+                            dataField);
+                    }
+                    else if (GridUtils.CompareValues<object>(preFillValue!, newValue!))
+                    {
+                        Parent.UndoRedoManager.RecordCellEditAction(
+                            (int)rowIndex,
+                            (int)columnIndex,
+                            fieldName,
+                            preFillValue,
+                            newValue,
+                            dataField);
+                    }
                 }
             }
 
             Parent.EventAggregator.Trigger("ToolbarStateChanged", null!);
         }
 
-        internal async Task UpdateCell(double rowIndex, string field, object value)
+        internal async Task UpdateCell(double rowIndex, string field, object value, bool isUndoRedoAction = false)
         {
             var Row = Parent.Rows?.Find(_ => _.Index == rowIndex);
             var Cell = Row?.Cells?.Find(_ => _.Column?.Field?.Equals(field, StringComparison.Ordinal) == true);
@@ -3197,15 +3421,62 @@ namespace Syncfusion.Blazor.Grids.Internal
             }
             if (Row != null && Cell != null)
             {
-                CloneRowData(Row.EditedData! ?? Row.Data!);
-                SetValue(value, field);
-                Cell.IsDirty = true;
-                Row.IsDirty = true;
-                HasBatchChanges = true;
-                Row.EditedData = CloneData!;
+                if (Parent.EditSettings != null && Parent.EditSettings.EnableUndoRedo)
+                {
+                    var sourceData = isUndoRedoAction ? Row.Data! : (Row.EditedData! ?? Row.Data!);
+                    CloneRowData(sourceData);
+                    SetValue(value, field);
+                    var originalCellValue = Parent.PropHelper?.GetObject(field, Row.Data!);
+                    var valueDiffersFromOriginal = GridUtils.CompareValues<object>(originalCellValue!, value!);
+                    Cell.IsDirty = valueDiffersFromOriginal;
+                    Cell.Changes = true;
+                    Row.IsDirty = Row.Cells?.Any(c => c.IsDirty) ?? false;
+                    if (Row.IsDirty)
+                    {
+                        if (isUndoRedoAction && Row.EditedData != null)
+                        {
+                            ReflectionExtension.SetValue(Row.EditedData, field, value!, true, options: new SetOptions()
+                            {
+                                CreateInstanceForComplexType = true
+                            });
+                        }
+                        else
+                        {
+                            Row.EditedData = CloneData!;
+                        }
+                    }
+                    else
+                    {
+                        Row.EditedData = null!;
+                    }
+                    HasBatchChanges = Parent.Rows?.Any(r => r.IsDirty) ?? false;
+                }
+                else
+                {
+                    CloneRowData(Row.EditedData! ?? Row.Data!);
+                    SetValue(value, field);
+                    Cell.IsDirty = true;
+                    Row.IsDirty = true;
+                    HasBatchChanges = true;
+                    Row.EditedData = CloneData!;
+                }
+                
                 Parent.SoftRefresh = true;
                 Parent.EventAggregator.Trigger("ContentStateChanged", null!);
                 Parent.EventAggregator.Trigger("ToolbarStateChanged", null!);
+
+                if (Parent.GridEvents?.AfterAutoFillCell.HasDelegate == true)
+                {
+                    var afterArgs = new AfterAutoFillCellEventArgs<T>
+                    {
+                        ColumnName = field,
+                        Value = value,
+                        RowIndex = (int)rowIndex,
+                        ColumnIndex = (int)Cell.Index!,
+                        Data = (T)Row.EditedData!
+                    };
+                    await Parent.GridEvents.AfterAutoFillCell.InvokeAsync(afterArgs).ConfigureAwait(true);
+                }
             }
             await Task.CompletedTask.ConfigureAwait(true);
         }
@@ -3242,25 +3513,57 @@ namespace Syncfusion.Blazor.Grids.Internal
 
         internal async Task SetRowData(object key, object rowData, bool suppressDataUpdate = false)
         {
+            await SetRowData(new List<object> { key }, rowData, suppressDataUpdate).ConfigureAwait(true);
+        }
+
+        internal async Task SetRowData(IReadOnlyList<object> keys, object rowData, bool suppressDataUpdate = false)
+        {
             var rows = Parent.Rows?.FindAll(_ => _.IsDataRow);
             var primaryKeyFields = await Parent.GetPrimaryKeyFieldNamesAsync().ConfigureAwait(true);
-            var primaryKeyField = primaryKeyFields?.Count > 0 ? primaryKeyFields[0] : null;
-            if (string.IsNullOrEmpty(primaryKeyField))
+            if (primaryKeyFields == null || primaryKeyFields.Count == 0)
             {
                 throw new InvalidOperationException("Primary key column is required to set row data");
             }
 
             if (rows != null)
             {
+                bool isComposite = primaryKeyFields.Count > 1;
+                object? updateKey = isComposite ? null : keys[0];
+
                 foreach (var row in rows)
                 {
-                    var primaryKeyValues = await GetPrimaryKeyValue(row.Data!).ConfigureAwait(true);
-                    var primaryKeyValue = primaryKeyValues.Count != 0 ? primaryKeyValues[0] : null;
-                    if (!string.IsNullOrEmpty(primaryKeyValue) && primaryKeyValue.Equals(key?.ToString(), StringComparison.Ordinal))
+                    bool matched = false;
+                    if (isComposite)
+                    {
+                        var rowKeyValues = await GetPrimaryKeyValueAsObject(row.Data!).ConfigureAwait(true);
+                        if (rowKeyValues != null && rowKeyValues.Count > 0)
+                        {
+                            matched = new CompositeKey(keys.ToArray()).Equals(new CompositeKey(rowKeyValues.ToArray()));
+                        }
+                    }
+                    else
+                    {
+                        var rowPrimaryKeyValues = await GetPrimaryKeyValue(row.Data!).ConfigureAwait(true);
+                        var rowPrimaryKeyValue = rowPrimaryKeyValues.Count != 0 ? rowPrimaryKeyValues[0] : null;
+                        matched = !string.IsNullOrEmpty(rowPrimaryKeyValue) && rowPrimaryKeyValue.Equals(updateKey?.ToString(), StringComparison.Ordinal);
+                    }
+
+                    if (matched)
                     {
                         try
                         {
-                            var result = !suppressDataUpdate ? await Parent.DataManager.Update<T>(primaryKeyField, rowData, Parent.Query?.FromTable, Parent.Query).ConfigureAwait(true) : null;
+                            object? result = null;
+                            if (!suppressDataUpdate && Parent.DataManager != null)
+                            {
+                                if (isComposite)
+                                {
+                                    //result = await Parent.DataManager!.Update<T>(primaryKeyFields, rowData, Parent.Query?.FromTable!, Parent.Query!).ConfigureAwait(true);
+                                }
+                                else
+                                {
+                                    result = await Parent.DataManager!.Update<T>(primaryKeyFields[0], rowData, Parent.Query?.FromTable!, Parent.Query!).ConfigureAwait(true);
+                                }
+                            }
                             row.Data = result ?? rowData;
                             row.Cells?.ForEach(_ => _.Changes = true);
                             Parent.SoftRefresh = true;
@@ -3430,12 +3733,12 @@ namespace Syncfusion.Blazor.Grids.Internal
             {
                 return await Task.FromResult<int>(0).ConfigureAwait(true);
             }
-            bool isBatchOrCellEditMode = Parent?.EditModule?.IsCellOrBatchEditMode() == true && Parent?.FocusModule?.SelectedCellIndex != null && Parent?.FocusModule.SelectedCellIndex >= 0;
-            if(!isBatchOrCellEditMode)
+            bool isBatchOrCellEditMode = Parent.EditModule?.IsCellOrBatchEditMode() == true && Parent.FocusModule?.SelectedCellIndex != null && Parent.FocusModule.SelectedCellIndex >= 0;
+            if (!isBatchOrCellEditMode)
             {
                 return await Task.FromResult<int>(Parent.Rows.FirstOrDefault(row => row.IsDataRow)?.Cells?.Where(cell => cell.Visible && cell.CellType != CellType.RowDrag).First().Index ?? 0).ConfigureAwait(true);
             }
-            return Parent?.FocusModule?.SelectedCellIndex ?? 0;
+            return (int)Parent.FocusModule?.SelectedCellIndex!;
         }
 
         #endregion
@@ -3632,13 +3935,13 @@ namespace Syncfusion.Blazor.Grids.Internal
 
         private void CloneRowData(object Data, bool PreventDataClone = false)
         {
-            if (Data is ExpandoObject)
+            if (Data is ExpandoObject expando)
             {
-                CloneData = CloneUtils.CloneExpandoObject(Data as ExpandoObject, PreventDataClone);
+                CloneData = CloneUtils.CloneExpandoObject(expando, PreventDataClone);
             }
-            else if (Data is DynamicObject)
+            else if (Data is DynamicObject dynamicObj)
             {
-                CloneData = CloneUtils.CloneDynamicObject(Data as DynamicObject, typeof(T), PreventDataClone);
+                CloneData = CloneUtils.CloneDynamicObject(dynamicObj, typeof(T), PreventDataClone);
             }
             else
             {
@@ -3679,338 +3982,157 @@ namespace Syncfusion.Blazor.Grids.Internal
 
         #endregion
 
-        #region Cell Datasource Save Helpers
+        #region CopyPaste helper methods 
 
-        internal async Task SaveCellToDatasourceAsync(object primaryKeyValue, string columnField, object? newValue)
+        internal static string SanitizeNumericValue(string value)
         {
-            // Find row by primary key
-            var originalRowData = await FindRowByPrimaryKeyAsync(primaryKeyValue).ConfigureAwait(true);
-
-            if (originalRowData == null)
-                return;
-
-            // Build updated row
-            var updatedRowData = BuildCellUpdateRowData(originalRowData, columnField, newValue);
-
-            // Build event args
-            var actionArgs = await BuildActionEventArgsForUpdateAsync(updatedRowData, originalRowData).ConfigureAwait(true);
-            var rowUpdatingArgs = await BuildRowUpdatingEventArgsAsync(updatedRowData, originalRowData).ConfigureAwait(true);
-
-            // Execute update (fires events → backend → refresh UI)
-            await ExecuteSingleCellUpdateAsync(actionArgs, rowUpdatingArgs).ConfigureAwait(true);
+            if (string.IsNullOrWhiteSpace(value))
+            {
+                return value;
+            }
+            NumberFormatInfo format = CultureInfo.CurrentCulture.NumberFormat;
+            value = value.Replace(format.CurrencySymbol, string.Empty, StringComparison.Ordinal);
+            value = value.Replace(format.CurrencyGroupSeparator, string.Empty, StringComparison.Ordinal);
+            value = value.Replace("%", string.Empty, StringComparison.Ordinal);
+            return value.Trim();
         }
 
-        internal async Task SaveCellsToDatasourceAsync(List<CellUpdate> cellUpdates)
+        internal async Task<object?> GetCellPasteValueAsync(string fieldName, string value)
         {
-            // Step 1: Build cell changes
-            var cellChanges = new List<Edit<T>.CellChangeItem<T>>();
-
-            foreach (var update in cellUpdates)
+            GridColumn? column = await Parent.GetColumnByFieldAsync(fieldName).ConfigureAwait(true);
+            if (column?.ValueType == null)
             {
-                if (string.IsNullOrWhiteSpace(update.ColumnField))
-                    continue;
-
-                var originalRowData = await FindRowByPrimaryKeyAsync(update.PrimaryKeyValue).ConfigureAwait(true);
-                if (originalRowData == null)
-                    continue;
-
-                var updatedRowData = BuildCellUpdateRowData(
-                    originalRowData, update.ColumnField, update.NewValue);
-
-                cellChanges.Add(new Edit<T>.CellChangeItem<T>
+                return value;
+            }
+            Type valueType = Nullable.GetUnderlyingType(column.ValueType) ?? column.ValueType;
+            if (valueType == typeof(string))
+            {
+                return value;
+            }
+            if (valueType == typeof(bool))
+            {
+                return bool.TryParse(value, out bool result) ? result : null;
+            }
+            if (valueType == typeof(char))
+            {
+                return char.TryParse(value, out char result) ? result : null;
+            }
+            if (valueType == typeof(Guid))
+            {
+                return Guid.TryParse(value, out Guid result) ? result : null;
+            }
+            if (valueType.IsEnum)
+            {
+                return Enum.TryParse(valueType, value, true, out object? result) ? result : null;
+            }
+            if (valueType == typeof(DateTime))
+            {
+                if (!string.IsNullOrWhiteSpace(column.Format) && DateTime.TryParseExact(value, column.Format, CultureInfo.InvariantCulture, DateTimeStyles.None, out DateTime formattedDate))
                 {
-                    PrimaryKeyValue = update.PrimaryKeyValue,
-                    ColumnField = update.ColumnField,
-                    OriginalRowData = originalRowData,
-                    UpdatedRowData = updatedRowData
-                });
-            }
-
-            if (cellChanges.Count == 0)
-                return;
-
-            // Step 2: Merge same-PK rows (returns early on duplicate detection)
-            var mergedRows = MergeCellChangesByPrimaryKey(cellChanges);
-
-            if (mergedRows == null || mergedRows.Count == 0)
-                return;
-
-            // Step 3: Build BatchChanges
-            var batchChanges = new BatchChanges<T>
-            {
-                ChangedRecords = mergedRows.Select(x => x.MergedData).ToList()
-            };
-
-            // Step 4: Get primary key field
-            var primaryKeyFields = await Parent.GetPrimaryKeyFieldNamesAsync().ConfigureAwait(true);
-            if (primaryKeyFields == null || primaryKeyFields.Count == 0)
-                return;
-
-            var primaryKeyField = primaryKeyFields.First();
-
-            // Step 5: Call DataModule.SaveChanges()
-            var saveSuccess = await Parent.DataModule!.SaveChanges(batchChanges, primaryKeyField).ConfigureAwait(true);
-
-            if (!saveSuccess)
-                return;
-
-            // Step 6: Update grid rows
-            foreach (var mergedRow in mergedRows)
-            {
-                var gridRow = Parent.Rows.FirstOrDefault(r =>
-                {
-                    var rowPK = Parent.PropHelper?.GetObject(primaryKeyField, r.Data);
-                    return Equals(rowPK, mergedRow.PrimaryKeyValue);
-                });
-
-                if (gridRow != null)
-                    gridRow.Data = mergedRow.MergedData;
-            }
-
-            // Step 7: Refresh UI
-            await Parent.ModelChanged(
-                new ActionEventArgs<T> { RequestType = Action.Refresh },
-                requestType: "Save").ConfigureAwait(true);
-        }
-
-        /// <summary>
-        /// Internal class to track a single cell change during batch operations.
-        /// </summary>
-        internal class CellChangeItem<TData>
-        {
-            /// <summary>
-            /// Primary key value of the row containing the cell to update.
-            /// </summary>
-            public object PrimaryKeyValue { get; set; } = null!;
-
-            /// <summary>
-            /// Field name of the column to update.
-            /// </summary>
-            public string ColumnField { get; set; } = string.Empty;
-
-            /// <summary>
-            /// Original row data before modification.
-            /// </summary>
-            public TData OriginalRowData { get; set; } = default!;
-
-            /// <summary>
-            /// Updated row data with cell value applied.
-            /// </summary>
-            public TData UpdatedRowData { get; set; } = default!;
-        }
-
-        /// <summary>
-        /// Internal class representing a row with merged cell changes (multiple cells from same row).
-        /// </summary>
-        internal class MergedRowData<TData>
-        {
-            /// <summary>
-            /// Primary key value identifying the row.
-            /// </summary>
-            public object PrimaryKeyValue { get; set; } = null!;
-
-            /// <summary>
-            /// Final merged row data with all cell updates applied.
-            /// </summary>
-            public TData MergedData { get; set; } = default!;
-        }
-
-        /// <summary>
-        /// Finds a row in the grid by its primary key value.
-        /// </summary>
-        /// <param name="primaryKeyValue">The primary key value to search for.</param>
-        /// <returns>The row data if found; null otherwise.</returns>
-        internal async Task<T?> FindRowByPrimaryKeyAsync(object primaryKeyValue)
-        {
-            if (primaryKeyValue == null)
-                return default;
-            IEnumerable<T>? allRecords;
-            if(Parent?.DataManager?.DataAdaptor?.IsRemote() == true || Parent?.DataManager?.Adaptor == Adaptors.CustomAdaptor)
-            {
-                allRecords = await Parent.GetCurrentViewRecordsAsync().ConfigureAwait(true);
-            }
-            else
-            {
-                allRecords = Parent?.DataSource;
-
-            }
-            if (allRecords == null || !allRecords.Any())
-                return default;
-
-            var primaryKeyFields = await Parent.GetPrimaryKeyFieldNamesAsync().ConfigureAwait(true);
-            if (primaryKeyFields == null || primaryKeyFields.Count == 0)
-                return default;
-
-            foreach (var record in allRecords)
-            {
-                var recordPKValue = await GetPrimaryKeyValue(record).ConfigureAwait(true);
-                var recordPKString = recordPKValue?.FirstOrDefault();
-
-                if (recordPKString?.Equals(primaryKeyValue?.ToString(), StringComparison.Ordinal) == true)
-                    return record;
-            }
-
-            return default;
-        }
-
-        /// <summary>
-        /// Builds an updated row by cloning the original and applying a single cell value change.
-        /// </summary>
-        /// <param name="originalRow">The original row to clone.</param>
-        /// <param name="columnField">The field name of the cell to update.</param>
-        /// <param name="newValue">The new value for the cell.</param>
-        /// <returns>The updated row with the cell change applied.</returns>
-        internal T BuildCellUpdateRowData(T originalRow, string columnField, object? newValue)
-        {
-            CloneRowData(originalRow);
-            SetValue(newValue, columnField);
-            return (T)CloneData!;
-        }
-
-        /// <summary>
-        /// Builds an ActionEventArgs for backend row update operation.
-        /// </summary>
-        /// <param name="updatedRow">The updated row data.</param>
-        /// <param name="originalRow">The original row data before update.</param>
-        /// <returns>ActionEventArgs configured for row update.</returns>
-        internal async Task<ActionEventArgs<T>> BuildActionEventArgsForUpdateAsync(T updatedRow, T originalRow)
-        {
-            var primaryKeys = await Parent.GetPrimaryKeyFieldNamesAsync().ConfigureAwait(true);
-            var currentViewRecords = await Parent.GetCurrentViewRecordsAsync().ConfigureAwait(true);
-            
-            var args = new ActionEventArgs<T>()
-            {
-                RequestType = Action.Save,
-                PrimaryKeys = primaryKeys?.ToArray()!,
-                Type = "ActionBegin",
-                Data = updatedRow,
-                RowData = originalRow,
-                Cancel = false,
-                PreviousData = originalRow,
-                Action = "Edit"
-            };
-
-            return args;
-        }
-
-        /// <summary>
-        /// Builds a RowUpdatingEventArgs for row update operation.
-        /// </summary>
-        /// <param name="updatedRow">The updated row data.</param>
-        /// <param name="originalRow">The original row data before update.</param>
-        /// <returns>RowUpdatingEventArgs configured for row update.</returns>
-        internal async Task<RowUpdatingEventArgs<T>> BuildRowUpdatingEventArgsAsync(T updatedRow, T originalRow)
-        {
-            var primaryKeys = await Parent.GetPrimaryKeyFieldNamesAsync().ConfigureAwait(true);
-
-            var args = new RowUpdatingEventArgs<T>()
-            {
-                PrimaryKeys = primaryKeys?.ToArray()!,
-                Data = updatedRow,
-                Cancel = false,
-                PreviousData = originalRow,
-                Action = SaveActionType.Edited
-            };
-
-            return args;
-        }
-
-        /// <summary>
-        /// Executes a single cell update by firing events and calling the backend.
-        /// </summary>
-        /// <param name="actionArgs">The ActionEventArgs for the update operation.</param>
-        /// <param name="rowUpdatingArgs">The RowUpdatingEventArgs for the update operation.</param>
-        internal async Task ExecuteSingleCellUpdateAsync(ActionEventArgs<T> actionArgs, RowUpdatingEventArgs<T> rowUpdatingArgs)
-        {
-            if (Parent.GridEvents?.RowUpdating.HasDelegate == true)
-            {
-                await (Parent.GridEvents?.RowUpdating.InvokeAsync(rowUpdatingArgs))!.ConfigureAwait(true)!;
-            }
-
-            await Parent.EventAggregator.NotifyAsync("RowUpdating", rowUpdatingArgs).ConfigureAwait(true);
-
-            IsAdd = false;
-
-            if (Parent.DataModule != null)
-                await Parent.DataModule.GetData(actionArgs, eventArgs: rowUpdatingArgs, requestType: "Save").ConfigureAwait(true);
-
-            IsAdd = Parent.EditSettings!.ShowAddNewRow ? true : false;
-
-            await Parent.ModelChanged(
-                new ActionEventArgs<T>() { Cancel = false, RequestType = Action.Refresh },
-                requestType: "Save",
-                eventArgs: rowUpdatingArgs,
-                isSavingTriggered: true).ConfigureAwait(true);
-        }
-
-        /// <summary>
-        /// Merges multiple cell changes by primary key, combining all changes for the same row into a single update.
-        /// Detects duplicate field updates (same field updated multiple times for same PK) and returns null if found.
-        /// </summary>
-        /// <param name="cellChanges">List of cell changes to merge.</param>
-        /// <returns>List of merged row data, or null if duplicate field updates detected.</returns>
-        internal List<MergedRowData<T>>? MergeCellChangesByPrimaryKey(List<CellChangeItem<T>> cellChanges)
-        {
-            if (cellChanges == null || cellChanges.Count == 0)
-                return null;
-
-            var groupedByPK = cellChanges.GroupBy(x => x.PrimaryKeyValue, new PrimaryKeyComparer());
-            var mergedRows = new List<MergedRowData<T>>();
-
-            foreach (var group in groupedByPK)
-            {
-                var fieldsUpdated = new HashSet<string>();
-                var mergedRowData = (T)CloneUtils.CloneStaticObjectType(group.First().OriginalRowData, typeof(T), false)!;
-
-                foreach (var change in group)
-                {
-                    // Check for duplicate field updates within same row
-                    if (fieldsUpdated.Contains(change.ColumnField))
-                        return null; // Duplicate detected
-
-                    fieldsUpdated.Add(change.ColumnField);
-
-                    // Apply the field update to merged row
-                    ReflectionExtension.SetValue(
-                        mergedRowData,
-                        change.ColumnField,
-                        Parent.PropHelper?.GetObject(change.ColumnField, change.UpdatedRowData),
-                        true,
-                        options: new SetOptions() { CreateInstanceForComplexType = true });
+                    return formattedDate;
                 }
 
-                mergedRows.Add(new MergedRowData<T>
+                if (DateTime.TryParse(value, CultureInfo.CurrentCulture, DateTimeStyles.None, out DateTime date))
                 {
-                    PrimaryKeyValue = group.Key,
-                    MergedData = mergedRowData
-                });
+                    return date;
+                }
+                return null;
             }
 
-            return mergedRows;
-        }
-
-        /// <summary>
-        /// Comparer for primary key values (handles type conversion for comparison).
-        /// </summary>
-        private class PrimaryKeyComparer : IEqualityComparer<object>
-        {
-            public bool Equals(object? x, object? y)
+            if (valueType == typeof(DateTimeOffset))
             {
-                if (x == null && y == null)
-                    return true;
-                if (x == null || y == null)
-                    return false;
-                return x.ToString()?.Equals(y.ToString(), StringComparison.Ordinal) ?? false;
+                if (!string.IsNullOrWhiteSpace(column.Format) && DateTimeOffset.TryParseExact(value, column.Format, CultureInfo.InvariantCulture, DateTimeStyles.None, out DateTimeOffset formattedDate))
+                {
+                    return formattedDate;
+                }
+
+                if (DateTimeOffset.TryParse(value, CultureInfo.CurrentCulture, DateTimeStyles.None, out DateTimeOffset date))
+                {
+                    return date;
+                }
+
+                return null;
             }
 
-            public int GetHashCode(object obj)
+            if (valueType == typeof(DateOnly))
             {
-                return obj?.ToString()?.GetHashCode() ?? 0;
-            }
-        }
+                if (!string.IsNullOrWhiteSpace(column.Format) && DateOnly.TryParseExact(value, column.Format, CultureInfo.InvariantCulture, DateTimeStyles.None, out DateOnly formattedDate))
+                {
+                    return formattedDate;
+                }
 
+                if (DateOnly.TryParse(value, CultureInfo.CurrentCulture, DateTimeStyles.None, out DateOnly date))
+                {
+                    return date;
+                }
+
+                return null;
+            }
+
+            if (valueType == typeof(TimeOnly))
+            {
+                if (!string.IsNullOrWhiteSpace(column.Format) && TimeOnly.TryParseExact(value, column.Format, CultureInfo.InvariantCulture, DateTimeStyles.None, out TimeOnly formattedTime))
+                {
+                    return formattedTime;
+                }
+
+                if (TimeOnly.TryParse(value, CultureInfo.CurrentCulture, DateTimeStyles.None, out TimeOnly time))
+                {
+                    return time;
+                }
+
+                return null;
+            }
+
+            string sanitizedValue = SanitizeNumericValue(value);
+
+            if (valueType == typeof(int))
+            {
+                return double.TryParse(sanitizedValue, NumberStyles.Any, CultureInfo.CurrentCulture, out double number) ? Convert.ToInt32(number) : null;
+            }
+
+            if (valueType == typeof(long))
+            {
+                return long.TryParse(sanitizedValue, NumberStyles.Any, CultureInfo.CurrentCulture, out long number) ? number : null;
+            }
+
+            if (valueType == typeof(short))
+            {
+                return short.TryParse(sanitizedValue, NumberStyles.Any, CultureInfo.CurrentCulture, out short number) ? number : null;
+            }
+
+            if (valueType == typeof(ushort))
+            {
+                return ushort.TryParse(sanitizedValue, NumberStyles.Any, CultureInfo.CurrentCulture, out ushort number) ? number : null;
+            }
+
+            if (valueType == typeof(uint))
+            {
+                return uint.TryParse(sanitizedValue, NumberStyles.Any, CultureInfo.CurrentCulture, out uint number) ? number : null;
+            }
+
+            if (valueType == typeof(ulong))
+            {
+                return ulong.TryParse(sanitizedValue, NumberStyles.Any, CultureInfo.CurrentCulture, out ulong number) ? number : null;
+            }
+
+            if (valueType == typeof(float))
+            {
+                return float.TryParse(sanitizedValue, NumberStyles.Any, CultureInfo.CurrentCulture, out float number) ? number : null;
+            }
+
+            if (valueType == typeof(double))
+            {
+                return double.TryParse(sanitizedValue, NumberStyles.Any, CultureInfo.CurrentCulture, out double number) ? number : null;
+            }
+
+            if (valueType == typeof(decimal))
+            {
+                return decimal.TryParse(sanitizedValue, NumberStyles.Any, CultureInfo.CurrentCulture, out decimal number) ? number : null;
+            }
+
+            return value;
+        }
         #endregion
-
-
     }
 }

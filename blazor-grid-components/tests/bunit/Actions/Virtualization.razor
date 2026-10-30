@@ -526,7 +526,7 @@
 
         await cut.Instance.SelectRowAsync(1);
         await cut.Instance.StartEditAsync();
-        await cut.Instance.VirtualScrollModule.ScrollToEditedRowAsync(new List<Internal.ValidationResult>());
+        await cut.Instance.VirtualScrollModule.ScrollToEditedRowAsync(new List<Syncfusion.Blazor.Internal.ValidationResult>());
     }
 }
 
@@ -602,7 +602,7 @@
         Assert.True(cut.Instance.Rows.Count == (cut.Instance.PageSettings.PageSize + cut.Instance.OverscanCount + cut.Instance.OverscanCount), "Grid one page records plus overscan count rows rendered properly");
         Assert.True(cut.Instance.AllowGrouping, "Grouping is enabled in overscan grid");
         Assert.True(cut.Instance.GroupSettings.Columns.Count() > 0, "Initial grouping is applied in grid");
-        cut.Instance.VirtualScrollModule.AdjustVirtualIndexesForReordering(new Blazor.Grids.Internal.GridVirtualContentParameters());
+        cut.Instance.VirtualScrollModule.AdjustVirtualIndexesForReordering(new Syncfusion.Blazor.Grids.Internal.GridVirtualContentParameters());
         cut.Instance.VirtualScrollModule.HandlePostRenderOperationsAsync(cut.Instance.VirtualScrollModule.RowEndIndex).GetAwaiter();
     }
 }
@@ -694,3 +694,102 @@
         public double? Freight { get; set; }
     }
 }
+<!-- ================================================================== -->
+<!-- [OPSX-20261026-introduce-dom-virtualization-feature] DOM Virtualization Tests Append -->
+<!-- ================================================================== -->
+
+<SfFixture @ref="fixtureDomVirt1" Test="DomVirtualization_AutoRowHeight_MeasuresVariableHeightRows" Description="[OPSX-20261026-introduce-dom-virtualization-feature] AutoRowHeight enables row height measurement for templates">
+    <ComponentUnderTest>
+        <SfGrid @ref="GridDomVirt1" DataSource="GetVirtualData()" Height="400" Width="400" 
+                EnableDomVirtualization="true" EnableVirtualization="true">
+            <GridDomVirtualizationSettings AutoRowHeight="true" MaxPoolSize="100" RowBuffer="20" />
+            <GridPageSettings PageSize="12"></GridPageSettings>
+            <GridColumns>
+                <GridColumn Field="@nameof(Order.OrderID)" Width="110" HeaderText="Order ID"></GridColumn>
+                <GridColumn Field="@nameof(Order.Freight)" Width="100" HeaderText="Freight">
+                    <Template>
+                        <span>@context.Freight - custom template for variable height</span>
+                    </Template>
+                </GridColumn>
+            </GridColumns>
+        </SfGrid>
+    </ComponentUnderTest>
+</SfFixture>
+
+@code {
+    SfFixture fixtureDomVirt1 { get; set; }
+    private SfGrid<Order> GridDomVirt1;
+
+    void DomVirtualization_AutoRowHeight_MeasuresVariableHeightRows(Fixture fixtureDomVirt1)
+    {
+        var cut = fixtureDomVirt1.GetComponentUnderTest<SfGrid<Order>>();
+        
+        Assert.True(cut.Instance.DomVirtualizationSettings.AutoRowHeight == true, "AutoRowHeight should be enabled");
+        Assert.True(cut.Instance.EnableDomVirtualization, "DOM virtualization should be enabled");
+        // Row height measurement is scoped to fixed-height cache when templates are present
+    }
+}
+
+<SfFixture @ref="fixtureDomVirt2" Test="DomVirtualization_LocalData_AllRecordsAvailable_ElementCeilingApplies" Description="[OPSX-20261026-introduce-dom-virtualization-feature] Local data: all records available, element ceiling applied">
+    <ComponentUnderTest>
+        <SfGrid @ref="GridDomVirt2" DataSource="GetVirtualData()" Height="400" Width="400" 
+                EnableDomVirtualization="true" EnableVirtualization="false">
+            <GridDomVirtualizationSettings MaxPoolSize="50" />
+            <GridPageSettings PageSize="12"></GridPageSettings>
+            <GridColumns>
+                <GridColumn Field="@nameof(Order.OrderID)" Width="110" HeaderText="Order ID"></GridColumn>
+            </GridColumns>
+        </SfGrid>
+    </ComponentUnderTest>
+</SfFixture>
+
+@code {
+    SfFixture fixtureDomVirt2 { get; set; }
+    private SfGrid<Order> GridDomVirt2;
+
+    void DomVirtualization_LocalData_AllRecordsAvailable_ElementCeilingApplies(Fixture fixtureDomVirt2)
+    {
+        var cut = fixtureDomVirt2.GetComponentUnderTest<SfGrid<Order>>();
+        
+        Assert.True(cut.Instance.EnableDomVirtualization, "DOM virtualization should be enabled");
+        Assert.False(cut.Instance.EnableVirtualization, "Virtual scrolling should be disabled");
+        Assert.Equal(50, cut.Instance.DomVirtualizationSettings.MaxPoolSize);
+        
+        // All records from data source are available, but element ceiling (50) limits rendered rows
+        Assert.True(cut.Instance.Rows.Count <= 50, "Row count should be <= MaxPoolSize");
+    }
+}
+
+<SfFixture @ref="fixtureDomVirt3" Test="DomVirtualization_ColumnBuffer_HorizontalOverscan" Description="[OPSX-20261026-introduce-dom-virtualization-feature] ColumnBuffer applies horizontal overscan">
+    <ComponentUnderTest>
+        <SfGrid @ref="GridDomVirt3" DataSource="GetVirtualData()" Height="400" Width="400" 
+                EnableDomVirtualization="true" EnableColumnVirtualization="true">
+            <GridDomVirtualizationSettings ColumnBuffer="5" />
+            <GridPageSettings PageSize="12"></GridPageSettings>
+            <GridColumns>
+                <GridColumn Field="@nameof(Order.OrderID)" Width="110" HeaderText="Order ID"></GridColumn>
+                <GridColumn Field="@nameof(Order.CustomerID)" Width="120" HeaderText="Customer ID"></GridColumn>
+                <GridColumn Field="@nameof(Order.OrderDate)" Width="130" HeaderText="Order Date"></GridColumn>
+                <GridColumn Field="@nameof(Order.Freight)" Width="100" HeaderText="Freight"></GridColumn>
+                <GridColumn Field="@nameof(Order.ShipCountry)" Width="100" HeaderText="ShipCountry"></GridColumn>
+                <GridColumn Field="@nameof(Order.ShipCity)" Width="100" HeaderText="ShipCity"></GridColumn>
+                <GridColumn Field="@nameof(Order.EmployeeID)" Width="100" HeaderText="EmployeeID"></GridColumn>
+            </GridColumns>
+        </SfGrid>
+    </ComponentUnderTest>
+</SfFixture>
+
+@code {
+    SfFixture fixtureDomVirt3 { get; set; }
+    private SfGrid<Order> GridDomVirt3;
+
+    void DomVirtualization_ColumnBuffer_HorizontalOverscan(Fixture fixtureDomVirt3)
+    {
+        var cut = fixtureDomVirt3.GetComponentUnderTest<SfGrid<Order>>();
+        
+        Assert.True(cut.Instance.EnableDomVirtualization, "DOM virtualization should be enabled");
+        Assert.True(cut.Instance.EnableColumnVirtualization, "Column virtualization should be enabled");
+        Assert.Equal(5, cut.Instance.DomVirtualizationSettings.ColumnBuffer, "ColumnBuffer should be 5");
+    }
+}
+

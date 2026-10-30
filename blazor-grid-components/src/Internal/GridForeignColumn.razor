@@ -36,11 +36,11 @@
                                    AdaptorInstance="@Model.DataManager.AdaptorInstance" Adaptor="@Model.DataManager.Adaptor" Offline="@Model.DataManager.Offline">
                         @if (IsForeignColumn()) //custom adaptor
                         {
-                            @DataManager.ChildContent
+                            @DataManager?.ChildContent
                         }
                         else
                         {
-                            @Parent!.DataManager.ChildContent
+                            @Parent!.DataManager?.ChildContent
                         }
                     </SfDataManager>
                     <AutoCompleteFieldSettings Value="@(IsForeignColumn() ? ForeignKeyValue : Field)"></AutoCompleteFieldSettings>
@@ -55,11 +55,11 @@
                                    AdaptorInstance="@Model.DataManager?.AdaptorInstance" Adaptor="@Model.DataManager!.Adaptor" Offline="@Model.DataManager.Offline">
                         @if (IsForeignColumn()) //custom adaptor
                         {
-                            @DataManager.ChildContent
+                            @DataManager?.ChildContent
                         }
                         else
                         {
-                            @Parent!.DataManager.ChildContent
+                            @Parent!.DataManager?.ChildContent
                         }
                     </SfDataManager>
                     <AutoCompleteFieldSettings Value="@(IsForeignColumn() ? ForeignKeyValue : Field)"></AutoCompleteFieldSettings>
@@ -72,7 +72,7 @@
             @{
                 var model = editorModel as EditorDropDownModel;
                 var gridColumns = GridUtils.GetColumns(Parent?.BaseParent!);
-                var duplicateForeignKeyColumns = ForeignKey<TValue>.GetForeignKeyColumns(gridColumns).Where(x => x.Field == Field).ToList();
+                var duplicateForeignKeyColumns = ForeignKey<TValue>.GetForeignKeyColumnsAsync(gridColumns).Where(x => x.Field == Field).ToList();
                 @if (duplicateForeignKeyColumns.Count > 1)
                 {
                     isColumnUidRequired = true;
@@ -240,7 +240,7 @@
         ForeignKeyField = ForeignKeyField ?? Field;
         if (ForeignKeySorting == null && ForeignDataSource != null && ForeignDataSource.Count() > 0)
         {
-            ForeignKeySorting = new ForeignKeySortManager(this.ForeignKeyField, this.ForeignKeyValue, (IEnumerable<object>)this.ForeignDataSource);
+            ForeignKeySorting = new ForeignKeySortManager(this.ForeignKeyField, this.ForeignKeyValue!, (IEnumerable<object>)this.ForeignDataSource);
         }
     }
 
@@ -311,21 +311,21 @@
     }
 
     internal override List<object> GetForeignkeyFilteredData(IEnumerable<object> data, List<WhereFilter> filterQuery)
-            => DataOperations.PerformFiltering<TValue>(data?.OfType<TValue>(), filterQuery, "and").Cast<object>().ToList();
+            => DataOperations.PerformFiltering<TValue>(data.OfType<TValue>(), filterQuery, "and").Cast<object>().ToList();
 
     private async void FirstBeginHandler(ActionBeginEventArgs args)
     {
-        FirstAutoComplete!.FilterOperator = firstAutoCompleteModel?.FilterOperator;
+        FirstAutoComplete!.FilterOperator = firstAutoCompleteModel?.FilterOperator!;
     }
 
     private async void SecondBeginHandler(ActionBeginEventArgs args)
     {
-        SecondAutoComplete!.FilterOperator = secondAutoCompleteModel?.FilterOperator;
+        SecondAutoComplete!.FilterOperator = secondAutoCompleteModel?.FilterOperator!;
     }
 
     public override async Task<object> GetData(DataManagerRequest dataManagerRequest)
     {
-        return await this.DataManager.ExecuteQuery<TValue>(dataManagerRequest);
+        return await this.DataManager!.ExecuteQuery<TValue>(dataManagerRequest);
     }
 
     /// <summary>

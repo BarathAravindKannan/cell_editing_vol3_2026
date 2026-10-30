@@ -154,19 +154,23 @@ namespace Syncfusion.Blazor.Grids.Internal
         protected override void OnInitialized()
         {
             if (Parent != null && Parent.EditModule != null)
-            Parent.EditModule.EditContext = EditContext;            
-            var ComplexLength = Column!.Field.Split('.').Length;
-            FieldName = ComplexLength > 1 ? Edit<T>.GetComplexName(Column?.Field!) : Column?.Field;
-            if (string.IsNullOrEmpty(Column?.Field))
+            {
+                Parent.EditModule.EditContext = EditContext;
+            }
+
+            if (Column is null || string.IsNullOrWhiteSpace(Column.Field))
             {
                 return;
             }
+
+            var ComplexLength = Column.Field.Split('.').Length;
+            FieldName = ComplexLength > 1 ? Edit<T>.GetComplexName(Column.Field) : Column.Field;
 
             if (RowData is ExpandoObject || RowData?.GetType()?.FullName?.Contains("ExpandoObject", StringComparison.Ordinal) == true)
             {
                 DynamicExpressions<ExpandoObject>();
             }
-            else if (RowData is DynamicObject || (Parent!.IsRenderedFromTreeGrid && RowData?.GetType()?.GenericTypeArguments?.Length > 0 && RowData?.GetType()?.GenericTypeArguments[0]?.BaseType?.FullName?.Contains("DynamicObject", StringComparison.Ordinal) == true))
+            else if (RowData is DynamicObject || (Parent?.IsRenderedFromTreeGrid == true && RowData?.GetType()?.GenericTypeArguments?.Length > 0 && RowData?.GetType()?.GenericTypeArguments[0]?.BaseType?.FullName?.Contains("DynamicObject", StringComparison.Ordinal) == true))
             {
                 DynamicExpressions<DynamicObject>();
             }
@@ -192,18 +196,18 @@ namespace Syncfusion.Blazor.Grids.Internal
                         {
                             if (i == ComplexLength - 1)
                             {
-                                exp1 = Expression.PropertyOrField(ComplexExpression!, Column?.Field?.Split('.')[i]!);
+                                exp1 = Expression.PropertyOrField(ComplexExpression!, Column.Field.Split('.')[i]);
                             }
                             else
                             {
-                                ComplexExpression = Expression.PropertyOrField(ComplexExpression!, Column?.Field?.Split('.')[i]!);
+                                ComplexExpression = Expression.PropertyOrField(ComplexExpression!, Column.Field.Split('.')[i]);
                             }
                         }
                     }
                 }
                 else
                 {
-                    exp1 = Expression.PropertyOrField(exp, Column?.Field!);
+                    exp1 = Expression.PropertyOrField(exp, Column.Field);
                 }
                 ValidateCheckType(exp1!);
             }

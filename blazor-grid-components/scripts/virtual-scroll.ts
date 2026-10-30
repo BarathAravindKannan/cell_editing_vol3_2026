@@ -503,6 +503,8 @@ export class VirtualContentRenderer {
         const CTRL_END: string = 'ctrlEnd';
         const CTRL_HOME: string = 'ctrlHome';
         const EMPTY_KEY: string = '';
+        const PAGE_DOWN: string = 'PageDown';
+        const PAGE_UP: string = 'PageUp';
 
         if (isNullOrUndefined(this.observer)) {
             return;
@@ -526,6 +528,9 @@ export class VirtualContentRenderer {
                 this.keyCombination = isEndKey ? CTRL_END : CTRL_HOME;
                 keyboardEvent.preventDefault();
             }
+        }
+        if (pressedKey === PAGE_DOWN || pressedKey === PAGE_UP) {
+            this.scrollContentByPage(pressedKey === PAGE_DOWN ? 'down' : 'up');
         }
     }
 
@@ -773,6 +778,7 @@ export class VirtualContentRenderer {
         const CTRL_END: string = 'CtrlEnd';
         const HOME_KEY: string = 'Home';
         const END_KEY: string = 'End';
+        const ENTER_KEY: string = 'Enter';
 
         // CSS class constants
         const HEADER_CELL_DIV_CLASS: string = 'e-headercelldiv';
@@ -819,6 +825,13 @@ export class VirtualContentRenderer {
 
         // --- SECTION 3: Apply focus behavior based on navigation direction ---
         if (isVerticalNavigation) {
+            const parentRow: Element | null = parentsUntil(cell, 'e-row');
+            if (parentRow) {
+                const rowIndex: number = parseInt(parentRow.getAttribute('aria-rowindex'), 10) - 1;
+                if (!isNaN(rowIndex)) {
+                    this.selectedRowNavigation = rowIndex;
+                }
+            }
             // Vertical navigation: prevent scroll during focus to avoid browser auto-scroll
             cell.focus({ preventScroll: true });
         } else if (isHorizontalNavigation) {
@@ -848,7 +861,8 @@ export class VirtualContentRenderer {
             keyCombination === CTRL_HOME ||
             keyCombination === CTRL_END ||
             keyCombination === HOME_KEY ||
-            keyCombination === END_KEY || isCancelAction;
+            keyCombination === END_KEY || isCancelAction ||
+            (keyCombination === ENTER_KEY && this.parent.options.editMode == 'Cell');
         if (requiresSpecialHandling) {
             //keyCombination == null && action == null -> We get this when clicking Cancel in Add form
             const requiresScrollIntoView: boolean =
@@ -1150,7 +1164,10 @@ export class VirtualContentRenderer {
 
         // Update navigation tracking
         const selectedIndexes: number[] = this.parent.getSelectedRowIndexes(true);
-        this.nextRowToNavigate = selectedIndexes.length > 0 ? selectedIndexes[selectedIndexes.length - 1] - 1 : -1;
+        const focusedRowIndex: number = selectedIndexes.length === 0
+            ? this.selectedRowNavigation
+            : selectedIndexes.length > 0 ? selectedIndexes[selectedIndexes.length - 1] : -1;
+        this.nextRowToNavigate = focusedRowIndex >= 0 ? focusedRowIndex - 1 : -1;
     }
 
     /**
@@ -1286,10 +1303,10 @@ export class VirtualContentRenderer {
 
         // Update navigation tracking
         const selectedRowIndexes: number[] = this.parent.getSelectedRowIndexes(true);
-        const LAST_SELECTED_OFFSET: number = -1;
-        this.nextRowToNavigate = selectedRowIndexes.length > 0
-            ? selectedRowIndexes[0] + 1
-            : 1 * LAST_SELECTED_OFFSET;
+        const focusedRowIndex: number = selectedRowIndexes.length === 0
+            ? this.selectedRowNavigation
+            : selectedRowIndexes.length > 0 ? selectedRowIndexes[0] : -1;
+        this.nextRowToNavigate = focusedRowIndex >= 0 ? focusedRowIndex + 1 : -1;
     }
 
     public onDataReady(): void {
@@ -1544,7 +1561,7 @@ export class VirtualContentRenderer {
         return Math.min(this.offsets[parseInt(block.toString(), 10)] | 0, this.offsets[this.maxBlock] | 0);
     }
 
-    private onEntered(): Function {
+    private onEntered(): (...args: unknown[]) => void {
         return (current: SentinelType, isLightScroll: boolean, direction: string,
                 e: Offsets, isWheel: boolean, check: boolean) => {
             // eslint-disable-next-line @typescript-eslint/no-this-alias
@@ -1801,7 +1818,7 @@ export class VirtualContentRenderer {
      * @public
      * @returns {void}
      */
-    public bindScrollEvent: Function = () => {
+    public bindScrollEvent: (...args: unknown[]) => void = () => {
         // --- SECTION 1: Disconnect existing observer to prevent memory leaks ---
         if (!isNullOrUndefined(this.observer)) {
             this.observer.disconnect();
@@ -2033,6 +2050,39 @@ export class VirtualContentRenderer {
         const { allowGrouping, enableLazyLoading, groupCount } = this.parent.options;
         return allowGrouping && !enableLazyLoading && groupCount > 0;
     }
+
+    /**
+     * Scrolls the virtual content scroller by one viewport-sized block.
+     * @param {'up' | 'down'} direction - Direction to advance the virtual window
+     * @returns {void}
+     */
+    private scrollContentByPage(direction: 'up' | 'down'): void {
+        if (isNullOrUndefined(this.content) || isNullOrUndefined(this.observer)) {
+            return;
+        }
+        const rowHeight: number = this.parent.getRowHeight();
+        if (rowHeight <= 0) {
+            return;
+        }
+
+        const { height } = this.parent.options;
+        const viewportHeight: number = height.toString().indexOf('%') < 0
+            ? this.content.getBoundingClientRect().height
+            : this.parent.element.getBoundingClientRect().height;
+
+        const blockSize: number = Math.max(1, Math.floor(viewportHeight / rowHeight) - 1);
+        const delta: number = direction === 'down' ? blockSize * rowHeight : -blockSize * rowHeight;
+
+        const maxScrollTop: number = this.content.scrollHeight - this.content.clientHeight;
+        const target: number = Math.max(0, Math.min(maxScrollTop, this.content.scrollTop + delta));
+
+        this.content.scrollTop = target;
+
+        // Edge case: at the very bottom
+        if (direction === 'down' && this.content.scrollTop + this.content.clientHeight >= this.content.scrollHeight) {
+            this.content.scrollTop = this.content.scrollHeight;
+        }
+    }
 }
 /**
  * @hidden
@@ -2238,8 +2288,8 @@ export class VirtualHelper {
     public parent: SfGrid;
     public cOffsets: { [x: number]: number } = {};
     public mOffsets: { [x: number]: number } = {};
-    public data: { [x: number]: Object[] } = {};
-    public groups: { [x: number]: Object } = {};
+    public data: { [x: number]: object[] } = {};
+    public groups: { [x: number]: object } = {};
 
     constructor(parent: SfGrid) {
         this.parent = parent;
@@ -2267,7 +2317,7 @@ export class VirtualHelper {
         if (!isNullOrUndefined(this.parent.getContent())) {
             content = this.parent.getContent();
         }
-        let indexes: number[] = [];
+        const indexes: number[] = [];
         let sLeft: number = this.parent.options.enableColumnVirtualization
             && this.parent.options.enableRtl ? -1 * content.scrollLeft | 0 : content.scrollLeft | 0;
         const keys: string[] = Object.keys(this.cOffsets);

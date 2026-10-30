@@ -114,7 +114,11 @@ export class Resize {
         }
         const headerTable: Element = gObj.getHeaderTable();
         const contentTable: Element = gObj.getContentTable();
-        const headerTextClone: Element = (closest(headerTable.querySelector('[e-mappinguid="' + uid + '"]'), 'th')).cloneNode(true) as HTMLElement;
+        const headerCell: Element = headerTable.querySelector('[e-mappinguid="' + uid + '"]');
+        if (isNullOrUndefined(headerCell)) {
+            return;
+        }
+        const headerTextClone: Element = (closest(headerCell, 'th')).cloneNode(true) as HTMLElement;
         if (frzCols) {
             const ariaColIndex: string = headerTextClone.getAttribute('aria-colindex');
             contentTextClone = contentTable.querySelectorAll('[aria-colindex="' + ariaColIndex + '"]');
@@ -128,10 +132,14 @@ export class Resize {
                 footerTextClone = footerTable.querySelectorAll(`td:nth-child(${columnIndex + 1}):not(.e-groupcaption)`);
             }
         }
-        const indentWidthClone: NodeListOf<Element> = headerTable.querySelector('tr').querySelectorAll('.e-grouptopleftcell');
-        if (indentWidthClone.length > 0) {
-            for (let i: number = 0; i < indentWidthClone.length; i++) {
-                indentWidth += (<HTMLElement>indentWidthClone[parseInt(i.toString(), 10)]).offsetWidth;
+        const headerRow: Element = headerTable.querySelector('tr');
+        let indentWidthClone: NodeListOf<Element>;
+        if (!isNullOrUndefined(headerRow)) {
+            indentWidthClone = headerRow.querySelectorAll('.e-grouptopleftcell');
+            if (indentWidthClone.length > 0) {
+                for (let i: number = 0; i < indentWidthClone.length; i++) {
+                    indentWidth += (<HTMLElement>indentWidthClone[parseInt(i.toString(), 10)]).offsetWidth;
+                }
             }
         }
         const detailsElement: HTMLElement = <HTMLElement>contentTable.querySelector('.e-detailrowcollapse') ||
@@ -359,8 +367,8 @@ export class Resize {
 
     private resizeStart(e: PointerEvent | TouchEvent): void {
         if ((e.target as HTMLElement).classList.contains('e-rhandler')) {
-            const columnList: Object[] = [];
-            let columnData: Object = {};
+            const columnList: object[] = [];
+            let columnData: object = {};
             if (this.parent.isMacSafariBrowser()) {
                 document.body.classList.add('e-prevent-select'); // This is being used to prevent text highlighting issues in Mac OS Safari browser.
             }
@@ -1092,7 +1100,7 @@ export class Resize {
         }
     }
 
-    private getUserAgent(): boolean {
+    public getUserAgent(): boolean {
         const userAgent: string = Browser.userAgent.toLowerCase();
         return (/iphone|ipod|ipad/ as RegExp).test(userAgent);
     }

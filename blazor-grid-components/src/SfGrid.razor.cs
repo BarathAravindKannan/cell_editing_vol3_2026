@@ -23,6 +23,7 @@ using Syncfusion.Blazor.Data;
 using Syncfusion.Blazor.Spinner;
 using Syncfusion.Blazor.Navigations;
 using Syncfusion.Blazor.Grids.Internal;
+using Syncfusion.Blazor.Grids.Actions;
 using System.Runtime.Remoting;
 #if SyncfusionLicense
 using Syncfusion.Licensing;
@@ -61,7 +62,7 @@ namespace Syncfusion.Blazor.Grids
 
         private LicenseContext gridLicenseContext => ExistingLicenseContext == null ? new LicenseContext
         {
-            PrimaryPlatform = new Platform[] { Platform.GridSDK, Platform.ChartSDK, Platform.FileManagerSDK }
+            PrimaryPlatform = new Platform[] { Platform.GridSDK }
         } : ExistingLicenseContext;
         
 #else
@@ -98,7 +99,7 @@ namespace Syncfusion.Blazor.Grids
 
         private ElementReference _element { get; set; }
 
-        private IDictionary<string, object> _cachedAttributes { get; set; } = new Dictionary<string, object>();
+        private Dictionary<string, object> _cachedAttributes { get; set; } = new Dictionary<string, object>();
 
         private List<GridColumn> FrozenColumn { get; set; } = new List<GridColumn>();
         private List<GridColumn> MovableColumn { get; set; } = new List<GridColumn>();
@@ -115,6 +116,7 @@ namespace Syncfusion.Blazor.Grids
 
         internal GridJSInteropAdaptor<TValue>? _jsAdaptor { get; set; }
 
+        internal WebMcpAdapter<TValue>? _webMcpAdapter { get; set; }
 
         /// <summary>
         /// Indicates whether the current grid action was triggered by a toolbar click.
@@ -243,6 +245,42 @@ namespace Syncfusion.Blazor.Grids
         internal Selection<TValue>? SelectionModule { get; set; }
 
         internal FocusHandler<TValue>? FocusModule { get; set; }
+        internal FindHighlight<TValue>? FindHightLightModule { get; set; }
+
+        /// <summary>
+        /// Returns <c>true</c> when the Find and Highlight feature is activated via the
+        /// <see cref="Toolbar"/> list — i.e., the string <c>"Find"</c> is present in the
+        /// configured toolbar items. This is the only activation signal for the feature;
+        /// the legacy <c>EnableSearchHighLight</c> public API has been removed in favor of
+        /// this Toolbar-driven model (mirrors the way the string <c>"Search"</c> activates
+        /// the built-in search module).
+        /// </summary>
+        /// <returns><c>true</c> if the toolbar list contains the literal string <c>"Find"</c>; otherwise <c>false</c>.</returns>
+        internal bool IsFindToolbarEnabled()
+        {
+            if (Toolbar is null)
+            {
+                return false;
+            }
+
+            if (Toolbar is string single)
+            {
+                return string.Equals(single, "Find", StringComparison.Ordinal);
+            }
+
+            if (Toolbar is System.Collections.IEnumerable items)
+            {
+                foreach (var item in items)
+                {
+                    if (item is string s && string.Equals(s, "Find", StringComparison.Ordinal))
+                    {
+                        return true;
+                    }
+                }
+            }
+
+            return false;
+        }
 
         internal PropertyInfoHelper<TValue>? PropHelper { get; set; }
 
@@ -324,6 +362,12 @@ namespace Syncfusion.Blazor.Grids
         internal Paging<TValue>? PageModule { get; set; }
 
         internal Freeze<TValue>? FreezeModule { get; set; }
+
+        /// <summary>
+        /// Internal manager for Undo/Redo operations. 
+        /// Accessed via public API methods and properties.
+        /// </summary>
+        internal UndoRedoManager<TValue>? UndoRedoManager { get; set; }
 
         internal bool IsClientInitialized { get; set; }
 
@@ -472,6 +516,14 @@ namespace Syncfusion.Blazor.Grids
         /// </summary>
         /// <exclude/>
         public bool HasFilterColumnChanges { get; set; }
+
+        /// <summary>
+        /// Indicates that the <see cref="GridWebMcpSettings"/> tree changed
+        /// and the adapter must re-resolve its effective tool list before the
+        /// next registration.
+        /// </summary>
+        /// <exclude/>
+        public bool HasWebMcpSettingsChanges { get; set; }
 
         /// <summary>
         /// Specifies grid is following server rendered.
@@ -798,7 +850,7 @@ namespace Syncfusion.Blazor.Grids
                 
                 if (shouldSkipAggregateRefresh)
                 {
-                    PropertyChanges.Add("Aggregates", groupAggregateRow);
+                    PropertyChanges.Add("Aggregates", groupAggregateRow!);
                 }
                 if (row != null)
                 {
@@ -827,9 +879,9 @@ namespace Syncfusion.Blazor.Grids
                     bool isCurrentView = false;
                     if (TotalItemCount < DataSource?.Count())
                     {
-                        if (Rows?.Last().Index == TotalItemCount - 1)
+                        if (Rows?.Last().Index == TotalItemCount - 1 )
                         {
-                            VirtualScrollModule.RowEndIndex = TotalItemCount;
+                            VirtualScrollModule!.RowEndIndex = TotalItemCount;
                             VirtualScrollModule.RowStartIndex = VirtualScrollModule.RowEndIndex - PageSettings.PageSize;
                             VirtualScrollModule.CheckAndResetCache("Refresh").GetAwaiter();
                         }
@@ -837,7 +889,7 @@ namespace Syncfusion.Blazor.Grids
                         {
                             ForceUpdate = true;
                             TotalItemCount = DataSource.Count();
-                            VirtualScrollModule.RowStartIndex = VirtualScrollModule.RowStartIndex;
+                            VirtualScrollModule!.RowStartIndex = VirtualScrollModule.RowStartIndex;
                             VirtualScrollModule.RowEndIndex = VirtualScrollModule.RowStartIndex + PageSettings.PageSize;
                             VirtualScrollModule.CheckAndResetCache("Refresh").GetAwaiter();
                             InvokeMethod("sfBlazor.Grid.virtualHeight", new object[] { DataId, GetClientOption(), TotalItemCount }).GetAwaiter();
@@ -858,7 +910,7 @@ namespace Syncfusion.Blazor.Grids
                         {
                             if (RowReorderModule != null && !RowReorderModule.IsReorderByInteraction)
                             {
-                                VirtualScrollModule.RowStartIndex = VirtualScrollModule.RowStartIndex;
+                                VirtualScrollModule!.RowStartIndex = VirtualScrollModule.RowStartIndex;
                                 VirtualScrollModule.RowEndIndex = VirtualScrollModule.RowStartIndex + PageSettings.PageSize;
                                 VirtualScrollModule.CheckAndResetCache("Refresh").GetAwaiter();
                                 DataProcess(new ActionArgs() { VirtualStartIndex = VirtualScrollModule.RowStartIndex, VirtualEndIndex = VirtualScrollModule.RowEndIndex }).GetAwaiter();
@@ -868,7 +920,7 @@ namespace Syncfusion.Blazor.Grids
                         {
 
                             TotalItemCount = DataSource?.Count() ?? 0;
-                            VirtualScrollModule.RowStartIndex = VirtualScrollModule.RowStartIndex;
+                            VirtualScrollModule!.RowStartIndex = VirtualScrollModule.RowStartIndex;
                             VirtualScrollModule.RowEndIndex = VirtualScrollModule.RowStartIndex + PageSettings.PageSize;
                             if (RowReorderModule != null && !RowReorderModule.IsReorderByInteraction)
                             {
@@ -889,7 +941,7 @@ namespace Syncfusion.Blazor.Grids
                     if (shouldResetScroll)
                     {
                         // Executed when adding new record at the bottom of the grid and also scrollbar rendered at the end.
-                        VirtualScrollModule.RowStartIndex = VirtualScrollModule.RowStartIndex + 1;
+                        VirtualScrollModule!.RowStartIndex = VirtualScrollModule.RowStartIndex + 1;
                         VirtualScrollModule.RowEndIndex = VirtualScrollModule.RowStartIndex + PageSettings!.PageSize;
                     }
                     if (RowReorderModule != null && !RowReorderModule.IsReorderByInteraction)
@@ -958,7 +1010,7 @@ namespace Syncfusion.Blazor.Grids
         /// <summary>
         /// Extracts column type from TreeGrid ExpandoObject DataItem property.
         /// </summary>
-        private IDictionary<string, Type>? ExtractTypeFromTreeGridExpando(object? data)
+        private static IDictionary<string, Type>? ExtractTypeFromTreeGridExpando(object? data)
         {
             IDictionary<string, Type>? type = null;
             var dataItemProp = data!.GetType().GetProperty("DataItem");
@@ -1019,7 +1071,11 @@ namespace Syncfusion.Blazor.Grids
         private void ApplyColumnValueType(GridColumn column, object? data, IDictionary<string, Type>? type, bool isTreeGridExpando, bool isTreeGridDynamic)
         {
             Type? _ref = null;
-            var Fields = column.Field.Split('.');
+            if (string.IsNullOrEmpty(column?.Field))
+            {
+                return;
+            }
+            var Fields = column.Field!.Split('.');
             var Complex = Fields.Length;
             string fieldName = NormalizeFieldNameForTreeGrid(column.Field, isTreeGridExpando, isTreeGridDynamic);
             // Refactored dynamic data type detection
@@ -1041,7 +1097,7 @@ namespace Syncfusion.Blazor.Grids
         /// <summary>
         /// Normalizes field name by removing TreeGrid DataItem prefix if present.
         /// </summary>
-        private string NormalizeFieldNameForTreeGrid(string fieldName, bool isTreeGridExpando, bool isTreeGridDynamic)
+        private static string NormalizeFieldNameForTreeGrid(string fieldName, bool isTreeGridExpando, bool isTreeGridDynamic)
         {
             if ((isTreeGridExpando || isTreeGridDynamic) && fieldName.StartsWith("DataItem.", StringComparison.Ordinal))
             {
@@ -1058,7 +1114,7 @@ namespace Syncfusion.Blazor.Grids
             // Refactored type information check with field search
             Type? value = null;
             bool hasTypeInfo = type != null && column.ForeignKeyValue != null;
-            bool hasFieldInType = hasTypeInfo && type.TryGetValue(column.Field, out value);
+            bool hasFieldInType = hasTypeInfo && type!.TryGetValue(column.Field, out value);
                 
             if (hasFieldInType)
             {
@@ -1151,7 +1207,7 @@ namespace Syncfusion.Blazor.Grids
             
             if (hasComplexChildren)
             {
-                        foreach (var stackedcol in col.Columns)
+                        foreach (var stackedcol in col?.Columns!)
                         {
                             stackedcolumns.Add(stackedcol);
                         }
@@ -1169,12 +1225,12 @@ namespace Syncfusion.Blazor.Grids
             bool hasVirtualizationWithoutExpandAll = EnableVirtualization && !GroupSettings!.ExpandAllGroups;
             bool hasLazyLoadingEnabled = GroupSettings!.EnableLazyLoading;
             bool shouldDisableExpand = (hasVirtualizationWithoutExpandAll || hasLazyLoadingEnabled) && AllowGrouping && GroupModule != null && !GroupModule.IsLazyExpandAll;
-            
+
             if (shouldDisableExpand)
             {
                 IsExpanded = false;
             }
-            
+
             bool shouldEnableVirtualMaskRow = EnableVirtualization && GroupSettings.EnableLazyLoading;
             if (shouldEnableVirtualMaskRow)
             {
@@ -1328,7 +1384,7 @@ namespace Syncfusion.Blazor.Grids
                 
                 if (shouldProcessFrozenColumns)
                 {
-                    FreezeModule.SetFrozenMovableLabel(parentColumn, frozenColumnNum);
+                    Freeze<TValue>.SetFrozenMovableLabel(parentColumn, frozenColumnNum);
                     
                     if (Freeze<TValue>.IsFrozenColumnPresent(Stackedcolumns!))
                     {
@@ -1679,12 +1735,12 @@ namespace Syncfusion.Blazor.Grids
             if (IsRendered)
             {
                 bool hasLazyExpandAll = EnableVirtualization && GroupModule != null && GroupModule.IsLazyExpandAll && GroupSettings?.Columns?.Length > 0;
-                if (hasLazyExpandAll)
+                if (hasLazyExpandAll && GroupModule != null)
                 {
                     TotalItemCount = GroupModule.LazyRows.Count;
                 }
                 bool isRowDragRefresh = requestType == "RowDragAndDrop" && GetClientOption().requestType == "Refresh" && VirtualScrollModule != null;
-                if (isRowDragRefresh)
+                if (isRowDragRefresh && VirtualScrollModule != null)
                 {
                     VirtualScrollModule.RequestType = requestType;
                 }
@@ -1699,7 +1755,7 @@ namespace Syncfusion.Blazor.Grids
                 }
 
                 bool hasEditValidationErrors = EnableVirtualization && IsEdit && !(EditModule!.IsAdd) && EditModule.ErrorResult.Count != 0;
-                if (hasEditValidationErrors)
+                if (hasEditValidationErrors && EditModule != null)
                 {
                     await EditModule.InvokeValidation(EditModule.ErrorResult).ConfigureAwait(true);
                 }
@@ -1726,7 +1782,7 @@ namespace Syncfusion.Blazor.Grids
             }
             if (GroupModule != null)
                 GroupModule.IndentWidth = indentWidth;
-            EventAggregator.Trigger("ColumnWidthStateChange", null!);
+            await EventAggregator.NotifyAsync("ColumnWidthStateChange", null!).ConfigureAwait(true);
         }
 
         internal async Task ClientRefresh()
@@ -1787,6 +1843,7 @@ namespace Syncfusion.Blazor.Grids
             allowResizing = AllowResizing,
             enableVirtualization = EnableVirtualization,
             enableColumnVirtualization = EnableColumnVirtualization,
+            enableDomVirtualization = EnableDomVirtualization,
             enableVirtualMaskRow = EnableVirtualMaskRow,
             enableRtl = EnableRtl || SyncfusionService.options.EnableRtl,
             enableAutoFill = EnableAutoFill,
@@ -1811,8 +1868,8 @@ namespace Syncfusion.Blazor.Grids
             visibleGroupedRowsCount = VisibleGroupedDataCount,
             enablePersistence = EnablePersistence,
             enableAdaptiveUI = EnableAdaptiveUI,
-            offline = DataManager.Offline,
-            url = DataManager.Url,
+            offline = DataManager!.Offline,
+            url = DataManager?.Url,
             columns = Columns,
             virtualizedColumns = VirtualScrollModule?.GetVirtualizedColumns()!,
             selectionMode = SelectionSettings?.Mode.ToString(),
@@ -1823,11 +1880,12 @@ namespace Syncfusion.Blazor.Grids
             allowDragSelection = SelectionSettings!.AllowDragSelection,
             isEdit = IsEdit,
             isAdd = EditModule!.IsAdd,
-            allowEditing = EditSettings.AllowEditing,
+            enableUndoRedo = EditSettings?.EnableUndoRedo == true,
+            allowEditing = EditSettings?.AllowEditing ==true,
             isPrerendered = IsDataLoaded,
             clipMode = ClipMode.ToString(),
             showColumnMenu = ShowColumnMenu,
-            hasTemplateInEditSettings = EditSettings.Template != null ? true : false,
+            hasTemplateInEditSettings = EditSettings?.Template != null ? true : false,
             hasDetailTemplate = ((IGrid)this).GridTemplates?.DetailTemplate != null ? true : false,
             initGroupingField = GroupSettings.Columns!,
             isColumnResized = _isColumnResized,
@@ -1919,7 +1977,7 @@ namespace Syncfusion.Blazor.Grids
             {
                 args.Parent = this;
             }
-
+           
             if (!suppressEvent)
             {
                 string? searchString = args?.SearchString;
@@ -1949,7 +2007,7 @@ namespace Syncfusion.Blazor.Grids
                 bool hasActionBegin = GridEvents?.OnActionBegin.HasDelegate == true || IsRenderedFromTreeGrid;
                 bool isPageChanged = PageSettings!.CurrentPage != args.CurrentPage;
                 bool hasPagerRef = PagerRef != null;
-                bool isValidPageNumber = hasPagerRef && args.CurrentPage <= PagerRef.TotalPages && args.CurrentPage >= 1;
+                bool isValidPageNumber = hasPagerRef && args.CurrentPage <= PagerRef?.TotalPages && args.CurrentPage >= 1;
                 bool shouldNavigatePage = hasActionBegin && isPageChanged && hasPagerRef && isValidPageNumber;
                 
                 if (shouldNavigatePage)
@@ -1986,7 +2044,7 @@ namespace Syncfusion.Blazor.Grids
                 if (fGridcolumn != null)
                 {
                     fGridcolumn.PreventFilterQuery = args?.PreventFilterQuery ?? filteringEventArgs!.PreventFilterQuery;
-                    foreach (var col in FilterSettings.Columns)
+                    foreach (var col in FilterSettings?.Columns!)
                     {
                         if (col.Field == fGridcolumn.Field || col.Field == fGridcolumn.ForeignKeyValue)
                         {
@@ -2004,7 +2062,7 @@ namespace Syncfusion.Blazor.Grids
             
             if (shouldUpdateFilteredColumns)
             {
-                FilteredColumns = FilterSettings.Columns.ToList();
+                FilteredColumns = FilterSettings?.Columns?.ToList();
             }
             
             var filteredCols = FilterSettings?.Columns?.Where(col => col.PreventFilterQuery).ToList();
@@ -2242,13 +2300,13 @@ namespace Syncfusion.Blazor.Grids
         {
             // Refactored search string change detection
             bool isSearchRequest = args != null && args.RequestType.Equals(Action.Searching);
-            bool hasSearchChanged = originalSearchString != args.SearchString;
+            bool hasSearchChanged = originalSearchString != args?.SearchString;
             bool hadPreviousSearch = !string.IsNullOrEmpty(originalSearchString);
             bool shouldResetSearch = isSearchRequest && hasSearchChanged && hadPreviousSearch;
             
             if (shouldResetSearch)
             {
-                await SearchSettings!.UpdateProperties("Key", args.SearchString!).ConfigureAwait(true);
+                await SearchSettings!.UpdateProperties("Key", args?.SearchString!).ConfigureAwait(true);
             }
         }
 
@@ -2324,7 +2382,7 @@ namespace Syncfusion.Blazor.Grids
             
             if (shouldResetVirtualCache)
             {
-                await VirtualScrollModule.CheckAndResetCache(RequestType!).ConfigureAwait(true);
+                await VirtualScrollModule!.CheckAndResetCache(RequestType!).ConfigureAwait(true);
             }
             
             if (RequireRefresh)
@@ -2334,7 +2392,7 @@ namespace Syncfusion.Blazor.Grids
                 
                 if (isRefreshDuringDragVirtual)
                 {
-                    await VirtualScrollModule.CheckAndResetCache(RequestType!).ConfigureAwait(true);
+                    await VirtualScrollModule!.CheckAndResetCache(RequestType!).ConfigureAwait(true);
                 }
                 
                 await DataProcess(actionArgs: args, eventArgs: eventArgs, requestType: requestType, isDeleteAction: isDeleteAction, groupedKey: groupedKey).ConfigureAwait(true);
@@ -2344,10 +2402,14 @@ namespace Syncfusion.Blazor.Grids
                     SelectionModule.UpdatePersistSelectionState(requestType!);
                 }
             }
-
+            
             if (ForceUpdate)
             {
                 await CallStateHasChangedAsync().ConfigureAwait(true);
+            }
+            if (requestType != null && requestType != "Refresh" && requestType != "Reorder" && IsFindToolbarEnabled() && FindHightLightModule != null && !string.IsNullOrEmpty(FindHightLightModule.SearchHighlightKey))
+            {
+                EventAggregator.Trigger("ClearSearchHighlight", null!);
             }
 
             return RequireRefresh;
@@ -2363,6 +2425,11 @@ namespace Syncfusion.Blazor.Grids
         private async Task<bool> HandleQueryDataActions(string? requestType, ActionEventArgs<TValue> args, object? eventArgs, SortingEventArgs? sortingEvent)
         {
             bool RequireRefresh = false;
+
+            if (IsEdit && requestType != "Refresh" && !IsRenderedFromTreeGrid)
+            {
+                await EditModule!.CloseEdit(preventFocus: true).ConfigureAwait(true);
+            }
 
             if (requestType == "Searching" || requestType == "Paging" || requestType == "Sorting" || requestType == "Grouping" || requestType == "UnGrouping" || requestType == "Filtering" || requestType == "ClearFiltering" || requestType == "Refresh")
             {
@@ -2530,7 +2597,7 @@ namespace Syncfusion.Blazor.Grids
             if (EditSettings!.ShowAddNewRow && requestType != "Save")
             {
                 EventAggregator.Trigger("DisableOrEnableAddForm", null!);
-                EventAggregator.Trigger("ResetAddFormValues", requestType);
+                EventAggregator.Trigger("ResetAddFormValues", requestType!);
             }
             if (requestType == "ColumnState")
             {
@@ -2562,7 +2629,6 @@ namespace Syncfusion.Blazor.Grids
             var requireRefresh = false;
             var RequestType = args?.RequestType.ToString() ?? requestType;
             SortingEventArgs? sortingEvent = eventArgs as SortingEventArgs;
-
             switch (RequestType)
             {
                 case "Searching":
@@ -2573,11 +2639,11 @@ namespace Syncfusion.Blazor.Grids
                 case "Filtering":
                 case "ClearFiltering":
                 case "Refresh":
-                    requireRefresh = await HandleQueryDataActions(RequestType, args, eventArgs, sortingEvent).ConfigureAwait(true);
+                    requireRefresh = await HandleQueryDataActions(RequestType, args!, eventArgs, sortingEvent).ConfigureAwait(true);
                     break;
                 case "Save":
                 case "Delete":
-                    requireRefresh = await HandleCRUDActions(RequestType, args, eventArgs).ConfigureAwait(true);
+                    requireRefresh = await HandleCRUDActions(RequestType, args!, eventArgs).ConfigureAwait(true);
                     break;
                 case "Reorder":
                     requireRefresh = await HandleReorderAction(additionalArgs).ConfigureAwait(true);
@@ -2609,18 +2675,19 @@ namespace Syncfusion.Blazor.Grids
             switch (actionType)
             {
                 case "Grouping":
-                    await HandleGroupingCancellation(args, eventArgs).ConfigureAwait(true);
+                    await HandleGroupingCancellation(args!, eventArgs).ConfigureAwait(true);
                     break;
                 case "UnGrouping":
-                    await HandleUnGroupingCancellation(args, eventArgs, temporaryIndentWidth).ConfigureAwait(true);
+                    await HandleUnGroupingCancellation(args!, eventArgs, temporaryIndentWidth).ConfigureAwait(true);
                     break;
                 case "Sorting":
                     await HandleSortingCancellation().ConfigureAwait(true);
                     break;
                 case "Paging":
-                    await HandlePagingCancellation(args, eventArgs).ConfigureAwait(true);
+                    await HandlePagingCancellation(args!, eventArgs).ConfigureAwait(true);
                     break;
             }
+
 
             await CallStateHasChangedAsync().ConfigureAwait(true);
         }
@@ -2838,7 +2905,7 @@ namespace Syncfusion.Blazor.Grids
         internal override void ComponentDispose()
         {
             CollectionDisposeMethod(CurrentViewData!);
-            UpdateObservableEvents(nameof(DataSource), DataSource, true);
+            UpdateObservableEvents(nameof(DataSource), DataSource!, true);
             _jsAdaptor?.Dispose();
             if (IsRendered)
             {
@@ -2928,6 +2995,129 @@ namespace Syncfusion.Blazor.Grids
         {
             await InvokeFailureAsync(exception).ConfigureAwait(false);
         }
+        #endregion
+
+        #region UndoRedo Initialization
+        private async Task InitializeUndoRedoModule()
+        {
+            if (!_isUndoRedoManagerInitialized && EditSettings != null && EditSettings.EnableUndoRedo == true)
+            {
+                _isUndoRedoManagerInitialized = true;
+                if (UndoRedoManager == null)
+                {
+                    UndoRedoManager = new UndoRedoManager<TValue>(this);
+                }
+                UndoRedoManager.InitializeStackLimit();
+            }
+        }
+        #endregion
+
+        #region Private helpers for public methods
+        private async Task<int> GetPrimaryKeyIndexAcrossPageAsync(List<object> values, List<string>? primaryKeys)
+        {
+            if (GroupModule != null)
+                GroupModule.IsLazyExpandAll = AllowGrouping && GroupSettings!.EnableLazyLoading && GroupSettings.Columns?.Length > 0 ? true : false;
+            var query = DataModule?.GenerateQuery(true)!;
+            query.Queries.Select = primaryKeys ?? new List<string>();
+            query.Queries.Take = TotalItemCount;
+            query.Queries.Skip = 0;
+            query.Queries.RequiresCounts = true;
+            DataResult? dataResult;
+            if (GridEvents?.OnDataLoad.HasDelegate == true)
+            {
+                var eventArgs = await EventDrivenDataHandler<TValue>.InvokeDataRequestAsync(query).ConfigureAwait(true);
+                await GridEvents.OnDataLoad.InvokeAsync(eventArgs).ConfigureAwait(true);
+                dataResult = new DataResult() { Result = eventArgs!.Result };
+            }
+            else
+            {
+                dataResult = await DataManager!.ExecuteQuery<TValue>(query).ConfigureAwait(true) as DataResult;
+            }
+            if (dataResult?.Result == null) return -1;
+            if (AllowGrouping && GroupSettings!.Columns?.Length > 0 && GroupModule != null)
+            {
+                GroupModule.IsLazyExpandAll = false;
+                return GroupModule.ProcessGroupedData(dataResult, primaryKeys, values);
+            }
+            int index = 0;
+            if (primaryKeys != null && primaryKeys.Count > 1)
+            {
+                var targetCompositeKey = new CompositeKey(values.ToArray());
+                foreach (var item in dataResult.Result.Cast<object>())
+                {
+                    var itemKeyValues = EditModule?.GetPrimaryKeyValueAsObject(item).GetAwaiter().GetResult();
+                    if (itemKeyValues != null && itemKeyValues.Count > 0 &&
+                        targetCompositeKey.Equals(new CompositeKey(itemKeyValues.ToArray())))
+                    {
+                        return index;
+                    }
+                    index++;
+                }
+                return -1;
+            }
+            var singleKey = primaryKeys?.Count != 0 ? primaryKeys![0] : string.Empty;
+            foreach (var item in dataResult.Result.Cast<object>())
+            {
+                var itemValue = PropHelper?.GetObject(singleKey, item);
+                if (!GridUtils.CompareValues(itemValue, values[0]))
+                    return index;
+                index++;
+            }
+            return -1;
+        }
+        #endregion
+
+        #region Composite-Key Helpers
+
+        /// <summary>
+        /// Projects a primary-key dictionary into a positional list aligned to the grid's
+        /// primary-key field names (as returned by <see cref="GetPrimaryKeyFieldNamesAsync"/>).
+        /// </summary>
+        /// <param name="primaryKeyValues">
+        /// A dictionary mapping each primary-key column's field name to its value.
+        /// May be <see langword="null"/> or empty.
+        /// </param>
+        /// <param name="primaryKeyFields">
+        /// The declared primary-key column field names, in declaration order.
+        /// May be <see langword="null"/> or empty.
+        /// </param>
+        /// <returns>
+        /// A <see cref="List{T}"/> of <see cref="object"/> with the same count as
+        /// <paramref name="primaryKeyFields"/>. Entries that are missing from the dictionary
+        /// remain <see langword="null"/>. Returns an empty list when either argument is null/empty.
+        /// </returns>
+        /// <remarks>
+        /// Field-name matching is case-sensitive. The dictionary's own key order is not significant.
+        /// This helper centralizes the dict-to-positional projection for all composite-key
+        /// public APIs on <c>SfGrid</c>.
+        /// </remarks>
+        internal static List<object> BuildPositionalKeyValues(IReadOnlyDictionary<string, object>? primaryKeyValues, IReadOnlyList<string>? primaryKeyFields)
+        {
+            var positional = new List<object?>();
+            if (primaryKeyFields == null || primaryKeyFields.Count == 0)
+            {
+                return new List<object>();
+            }
+            if (primaryKeyValues == null || primaryKeyValues.Count == 0)
+            {
+                return new List<object>();
+            }
+            foreach (var field in primaryKeyFields)
+            {
+                object? matched = null;
+                foreach (var keyValuePair in primaryKeyValues)
+                {
+                    if (string.Equals(keyValuePair.Key, field, StringComparison.Ordinal))
+                    {
+                        matched = keyValuePair.Value;
+                        break;
+                    }
+                }
+                positional.Add(matched);
+            }
+            return positional!;
+        }
+
         #endregion
     }
 }

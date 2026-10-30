@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using Microsoft.AspNetCore.Components;
 using System.Text.Json.Serialization;
 using System.Threading.Tasks;
@@ -71,6 +71,92 @@ namespace Syncfusion.Blazor.Grids
         /// </example>
         [Parameter]
         public EventCallback<GridPageChangedEventArgs> PageChanged { get; set; }
+
+        /// <summary>
+        /// Occurs before the Grid print document is generated.
+        /// </summary>
+        /// <value>
+        /// An <see cref="EventCallback{TValue}"/> of type <see cref="Syncfusion.Blazor.Grids.PrintingEventArgs"/>
+        /// that is invoked when a print operation is initiated.
+        /// </value>
+        /// <remarks>
+        /// <para>
+        /// This event is triggered when printing is initiated through the Grid toolbar
+        /// or by calling the <see cref="Syncfusion.Blazor.Grids.SfGrid{TValue}.PrintAsync"/> method.
+        /// </para>
+        /// <para>
+        /// Use the <see cref="Syncfusion.Blazor.Grids.PrintingEventArgs"/> instance to customize the
+        /// printed content, specify a custom data source, configure header and footer content,
+        /// or cancel the print operation by setting the corresponding cancellation property.
+        /// </para>
+        /// <para>
+        /// This event is raised before the print document is created. To perform actions
+        /// after the printing process completes, use the
+        /// <see cref="Syncfusion.Blazor.Grids.GridEvents{TValue}.Printed"/> event.
+        /// </para>
+        /// </remarks>
+        /// <example>
+        /// <code><![CDATA[
+        /// <SfGrid DataSource="@Orders">
+        ///     <GridEvents TValue="Order"
+        ///                 Printing="OnPrinting">
+        ///     </GridEvents>
+        /// </SfGrid>
+        ///
+        /// @code {
+        ///     private Task OnPrinting(PrintingEventArgs args)
+        ///     {
+        ///         args.Cancel = true;
+        ///         return Task.CompletedTask;
+        ///     }
+        /// }
+        /// ]]></code>
+        /// </example>
+        [Parameter]
+        [JsonIgnore]
+        public EventCallback<PrintingEventArgs> Printing { get; set; }
+
+        /// <summary>
+        /// Occurs after the Grid print operation has completed.
+        /// </summary>
+        /// <value>
+        /// An <see cref="EventCallback"/> that is invoked when the print process finishes.
+        /// </value>
+        /// <remarks>
+        /// <para>
+        /// This event is raised after the Grid has generated and executed the print operation.
+        /// </para>
+        /// <para>
+        /// Use this event to perform post-print actions such as logging, updating application state,
+        /// or displaying user notifications indicating that printing has completed.
+        /// </para>
+        /// <para>
+        /// This event is raised only when the print operation proceeds successfully.
+        /// If the operation is canceled during the
+        /// <see cref="Syncfusion.Blazor.Grids.GridEvents{TValue}.Printing"/> event,
+        /// the <c>Printed</c> event is not triggered.
+        /// </para>
+        /// </remarks>
+        /// <example>
+        /// <code><![CDATA[
+        /// <SfGrid DataSource="@Orders">
+        ///     <GridEvents TValue="Order"
+        ///                 Printed="OnPrinted">
+        ///     </GridEvents>
+        /// </SfGrid>
+        ///
+        /// @code {
+        ///     private Task OnPrinted()
+        ///     {
+        ///         // Handle print completion.
+        ///         return Task.CompletedTask;
+        ///     }
+        /// }
+        /// ]]></code>
+        /// </example>
+        [Parameter]
+        [JsonIgnore]
+        public EventCallback Printed { get; set; }
 
         /// <summary>
         /// Gets or sets the event callback that is invoked before a sorting action is performed or a column is removed from sorting in the grid or when the sort column direction changes from Ascending to Descending or vice versa for the same column.
@@ -408,7 +494,7 @@ namespace Syncfusion.Blazor.Grids
         public EventCallback<RowDeletedEventArgs<TValue>> RowDeleted { get; set; }
 
         /// <summary>
-        /// Gets or sets the event callback that is invoked before the cancel action is performed in the grid, specifically when using <see cref="Syncfusion.Blazor.Grids.EditMode.Normal"/> and <see cref="Syncfusion.Blazor.Grids.EditMode.Dialog"/> edit modes.
+        /// Gets or sets the event callback that is invoked before the cancel action is performed in the grid, specifically when using <see cref="Syncfusion.Blazor.Grids.EditMode.Normal"/>, <see cref="Syncfusion.Blazor.Grids.EditMode.Dialog"/> and <see cref="Syncfusion.Blazor.Grids.EditMode.Cell"/> edit modes.
         /// </summary>        
         /// <remarks>
         /// The event handler receives a  <see cref="Syncfusion.Blazor.Grids.EditCancelingEventArgs{TValue}"/> object, 
@@ -439,7 +525,7 @@ namespace Syncfusion.Blazor.Grids
         public EventCallback<EditCancelingEventArgs<TValue>> EditCanceling { get; set; }
 
         /// <summary>
-        /// Gets or sets the event callback that is invoked after the cancel action is performed in the grid, specifically when using <see cref="Syncfusion.Blazor.Grids.EditMode.Normal"/> and <see cref="Syncfusion.Blazor.Grids.EditMode.Dialog"/> edit modes.
+        /// Gets or sets the event callback that is invoked after the cancel action is performed in the grid, specifically when using <see cref="Syncfusion.Blazor.Grids.EditMode.Normal"/>, <see cref="Syncfusion.Blazor.Grids.EditMode.Dialog"/> and <see cref="Syncfusion.Blazor.Grids.EditMode.Cell"/> edit modes.
         /// </summary>  
         /// <remarks>
         /// The event handler receives a  <see cref="Syncfusion.Blazor.Grids.EditCanceledEventArgs{TValue}"/> object, 
@@ -1134,7 +1220,7 @@ namespace Syncfusion.Blazor.Grids
         /// Gets or sets the event callback that is raised before a cell enters edit mode in the UI, such as when a user double-clicks a cell or presses F2 to enter edit mode.
         /// </summary>
         /// <remarks>
-        /// This event is raised when <see cref="Syncfusion.Blazor.Grids.EditMode.Batch"/> as Batch.
+        /// This event is raised when the <see cref="GridEditSettings.Mode"/> is set to <see cref="EditMode.Batch"/> or <see cref="EditMode.Cell"/>.
         /// Use this event to prevent the edit action by setting <see cref="Syncfusion.Blazor.Grids.CellEditArgs{TValue}.Cancel"/> to true.
         /// </remarks>
         /// <value>
@@ -1164,6 +1250,7 @@ namespace Syncfusion.Blazor.Grids
         /// </summary>
         /// <remarks>
         /// Within this event handler, you can customize the edited value before update it in grid UI.
+        /// This event is raised when the <see cref="GridEditSettings.Mode"/> is set to <see cref="EditMode.Batch"/> or <see cref="EditMode.Cell"/>.
         /// You can prevent the save action using <see cref="Syncfusion.Blazor.Grids.CellSaveArgs{TValue}.Cancel"/>.
         /// </remarks>
         /// <value>
@@ -1193,6 +1280,7 @@ namespace Syncfusion.Blazor.Grids
         /// </summary>
         /// <remarks>
         /// The cell save action is prevented using the <see cref="Syncfusion.Blazor.Grids.GridEvents{TValue}.OnCellSave"/> event, then the <c>CellSaved</c> event will not be raised.
+        /// This event is raised when the <see cref="GridEditSettings.Mode"/> is set to <see cref="EditMode.Batch"/> or <see cref="EditMode.Cell"/>.
         /// </remarks>
         /// <value>
         /// An event callback function.
@@ -1214,112 +1302,6 @@ namespace Syncfusion.Blazor.Grids
         /// </example>
         [Parameter]
         public EventCallback<CellSavedArgs<TValue>> CellSaved { get; set; }
-
-        /// <summary>
-        /// Gets or sets the event callback that is raised before a cell enters edit
-        /// mode in <see cref="EditMode.Cell"/>. The event fires for double-click,
-        /// F2 key, <see cref="SfGrid{TValue}.EditCellAsync(int, string)"/>, and any
-        /// printable key when <see cref="GridEditSettings.AllowEditOnKeyPress"/>
-        /// is enabled.
-        /// </summary>
-        /// <remarks>
-        /// The event handler receives a
-        /// <see cref="Syncfusion.Blazor.Grids.CellEditingEventArgs{TValue}"/> object.
-        /// You can prevent the editor from opening by setting
-        /// <see cref="Syncfusion.Blazor.Grids.CellEditingEventArgs{TValue}.Cancel"/>
-        /// to <c>true</c>.
-        /// </remarks>
-        /// <value>
-        /// An event callback function.
-        /// </value>
-        /// <example>
-        /// <code><![CDATA[
-        /// <SfGrid DataSource="@Orders" @ref="DefaultGrid">
-        ///     <GridEditSettings AllowEditing="true" Mode="EditMode.Cell" />
-        ///     <GridEvents TValue="Order" CellEditing="CellEditingHandler" />
-        /// </SfGrid>
-        /// @code {
-        ///     public void CellEditingHandler(CellEditingEventArgs<Order> args)
-        ///     {
-        ///         if (args.ColumnName == "OrderID")
-        ///         {
-        ///             args.Cancel = true; // Prevent editing of the primary key.
-        ///         }
-        ///     }
-        /// }
-        /// ]]></code>
-        /// </example>
-        [Parameter]
-        public EventCallback<CellEditingEventArgs<TValue>> CellEditing { get; set; }
-
-        /// <summary>
-        /// Gets or sets the event callback that is raised before a cell edit is
-        /// cancelled in <see cref="EditMode.Cell"/>. The event fires when the user
-        /// presses the Escape key or when
-        /// <see cref="SfGrid{TValue}.CancelCellEditAsync"/> is called.
-        /// </summary>
-        /// <remarks>
-        /// The event handler receives a
-        /// <see cref="Syncfusion.Blazor.Grids.CellEditCancelingEventArgs{TValue}"/>
-        /// object. You can keep the editor open by setting
-        /// <see cref="Syncfusion.Blazor.Grids.CellEditCancelingEventArgs{TValue}.Cancel"/>
-        /// to <c>true</c>.
-        /// </remarks>
-        /// <value>
-        /// An event callback function.
-        /// </value>
-        /// <example>
-        /// <code><![CDATA[
-        /// <SfGrid DataSource="@Orders" @ref="DefaultGrid">
-        ///     <GridEditSettings AllowEditing="true" Mode="EditMode.Cell" />
-        ///     <GridEvents TValue="Order" CellEditCanceling="CellEditCancelingHandler" />
-        /// </SfGrid>
-        /// @code {
-        ///     public void CellEditCancelingHandler(CellEditCancelingEventArgs<Order> args)
-        ///     {
-        ///         if (args.RowData!.Freight < 0)
-        ///         {
-        ///             args.Cancel = true; // Block cancel when Freight is invalid.
-        ///         }
-        ///     }
-        /// }
-        /// ]]></code>
-        /// </example>
-        [Parameter]
-        public EventCallback<CellEditCancelingEventArgs<TValue>> CellEditCanceling { get; set; }
-
-        /// <summary>
-        /// Gets or sets the event callback that is raised after a cell edit has been
-        /// cancelled in <see cref="EditMode.Cell"/>. The cell value has been
-        /// reverted to its original state.
-        /// </summary>
-        /// <remarks>
-        /// The event handler receives a
-        /// <see cref="Syncfusion.Blazor.Grids.CellEditCanceledEventArgs{TValue}"/>
-        /// object. The event fires after
-        /// <see cref="Syncfusion.Blazor.Grids.GridEvents{TValue}.CellEditCanceling"/>
-        /// when cancellation is allowed to proceed. This event is not cancellable.
-        /// </remarks>
-        /// <value>
-        /// An event callback function.
-        /// </value>
-        /// <example>
-        /// <code><![CDATA[
-        /// <SfGrid DataSource="@Orders" @ref="DefaultGrid">
-        ///     <GridEditSettings AllowEditing="true" Mode="EditMode.Cell" />
-        ///     <GridEvents TValue="Order" CellEditCanceled="CellEditCanceledHandler" />
-        /// </SfGrid>
-        /// @code {
-        ///     public void CellEditCanceledHandler(CellEditCanceledEventArgs<Order> args)
-        ///     {
-        ///         // Notify the user that the change has been reverted.
-        ///         Console.WriteLine($"Edit cancelled for row {args.RowIndex}.");
-        ///     }
-        /// }
-        /// ]]></code>
-        /// </example>
-        [Parameter]
-        public EventCallback<CellEditCanceledEventArgs<TValue>> CellEditCanceled { get; set; }
 
         /// <summary>
         /// Gets or sets an event callback that is raised after a cell is selected in the grid. Cell selection can be done by click on the cell or pressing arrow keys with/without pressing Shift or Ctrl keys or programmatically.
@@ -1785,7 +1767,9 @@ namespace Syncfusion.Blazor.Grids
         /// </value>
         /// <example>
         /// <code><![CDATA[
-        /// <SfGrid DataSource="@Orders" @ref="DefaultGrid" >
+        /// <SfGrid DataSource="@Orders" EnableAutoFill="true" @ref="DefaultGrid" >
+        ///     <GridSelectionSettings CellSelectionMode="CellSelectionMode.Box" Mode="SelectionMode.Cell" Type="SelectionType.Multiple"></GridSelectionSettings>
+        ///     <GridEditSettings AllowAdding="true" AllowDeleting="true" AllowEditing="true" Mode="EditMode.Batch"></GridEditSettings>
         /// <GridEvents TValue="Orders" BeforeAutoFill="BeforeAutoFillAction"></GridEvents>
         /// ........
         /// </SfGrid>
@@ -1824,7 +1808,6 @@ namespace Syncfusion.Blazor.Grids
         /// {
         ///   if(args.ColumnIndex == 1 && args.RowIndex == 5)
         ///   { 
-        ///       //you can modified the content to be paste here.
         ///       args.Value = "Modified Value";
         ///   }
         /// }
@@ -1834,6 +1817,45 @@ namespace Syncfusion.Blazor.Grids
         [Parameter]
         [JsonIgnore]
         public EventCallback<BeforeAutoFillCellEventArgs<TValue>> BeforeAutoFillCell { get; set; }
+
+        /// <summary>
+        /// Gets or sets an event callback that is raised after a cell is autofilled, allowing to execute the custom logic for post-autofill actions.
+        /// </summary>
+        /// <remarks>
+        /// This event is triggered after the autofill action completes for each individual cell, allowing to execute custom logic following the value population.
+        /// The event handler receives an <see cref="Syncfusion.Blazor.Grids.AfterAutoFillCellEventArgs{TValue}"/> object containing comprehensive details about the autofilled cell, including:
+        /// <list type="bullet">
+        /// <item><description>Row and column indices identifying the target cell location</description></item>
+        /// <item><description>The autofilled value and the column field name</description></item>
+        /// <item><description>The complete row data object for context-aware operations</description></item>
+        /// </list>
+        /// Use this event to perform post-autofill operations such as logging changes, auditing user actions, validating data, or triggering follow-up updates on related cells.
+        /// </remarks>
+        /// <value>
+        /// An event callback function of type <see cref="EventCallback{TValue}"/> that accepts <see cref="Syncfusion.Blazor.Grids.AfterAutoFillCellEventArgs{TValue}"/> as its parameter.
+        /// </value>
+        /// <example>
+        /// The following example demonstrates how to handle the AfterAutoFillCell event to perform custom actions after each cell is autofilled:
+        /// <code><![CDATA[
+        /// <SfGrid DataSource="@Orders" EnableAutoFill="true">
+        ///     <GridSelectionSettings CellSelectionMode="CellSelectionMode.Box" Mode="SelectionMode.Cell" Type="SelectionType.Multiple"></GridSelectionSettings>
+        ///     <GridEditSettings AllowAdding="true" AllowDeleting="true" AllowEditing="true" Mode="EditMode.Batch"></GridEditSettings>
+        ///     <GridEvents TValue="Order" AfterAutoFillCell="OnAfterAutoFillCell"></GridEvents>
+        /// </SfGrid>
+        /// @code{
+        ///     private async Task OnAfterAutoFillCell(AfterAutoFillCellEventArgs<Order> args)
+        ///     {
+        ///         if (args.ColumnName == "Quantity" && (int)args.Value > 100)
+        ///         {
+        ///             // customize here...
+        ///         }
+        ///     }
+        /// }
+        /// ]]></code>
+        /// </example>
+        [Parameter]
+        [JsonIgnore]
+        public EventCallback<AfterAutoFillCellEventArgs<TValue>> AfterAutoFillCell { get; set; }
 
         /// <summary>
         /// Gets or sets an event callback that is raised before a request is made to access the grid header cell information.
@@ -2892,6 +2914,354 @@ namespace Syncfusion.Blazor.Grids
         /// </example>
         [Parameter]
         public Action<object>? ExportComplete { get; set; }
+
+        /// <summary>
+        /// Gets or sets the event callback that is raised before an Undo operation is executed in the grid.
+        /// </summary>
+        /// <remarks>
+        /// This event is informational only and cannot modify, cancel, or interrupt the undo operation.
+        /// Use it for pre-undo logging, audit trails, or state preparation.
+        /// The event handler receives a <see cref="Syncfusion.Blazor.Grids.OnUndoEventArgs{TValue}"/> object, which provides details
+        /// about the action being undone.
+        /// This event is only raised when the grid edit mode is <see cref="Syncfusion.Blazor.Grids.EditMode.Batch"/> and the
+        /// <see cref="Syncfusion.Blazor.Grids.GridEditSettings.EnableUndoRedo"/> property is <c>true</c>.
+        /// For bulk calls such as <c>UndoAllAsync</c>, the handler is invoked once per action consumed by the loop; audit
+        /// code should expect N invocations when draining an N-action stack.
+        /// </remarks>
+        /// <value>
+        /// An <see cref="EventCallback{TEventArgs}"/> for the <see cref="Syncfusion.Blazor.Grids.OnUndoEventArgs{TValue}"/> payload.
+        /// The default value is an empty callback.
+        /// </value>
+        /// <example>
+        /// This example shows how to handle the OnUndo event:
+        /// <code><![CDATA[
+        /// <SfGrid DataSource="@Orders" @ref="DefaultGrid" >
+        /// <GridEvents TValue="Orders" OnUndo="UndoHandler"></GridEvents>
+        /// ........
+        /// </SfGrid>
+        /// @code{
+        /// private void UndoHandler(OnUndoEventArgs<Orders> args)
+        /// {
+        ///      // Log the action being undone.
+        ///      Console.WriteLine($"Undoing {args.ActionType} at row {args.RowIndex}");
+        /// }
+        /// }
+        /// ]]>
+        /// </code>
+        /// </example>
+        [Parameter]
+        public EventCallback<OnUndoEventArgs<TValue>> OnUndo { get; set; }
+
+        /// <summary>
+        /// Gets or sets the event callback that is raised after an Undo operation has been executed and the Grid UI has been updated.
+        /// </summary>
+        /// <remarks>
+        /// This event is informational only and cannot modify, cancel, or interrupt the undo operation.
+        /// Use it for audit logging, state validation, UI synchronization, or triggering side effects.
+        /// The event handler receives an <see cref="Syncfusion.Blazor.Grids.OnUndoCompletedEventArgs{TValue}"/> object, which provides details
+        /// about the action that was undone.
+        /// This event is only raised when the grid edit mode is <see cref="Syncfusion.Blazor.Grids.EditMode.Batch"/> and the
+        /// <see cref="Syncfusion.Blazor.Grids.GridEditSettings.EnableUndoRedo"/> property is <c>true</c>.
+        /// For bulk calls such as <c>UndoAllAsync</c>, the handler is invoked once per action consumed by the loop; audit
+        /// code should expect N invocations when draining an N-action stack.
+        /// </remarks>
+        /// <value>
+        /// An <see cref="EventCallback{TEventArgs}"/> for the <see cref="Syncfusion.Blazor.Grids.OnUndoCompletedEventArgs{TValue}"/> payload.
+        /// The default value is an empty callback.
+        /// </value>
+        /// <example>
+        /// This example shows how to handle the OnUndoCompleted event:
+        /// <code><![CDATA[
+        /// <SfGrid DataSource="@Orders" @ref="DefaultGrid" >
+        /// <GridEvents TValue="Orders" OnUndoCompleted="UndoCompletedHandler"></GridEvents>
+        /// ........
+        /// </SfGrid>
+        /// @code{
+        /// private void UndoCompletedHandler(OnUndoCompletedEventArgs<Orders> args)
+        /// {
+        ///      Console.WriteLine($"Undone {args.ActionType} at row {args.RowIndex}");
+        /// }
+        /// }
+        /// ]]>
+        /// </code>
+        /// </example>
+        [Parameter]
+        public EventCallback<OnUndoCompletedEventArgs<TValue>> OnUndoCompleted { get; set; }
+
+        /// <summary>
+        /// Gets or sets the event callback that is raised before a Redo operation is executed in the grid.
+        /// </summary>
+        /// <remarks>
+        /// This event is informational only and cannot modify, cancel, or interrupt the redo operation.
+        /// Use it for pre-redo logging, audit trails, or state preparation.
+        /// The event handler receives a <see cref="Syncfusion.Blazor.Grids.OnRedoEventArgs{TValue}"/> object, which provides details
+        /// about the action being redone.
+        /// This event is only raised when the grid edit mode is <see cref="Syncfusion.Blazor.Grids.EditMode.Batch"/> and the
+        /// <see cref="Syncfusion.Blazor.Grids.GridEditSettings.EnableUndoRedo"/> property is <c>true</c>.
+        /// For bulk calls such as <c>RedoAllAsync</c>, the handler is invoked once per action consumed by the loop; audit
+        /// code should expect N invocations when draining an N-action stack.
+        /// </remarks>
+        /// <value>
+        /// An <see cref="EventCallback{TEventArgs}"/> for the <see cref="Syncfusion.Blazor.Grids.OnRedoEventArgs{TValue}"/> payload.
+        /// The default value is an empty callback.
+        /// </value>
+        /// <example>
+        /// This example shows how to handle the OnRedo event:
+        /// <code><![CDATA[
+        /// <SfGrid DataSource="@Orders" @ref="DefaultGrid" >
+        /// <GridEvents TValue="Orders" OnRedo="RedoHandler"></GridEvents>
+        /// ........
+        /// </SfGrid>
+        /// @code{
+        /// private void RedoHandler(OnRedoEventArgs<Orders> args)
+        /// {
+        ///      Console.WriteLine($"Redoing {args.ActionType} at row {args.RowIndex}");
+        /// }
+        /// }
+        /// ]]>
+        /// </code>
+        /// </example>
+        [Parameter]
+        public EventCallback<OnRedoEventArgs<TValue>> OnRedo { get; set; }
+
+        /// <summary>
+        /// Gets or sets the event callback that is raised after a Redo operation has been executed and the Grid UI has been updated.
+        /// </summary>
+        /// <remarks>
+        /// This event is informational only and cannot modify, cancel, or interrupt the redo operation.
+        /// Use it for audit logging, state validation, UI synchronization, or triggering side effects.
+        /// The event handler receives an <see cref="Syncfusion.Blazor.Grids.OnRedoCompletedEventArgs{TValue}"/> object, which provides details
+        /// about the action that was redone.
+        /// This event is only raised when the grid edit mode is <see cref="Syncfusion.Blazor.Grids.EditMode.Batch"/> and the
+        /// <see cref="Syncfusion.Blazor.Grids.GridEditSettings.EnableUndoRedo"/> property is <c>true</c>.
+        /// For bulk calls such as <c>RedoAllAsync</c>, the handler is invoked once per action consumed by the loop; audit
+        /// code should expect N invocations when draining an N-action stack.
+        /// </remarks>
+        /// <value>
+        /// An <see cref="EventCallback{TEventArgs}"/> for the <see cref="Syncfusion.Blazor.Grids.OnRedoCompletedEventArgs{TValue}"/> payload.
+        /// The default value is an empty callback.
+        /// </value>
+        /// <example>
+        /// This example shows how to handle the OnRedoCompleted event:
+        /// <code><![CDATA[
+        /// <SfGrid DataSource="@Orders" @ref="DefaultGrid" >
+        /// <GridEvents TValue="Orders" OnRedoCompleted="RedoCompletedHandler"></GridEvents>
+        /// ........
+        /// </SfGrid>
+        /// @code{
+        /// private void RedoCompletedHandler(OnRedoCompletedEventArgs<Orders> args)
+        /// {
+        ///      Console.WriteLine($"Redone {args.ActionType} at row {args.RowIndex}");
+        /// }
+        /// }
+        /// ]]>
+        /// </code>
+        /// </example>
+        [Parameter]
+        public EventCallback<OnRedoCompletedEventArgs<TValue>> OnRedoCompleted { get; set; }
+
+        /// <summary>
+        /// Raised when the grid requires data through the event-driven data binding pipeline.
+        /// </summary>
+        /// <value>
+        /// An <see cref="EventCallback{TValue}"/> that receives a
+        /// <see cref="GridLoadEventArgs{TValue}"/> containing the current data request
+        /// and response containers. The default value is an empty callback.
+        /// </value>
+        /// <remarks>
+        /// <para>
+        /// Use this event to implement event-driven data binding for the grid. When
+        /// <see cref="OnDataLoad"/> is assigned, the grid retrieves data through this
+        /// callback instead of using the configured DataSource or DataManager.
+        /// </para>
+        ///
+        /// <para>
+        /// The grid raises this event whenever a data operation is performed, such as
+        /// paging, sorting, filtering, searching, grouping, aggregate calculation,
+        /// virtualization, or data refresh. Information about the requested operation
+        /// is available through <see cref="GridLoadEventArgs{TValue}.Request"/>.
+        /// </para>
+        ///
+        /// <para>
+        /// The event handler is responsible for processing the request, retrieving the
+        /// required records, and populating the response properties:
+        /// <list type="bullet">
+        /// <item>
+        /// <description>
+        /// Set <see cref="GridLoadEventArgs{TValue}.Result"/> with the records to display.
+        /// </description>
+        /// </item>
+        /// <item>
+        /// <description>
+        /// Set <see cref="GridLoadEventArgs{TValue}.Count"/> when the total record count
+        /// is required for paging.
+        /// </description>
+        /// </item>
+        /// <item>
+        /// <description>
+        /// Set <see cref="GridLoadEventArgs{TValue}.AggregatesResult"/> when server-side
+        /// aggregate values are requested.
+        /// </description>
+        /// </item>
+        /// </list>
+        /// </para>
+        ///
+        /// <para>
+        /// When using <see cref="OnDataLoad"/>, the application is responsible for
+        /// handling all data operations and persistence. For editing scenarios, use
+        /// events such as <c>RowUpdating</c>, <c>RowDeleting</c>, and <c>OnBatchSave</c>
+        /// to perform update and delete operations against the underlying data source.
+        /// </para>
+        ///
+        /// <para>
+        /// If both <see cref="OnDataLoad"/> and a DataSource or DataManager are provided,
+        /// the grid gives precedence to <see cref="OnDataLoad"/> and ignores the configured
+        /// data source for data retrieval operations.
+        /// </para>
+        ///
+        /// <para>
+        /// This event enables the grid to work with custom services, APIs, repositories,
+        /// or any external data provider without requiring a specific data-access
+        /// implementation.
+        /// </para>
+        /// </remarks>
+        /// <example>
+        /// <code><![CDATA[
+        /// <SfGrid TValue="Order" AllowPaging="true" AllowSorting="true">
+        ///     <GridEvents TValue="Order" OnDataLoad="LoadOrders" />
+        ///     <GridColumns>
+        ///         <GridColumn Field="OrderID" HeaderText="Order ID" Width="120" />
+        ///         <GridColumn Field="CustomerID" HeaderText="Customer ID" Width="120" />
+        ///     </GridColumns>
+        /// </SfGrid>
+        ///
+        /// @code {
+        ///     private async Task LoadOrders(GridLoadEventArgs<Order> args)
+        ///     {
+        ///         var response = await Http.GetFromJsonAsync<OrderResponse>($"/api/orders?skip={args.Request.Skip}&take={args.Request.Take}");
+        ///         args.Result = response.Items;
+        ///         args.Count = response.Total;
+        ///     }
+        /// }
+        /// ]]></code>
+        /// </example>
+        [Parameter]
+        public EventCallback<GridLoadEventArgs<TValue>> OnDataLoad { get; set; }
+
+        /// <summary>
+        /// Gets or sets a callback that is invoked before a WebMCP tool is executed.
+        /// </summary>
+        /// <value>
+        /// An <see cref="EventCallback{TValue}"/> of type
+        /// <see cref="WebMcpToolExecuteEventArgs"/> that allows the application to
+        /// inspect, modify, cancel, or override WebMCP tool execution. The default
+        /// value is an empty callback.
+        /// </value>
+        /// <remarks>
+        /// <para>
+        /// This event is raised after a tool has been resolved but before the
+        /// corresponding built-in or custom handler is executed.
+        /// </para>
+        /// <para>
+        /// Handlers can use the supplied
+        /// <see cref="WebMcpToolExecuteEventArgs"/> instance to:
+        /// </para>
+        /// <list type="bullet">
+        /// <item>
+        /// <description>
+        /// Inspect the requested tool through
+        /// <see cref="WebMcpToolExecuteEventArgs.ToolName"/> and its input arguments
+        /// through <see cref="WebMcpToolExecuteEventArgs.Arguments"/>.
+        /// </description>
+        /// </item>
+        /// <item>
+        /// <description>
+        /// Cancel execution by setting
+        /// <see cref="WebMcpToolExecuteEventArgs.Cancel"/> to
+        /// <see langword="true"/>.
+        /// </description>
+        /// </item>
+        /// <item>
+        /// <description>
+        /// Provide a custom response by setting
+        /// <see cref="WebMcpToolExecuteEventArgs.Result"/>.
+        /// </description>
+        /// </item>
+        /// </list>
+        /// <para>
+        /// If <see cref="WebMcpToolExecuteEventArgs.Cancel"/> is set to
+        /// <see langword="true"/>, tool execution is aborted and a cancellation
+        /// response is returned to the requesting agent.
+        /// </para>
+        /// <para>
+        /// This event serves as the execution entry point for custom WebMCP tools
+        /// defined through <see cref="GridWebMcpTool"/> instances whose
+        /// <c>Command</c> is <see cref="GridWebMcpToolCommand.Custom"/>. Custom tools
+        /// do not provide built-in execution logic. Applications are responsible for
+        /// handling custom tool requests and supplying an appropriate response
+        /// through <see cref="WebMcpToolExecuteEventArgs.Result"/>.
+        /// </para>
+        /// <para>
+        /// A custom tool requires an assigned handler. If no handler is assigned or
+        /// the handler does not set a result or cancel execution, dispatch returns a
+        /// clear execution error instead of treating the custom tool as functional.
+        /// </para>
+        /// <para>
+        /// Execution behavior may differ between Blazor Server and Blazor
+        /// WebAssembly hosting models. In Blazor Server, tool execution requires
+        /// communication between the browser and the server through an interactive
+        /// circuit. In Blazor WebAssembly, tool execution occurs entirely within the
+        /// browser runtime. Consequently, execution timing and latency may vary
+        /// between hosting models.
+        /// </para>
+        /// <para>
+        /// This event is not raised during Static Server-Side Rendering (SSR) or
+        /// prerendering because WebMCP tool registration requires an interactive
+        /// browser context.
+        /// </para>
+        /// <para>
+        /// Setting <see cref="WebMcpToolExecuteEventArgs.Result"/> overrides the
+        /// normal execution flow and returns the supplied response to the requesting
+        /// agent instead of the built-in tool output.
+        /// </para>
+        /// </remarks>
+        /// <example>
+        /// <![CDATA[
+        /// <SfGrid DataSource="@Orders" EnableWebMcp="true">
+        ///     <GridWebMcpSettings>
+        ///         <GridWebMcpTools>
+        ///             <GridWebMcpTool
+        ///                 Command="GridWebMcpToolCommand.Custom"
+        ///                 Name="getTopCustomers"
+        ///                 Description="Returns the top customers."
+        ///                 InputSchema="@(new { type = "object" })" />
+        ///         </GridWebMcpTools>
+        ///     </GridWebMcpSettings>
+        ///
+        ///     <GridEvents TValue="OrderData"
+        ///                 OnWebMcpExecute="HandleToolExecute">
+        ///     </GridEvents>
+        /// </SfGrid>
+        ///
+        /// @code {
+        ///     private Task HandleToolExecute(WebMcpToolExecuteEventArgs args)
+        ///     {
+        ///         if (args.ToolName == "getTopCustomers")
+        ///         {
+        ///             args.Result = new
+        ///             {
+        ///                 Count = 5
+        ///             };
+        ///         }
+        ///
+        ///         return Task.CompletedTask;
+        ///     }
+        /// }
+        /// ]]>
+        /// </example>
+        [Parameter]
+        [JsonIgnore]
+        public EventCallback<WebMcpToolExecuteEventArgs> OnWebMcpExecute { get; set; }
 
         /// <summary>
         /// Initializes the GridEvents and assigns it to the parent grid instance.

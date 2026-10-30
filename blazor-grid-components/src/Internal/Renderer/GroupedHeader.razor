@@ -10,7 +10,7 @@
     var classNames = sortDirection == SortDirection.Ascending ? "e-ascending e-icon-ascending" : "e-descending e-icon-descending";
     var ApplySort = sortDirection == SortDirection.Ascending ? SortDirection.Descending : SortDirection.Ascending;
     var tabIndexValue = Parent?.IsEdit == true ? -1 : 0;
-    <div class="@GetGroupHeaderCssClass()"  @onfocus="@(() => UpdateFocusState(nameof(focusGroupedHeader), true))" @onblur="@(() => UpdateFocusState(nameof(focusGroupedHeader), false))" tabindex= "@tabIndexValue">
+    <div @ref="groupHeaderRef" class="@GetGroupHeaderCssClass()" tabindex="@tabIndexValue" @onclick="FocusGroupHeader" @onfocus="@(() => UpdateFocusState(nameof(focusGroupedHeader), true))" @onblur="@(() => UpdateFocusState(nameof(focusGroupedHeader), false))">
         <div @onclick="((MouseEventArgs args) => Parent!.SortModule?.SortColumn(Column!, ApplySort, true)!)">
             <span class="e-grouptext" tabindex="-1">@(headerText)</span>
             
@@ -21,7 +21,8 @@
             title="@Localizer?.GetText(GridLocaleKeys.UnGroupButtonARIA)" role="button" tabindex="@tabIndexValue" @onclick:stopPropagation="true"
             @onkeydown="@((KeyboardEventArgs args) => CancelIconHandler(args, Column!))" @onclick="((MouseEventArgs args) => Parent.GroupModule?.UnGroupColumn(Column!)!)"></span>
             }
-            <span class="@GetSortIconCssClass(classNames)" role="button" title="@Parent.Localizer?.GetText(GridLocaleKeys.GroupedSortIcon) @headerText" tabindex="@tabIndexValue" @onkeydown="@((KeyboardEventArgs args) => SortIconHandler(args, ApplySort, Column!))" @onfocus="@(() => UpdateFocusState(nameof(focusSortIcon), true))" @onblur="@(() => UpdateFocusState(nameof(focusSortIcon), false))">&nbsp;&nbsp;</span>
+            <span class="@GetSortIconCssClass(classNames)" role="button" title="@Parent.Localizer?.GetText(GridLocaleKeys.GroupedSortIcon) @headerText" tabindex="@tabIndexValue" @onclick:stopPropagation="true" @onfocus="@(() => UpdateFocusState(nameof(focusSortIcon), true))"
+                  @onblur="@(() => UpdateFocusState(nameof(focusSortIcon), false))" @onclick="@(async (MouseEventArgs args) => await Parent!.SortModule!.SortColumn(Column!, ApplySort, true))" @onkeydown="@((KeyboardEventArgs args) => SortIconHandler(args, ApplySort, Column!))">&nbsp;&nbsp;</span>
             <span class="@GetUngroupButtonCssClass()" role="button" @onclick="((MouseEventArgs args) => Parent.GroupModule?.UnGroupColumn(Column!)!)"
                 @onfocus="@(() => UpdateFocusState(nameof(focusCancelIcon), true))" @onblur="@(() => UpdateFocusState(nameof(focusCancelIcon), false))" 
                 title="@(Localizer?.GetText(GridLocaleKeys.Ungroup))"
@@ -39,6 +40,8 @@
 
     [Parameter]
     public string ?Column { get; set; }
+
+    private ElementReference groupHeaderRef;
 
     private ISyncfusionStringLocalizer? Localizer;
     private string focusGroupedHeader = string.Empty;
@@ -73,6 +76,11 @@
         {
             await Parent.SortModule.HandleSortKeyboardAction(args.Key, column, applySort);
         }
+    }
+
+    private async Task FocusGroupHeader(MouseEventArgs args)
+    {
+        await groupHeaderRef.FocusAsync().ConfigureAwait(true);
     }
     #endregion
 

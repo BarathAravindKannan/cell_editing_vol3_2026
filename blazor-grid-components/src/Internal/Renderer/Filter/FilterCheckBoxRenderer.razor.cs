@@ -1,16 +1,15 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Text;
-using Syncfusion.Blazor.Popups;
-using Syncfusion.Blazor.Data;
-using Microsoft.AspNetCore.Components.Web;
 using Microsoft.AspNetCore.Components;
-using System.Threading.Tasks;
+using Microsoft.AspNetCore.Components.Web;
+using Syncfusion.Blazor.Data;
 using Syncfusion.Blazor.Internal;
-using System.Linq;
+using Syncfusion.Blazor.Popups;
+using System;
 using System.Collections;
+using System.Collections.Generic;
 using System.Globalization;
+using System.Linq;
 using System.Runtime.CompilerServices;
+using System.Threading.Tasks;
 
 [assembly: InternalsVisibleTo("Syncfusion.Blazor.Tests, PublicKey=00240000048000009400000006020000002400005253413100040000010001002382fcb1069523ce72d849497a557a445c151eaf4007aa79adef551a8204ca7f728e5378607d85695b16f129ec35bf4af15dcf6d3581deb8bb0debb239c33e7f1271a37c7f60f1044ae417730f5082abee5f9ec568a8a4cef04074394755706376e982dc6f9d15430faaad385ae8f00a77ef1c97517f1a1517004ce78028b9ce")]
 namespace Syncfusion.Blazor.Grids.Internal
@@ -114,6 +113,12 @@ namespace Syncfusion.Blazor.Grids.Internal
 
         private List<PredicateModel<object>> predicateModels { get; set; } = new List<PredicateModel<object>>();
 
+        /// <summary>
+        /// Tracks whether the dialog was toggled closed by clicking the filter icon.
+        /// Used to implement toggle behavior: first click opens, second click closes.
+        /// </summary>
+        private bool _isDialogToggledClosed { get; set; }
+
 
         //AdaptiveDialog Section Started
         private SfDialog? CheckBoxAdaptiveDialog { get; set; }
@@ -130,16 +135,22 @@ namespace Syncfusion.Blazor.Grids.Internal
         private async Task AdaptiveRendered()
         {
             VisibleProperty = true;
+            // Reset toggle state when adaptive dialog is rendered
+            Parent!.FilterModule!.ResetColumnDialogState(Column!.Uid);
             await OpenFilterDialog(XPosition, YPosition).ConfigureAwait(true);
-            Parent!.FilterModule!.FilterDialogInstance = CheckBoxAdaptiveDialog;
+            Parent.FilterModule.FilterDialogInstance = CheckBoxAdaptiveDialog;
             await Parent.InvokeMethod("sfBlazor.Grid.customFilterDialog", new object[] { Parent.DataId, $"{Column?.Uid}customcheckboxfilter", Parent.FilterModule.GetFilterType(Column!) == "Excel" }).ConfigureAwait(true);
             VisibleProperty = false;
         }
 
         internal void CloseHandler()
         {
+            // Reset toggle state on adaptive dialog close
+            Parent!.FilterModule!.ResetColumnDialogState(Column!.Uid);
+            _isDialogToggledClosed = false;
+
             IsBackButtonTriggered = true;
-            if(Parent!.FilterModule != null)
+            if(Parent.FilterModule != null)
             {
                 Parent.FilterModule.FilterIconIsClicked = false;
             }
@@ -216,6 +227,11 @@ namespace Syncfusion.Blazor.Grids.Internal
             var CheckedCount = GetCheckedDataCount();
             if(Parent.FilterModule != null)
             {
+                // CRITICAL FIX: Reset toggle state BEFORE setting FilterIconIsClicked to false
+                // and BEFORE hiding the dialog. If we don't do this here, the parent component
+                // (FilterType.razor) will destroy FilterCheckBoxRenderer before Closed() event fires,
+                // preventing proper state cleanup.
+                Parent.FilterModule.ResetColumnDialogState(Column!.Uid);
                 Parent.FilterModule.FilterIconIsClicked = false;
             }          
             if (!Parent.EnableAdaptiveUI)
@@ -277,19 +293,19 @@ namespace Syncfusion.Blazor.Grids.Internal
                     {
                         if (int.TryParse(value?.ToString(), out int temp) == true)
                         {
-                            value = SfBaseUtils.ChangeType(value, Column?.ValueType);
+                            value = SfBaseUtils.ChangeType(value, Column?.ValueType!);
                         }
                     }
                     else if (isLong)
                     {
                         if (long.TryParse(value?.ToString(), out long temp) == true)
                         {
-                            value = SfBaseUtils.ChangeType(value, Column?.ValueType);
+                            value = SfBaseUtils.ChangeType(value, Column?.ValueType!);
                         }
                     }
                     else if (double.TryParse(value?.ToString(), out double temp) == true)
                     {
-                        value = SfBaseUtils.ChangeType(value, Column?.ValueType);
+                        value = SfBaseUtils.ChangeType(value, Column?.ValueType!);
                     }
                     else
                     {
@@ -304,7 +320,7 @@ namespace Syncfusion.Blazor.Grids.Internal
                     {
                         value = Temp;
                     }
-                    else if(value != null && !Parent!.DataManager.DataAdaptor.IsRemote())
+                    else if(value != null && !Parent!.DataManager!.DataAdaptor!.IsRemote())
                     {
                         value = value.ToString()!;
                     }
@@ -318,7 +334,7 @@ namespace Syncfusion.Blazor.Grids.Internal
                 case ColumnType.Boolean:
                     if (bool.TryParse((string)value, out bool b))
                     {
-                        value = SfBaseUtils.ChangeType(value, Column?.ValueType);
+                        value = SfBaseUtils.ChangeType(value, Column?.ValueType!);
                     }
                     else
                     {
@@ -329,7 +345,7 @@ namespace Syncfusion.Blazor.Grids.Internal
                     break;
                 case ColumnType.None:
                 case ColumnType.String:
-                    value = SfBaseUtils.ChangeType(value, Column?.ValueType);
+                    value = SfBaseUtils.ChangeType(value, Column?.ValueType!);
                     break;
             }
             return value;
@@ -622,9 +638,39 @@ namespace Syncfusion.Blazor.Grids.Internal
             }
         }
         
+        /// <summary>
+        /// Toggle the filter dialog open/closed based on current state.
+        /// Called by filter icon click handler to implement toggle behavior.
+        /// </summary>
+        internal async Task OnFilterIconClickAsync()
+        {
+            bool isAlreadyOpen = Parent!.FilterModule!.IsFilterDialogOpen(Column!.Uid);
+            
+            if (isAlreadyOpen)
+            {
+                // Toggle close: hide dialog
+                _isDialogToggledClosed = true;
+                if (ExcelDialog != null)
+                    await ExcelDialog.HideAsync().ConfigureAwait(true);
+                if (CheckBoxAdaptiveDialog != null)
+                    await CheckBoxAdaptiveDialog.HideAsync().ConfigureAwait(true);
+            }
+            else
+            {
+                // Open dialog and track state
+                _isDialogToggledClosed = false;
+                Parent.FilterModule.SetFilterDialogOpen(Column!.Uid);
+                await OpenFilterDialog().ConfigureAwait(true);
+            }
+        }
+        
         internal void Closed()
         {
-            if (Parent!.FilterModule != null && Parent.FocusModule != null && !Parent.FilterModule.IsSubMenuClick)
+            // CRITICAL: Reset toggle state on ANY dialog close
+            Parent!.FilterModule!.ResetColumnDialogState(Column!.Uid);
+            _isDialogToggledClosed = false;
+
+            if (Parent.FilterModule != null && Parent.FocusModule != null && !Parent.FilterModule.IsSubMenuClick)
             {
                 Parent.FilterModule.FilterIconIsClicked = false;
                 Parent.EventAggregator.Trigger("FilterComponentUpdate", null!);
@@ -634,7 +680,11 @@ namespace Syncfusion.Blazor.Grids.Internal
 
         internal void OncloseDialog(BeforeCloseEventArgs args)
         {
-            if(args?.ClosedBy == "Escape" && Parent!.FilterSettings!.Type == FilterType.Excel)
+            // Reset toggle state when dialog closes
+            Parent!.FilterModule!.ResetColumnDialogState(Column!.Uid);
+            _isDialogToggledClosed = false;
+
+            if(args?.ClosedBy == "Escape" && Parent.FilterSettings!.Type == FilterType.Excel)
             {
                 ExcelBaseRef?.Dispose();
             }
@@ -647,7 +697,7 @@ namespace Syncfusion.Blazor.Grids.Internal
         {
             FilterDialogInitialRendering = true;
             var actionArgs = new ActionEventArgs<TContent>() { RequestType = Grids.Action.FilterBeforeOpen, Cancel = false, ColumnName = Column?.Field!, Parent = Parent, CheckboxListData = null!};
-            await SfBaseUtils.InvokeEvent<ActionEventArgs<TContent>>(Parent!.GridEvents?.OnActionBegin, actionArgs).ConfigureAwait(true);
+            await SfBaseUtils.InvokeEvent<ActionEventArgs<TContent>>(Parent!.GridEvents?.OnActionBegin!, actionArgs).ConfigureAwait(true);
             await Parent.EventAggregator.NotifyAsync("ActionBegin", actionArgs).ConfigureAwait(true);
             FilterDialogOpeningEventArgs dialogOpeningArgs = new FilterDialogOpeningEventArgs()
             {
@@ -664,6 +714,12 @@ namespace Syncfusion.Blazor.Grids.Internal
                 if (dialogOpeningArgs.Cancel)
                 {
                     Parent.FilterModule!.FilterIconIsClicked = false;
+                    // CRITICAL: Reset toggle state to prevent stale OpenFilterColumnUid
+                    // from causing the next click to be misinterpreted as a toggle-close
+                    if (Column != null && !string.IsNullOrEmpty(Column.Uid))
+                    {
+                        Parent.FilterModule!.ResetColumnDialogState(Column.Uid);
+                    }
                     Parent.EventAggregator.Trigger("FilterComponentUpdate", null!);
                     return;
                 }
@@ -671,12 +727,24 @@ namespace Syncfusion.Blazor.Grids.Internal
             if (dialogOpeningArgs.Cancel)
             {
                 Parent.FilterModule!.FilterIconIsClicked = false;
+                // CRITICAL: Reset toggle state to prevent stale OpenFilterColumnUid
+                // from causing the next click to be misinterpreted as a toggle-close
+                if (Column != null && !string.IsNullOrEmpty(Column.Uid))
+                {
+                    Parent.FilterModule!.ResetColumnDialogState(Column.Uid);
+                }
                 Parent.EventAggregator.Trigger("FilterComponentUpdate", null!);
                 return;
             }
             if (actionArgs.Cancel)
             {
                 Parent.FilterModule!.FilterIconIsClicked = false;
+                // CRITICAL: Reset toggle state to prevent stale OpenFilterColumnUid
+                // from causing the next click to be misinterpreted as a toggle-close
+                if (Column != null && !string.IsNullOrEmpty(Column.Uid))
+                {
+                    Parent.FilterModule!.ResetColumnDialogState(Column.Uid);
+                }
                 Parent.EventAggregator.Trigger("FilterComponentUpdate", null!);
                 return;
             }
@@ -704,7 +772,7 @@ namespace Syncfusion.Blazor.Grids.Internal
             }
 
             var CompleteArgs = new ActionEventArgs<TContent>() { RequestType = Grids.Action.FilterAfterOpen, Cancel = false, ColumnName = Column?.Field!, Parent = Parent };
-            await SfBaseUtils.InvokeEvent<ActionEventArgs<TContent>>(Parent.GridEvents?.OnActionComplete, CompleteArgs).ConfigureAwait(true);
+            await SfBaseUtils.InvokeEvent<ActionEventArgs<TContent>>(Parent.GridEvents?.OnActionComplete!, CompleteArgs).ConfigureAwait(true);
             await Parent.EventAggregator.NotifyAsync("ActionComplete", CompleteArgs).ConfigureAwait(true);
             if (actionArgs.Cancel)
             {
@@ -859,7 +927,7 @@ namespace Syncfusion.Blazor.Grids.Internal
                 }
                 else
                 {
-                    if ((Parent.DataManager.Adaptor == Adaptors.ODataV4Adaptor || Parent.DataManager.Adaptor == Adaptors.ODataAdaptor) && Column?.ValueType != typeof(string))
+                    if ((Parent.DataManager?.Adaptor == Adaptors.ODataV4Adaptor || Parent.DataManager?.Adaptor == Adaptors.ODataAdaptor) && Column?.ValueType != typeof(string))
                     {
                         InputFilters.Add(new WhereFilter() { Field = Field, Operator = excelSearchOperator != "none" ? excelSearchOperator : Column?.FilterSettings?.Operator?.ToString().ToLower(System.Globalization.CultureInfo.CurrentCulture) ?? "equal", value = InputValue, IgnoreCase = true, Condition = "and" });
                     }
@@ -886,6 +954,19 @@ namespace Syncfusion.Blazor.Grids.Internal
             }
 
             return query;
+        }
+
+        /// <summary>
+        /// Casts the consumer-populated <see cref="GridLoadEventArgs  {T}.Result"/> back to the
+        /// renderer's <typeparamref name="TPayload"/> while preserving non-generic shape.
+        /// </summary>
+        private static List<object>? CastCheckboxResult<TPayload>(IEnumerable? result)
+        {
+            if (result == null)
+            {
+                return null;
+            }
+            return result.OfType<TPayload>().Cast<object>().ToList();
         }
 
         private async Task UpdateDataSource(bool isInputSearch = false, IEnumerable<object>? customFilterData = null, int filterChoiceCount = 0)
@@ -933,11 +1014,12 @@ namespace Syncfusion.Blazor.Grids.Internal
                 Query DataManagerQuery = await GenerateWherePredicate(isForeignDataEmpty).ConfigureAwait(true);
                 Query GridQuery = Column?.IsForeignColumn() == true && isForeignDataEmpty ? new Query() : Parent!.DataModule!.GenerateQuery().RequiresCount();
                 var SortField = Column?.IsForeignColumn() == true ? Column?.IsForeignKeyField() == true ? Column?.Field : Column?.ForeignKeyField : Column?.Field;
-                DataManagerQuery.Sort(SortField, "ascending");
+                DataManagerQuery.Sort(SortField!, "ascending");
+
                 var needSort = GridQuery?.Queries?.Sorted?.FindAll(x => x?.Name == SortField);
                 if (needSort == null || needSort.Count == 0)
                 {
-                    GridQuery?.Sort(SortField, "ascending");
+                    GridQuery?.Sort(SortField!, "ascending");
                 }
 
                 DataManagerQuery.Queries.Search = GridQuery?.Queries?.Search;
@@ -960,8 +1042,21 @@ namespace Syncfusion.Blazor.Grids.Internal
                 DataManagerQuery.Queries.Expand = GridQuery?.Queries?.Expand;
                 GridQuery!.Queries.Select = DataManagerQuery.Queries.Select = new List<string>() { SortField! };
                 GridQuery.Queries.RequiresCounts = true;
-                IEnumerable tmpFullData = ((DataResult)await (Parent?.DataManager?.ExecuteQuery<TContent>(DataManagerQuery)!).ConfigureAwait(true))?.Result!;
-                var fullData = (IEnumerable<object>)tmpFullData?.OfType<TContent>().ToList()!;
+                // Event-driven data source: invoke OnLoadData when subscribed for the full sample,
+                // otherwise fall back to executing the DataManager query directly.
+                IEnumerable<object>? tmpFullData = null;
+                if (Parent.GridEvents?.OnDataLoad.HasDelegate == true)
+                {
+                    var fullEventArgs = await EventDrivenDataHandler<TContent>.InvokeDataRequestAsync(DataManagerQuery).ConfigureAwait(true);
+                    await InvokeAsync( () => Parent.GridEvents.OnDataLoad.InvokeAsync(fullEventArgs)).ConfigureAwait(true);
+                    tmpFullData = CastCheckboxResult<TContent>(fullEventArgs?.Result);
+                }
+                else
+                {
+                    IEnumerable tmpFullDataRaw = ((DataResult)await (Parent?.DataManager?.ExecuteQuery<TContent>(DataManagerQuery)!).ConfigureAwait(true))?.Result!;
+                    tmpFullData = tmpFullDataRaw?.OfType<TContent>().Cast<object>().ToList()!;
+                }
+                var fullData = (IEnumerable<object>)tmpFullData! ?? (IEnumerable<object>)new List<TContent>();
                 if (DataManagerQuery.Queries.Distinct != null)
                 {
                     CheckboxData = fullData;
@@ -969,7 +1064,7 @@ namespace Syncfusion.Blazor.Grids.Internal
                 else
                 {
                     object? result = null;
-                    if (Parent.DataManager.Adaptor != Adaptors.BlazorAdaptor)
+                    if (Parent.DataManager?.Adaptor != Adaptors.BlazorAdaptor)
                     {
 #pragma warning disable BL0005
                         using DataManager customDataManager = new SfDataManager() { Json = fullData, Adaptor = Adaptors.BlazorAdaptor };
@@ -981,14 +1076,15 @@ namespace Syncfusion.Blazor.Grids.Internal
                         result = await Parent.DataManager.ExecuteQuery<TContent>(GridQuery).ConfigureAwait(true);
                     }
 
-                    IEnumerable<object>? Data = result is DataResult ? (IEnumerable<object>)((DataResult)result).Result : (IEnumerable<object>)result;
+                    IEnumerable<object>? Data = result is DataResult ? (IEnumerable<object>)((DataResult)result).Result! : (IEnumerable<object>)result;
                     Data = ForeignKey<TContent>.GetForeignKeyDataSource(Column!, Data) as IEnumerable<object>;
 
                     IEnumerable<object>? FullData = FullDataEmpty ? new List<IEnumerable<object>>() : fullData;
                     FullData = ForeignKey<TContent>.GetForeignKeyDataSource(Column!, FullData) as IEnumerable<object>;
 
-                    var DistinctData = DataUtil.GetDistinct(Data, Column?.IsForeignColumn() == true ? Column?.ForeignKeyValue : Column?.Field);
-                    var DistinctFullData = (FullData?.Count() >= DistinctData?.Cast<object>().Count()) || isSearch ? DataUtil.GetDistinct(FullData, Column?.IsForeignColumn() == true ? Column?.ForeignKeyValue : Column?.Field) : DistinctData;
+                    var propertyName = Column?.IsForeignColumn() == true ? Column?.ForeignKeyValue : Column?.Field;
+                    var DistinctData = (Data != null && propertyName != null) ? DataUtil.GetDistinct(Data, propertyName) : Enumerable.Empty<object>();
+                    var DistinctFullData = FullData != null && propertyName != null && ((FullData.Count() >= DistinctData?.Cast<object>().Count()) || isSearch) ? DataUtil.GetDistinct(FullData, propertyName) : DistinctData;
                     DistinctFullData = DistinctFullData?.Take(FilterChoiceCount == 0 ? 1000 : FilterChoiceCount);
                     CheckboxData = DistinctFullData;
                     if(CheckboxListData == null)
@@ -1004,7 +1100,7 @@ namespace Syncfusion.Blazor.Grids.Internal
                     CheckboxData = customFilterData
                     .Where(val =>
                     {
-                        var value = Parent!.PropHelper?.GetValue(val, Column?.Field)?.ToString()?.ToLower(System.Globalization.CultureInfo.CurrentCulture);
+                        var value = Parent!.PropHelper?.GetValue(val, Column?.Field!)?.ToString()?.ToLower(System.Globalization.CultureInfo.CurrentCulture);
                         var searchText = SearchValue?.ToLower(System.Globalization.CultureInfo.CurrentCulture);
                         return value != null && searchText != null && value.Contains(searchText, StringComparison.Ordinal);
                     })
@@ -1027,7 +1123,7 @@ namespace Syncfusion.Blazor.Grids.Internal
                 var distinctCheckboxData = CheckboxListData
                     .Where(val =>
                     {
-                        var value = Parent!.PropHelper?.GetValue(val, Column?.Field);
+                        var value = Parent!.PropHelper?.GetValue(val, Column?.Field!);
                         var searchText = SearchValue?.ToLower(System.Globalization.CultureInfo.CurrentCulture);
                         return value == null && !string.IsNullOrEmpty(searchText) && blanksText?.Contains(searchText, StringComparison.Ordinal) == true;
                     })
@@ -1035,8 +1131,10 @@ namespace Syncfusion.Blazor.Grids.Internal
 
                 if (distinctCheckboxData?.Count > 0)
                 {
-                    CheckboxData = distinctCheckboxData.Concat(CheckboxData!.Except(distinctCheckboxData)).AsQueryable();
-                    CheckboxData = CheckboxData.Where(list => CheckboxListData.Contains(list));                }
+                    CheckboxData ??= Enumerable.Empty<object>();
+                    CheckboxData = distinctCheckboxData.Concat(CheckboxData.Except(distinctCheckboxData)).AsQueryable();
+                    CheckboxData = CheckboxData.Where(list => CheckboxListData.Contains(list));
+                }
             }
 
             CheckedData?.Clear();
@@ -1069,7 +1167,7 @@ namespace Syncfusion.Blazor.Grids.Internal
                 UpdateCheckBoxDataItems(CheckboxData!, isForeignDataEmpty, isInputSearch);
             }
             SelectAllHandler(CheckboxData);
-            await SfBaseUtils.InvokeEvent<ActionEventArgs<TContent>>(Parent!.GridEvents?.OnActionComplete, actionArgs).ConfigureAwait(true);
+            await SfBaseUtils.InvokeEvent<ActionEventArgs<TContent>>(Parent!.GridEvents?.OnActionComplete!, actionArgs).ConfigureAwait(true);
             await Parent.EventAggregator.NotifyAsync("ActionComplete", actionArgs).ConfigureAwait(true);
         }
 
@@ -1079,7 +1177,7 @@ namespace Syncfusion.Blazor.Grids.Internal
             {
                 var FilterValue = PropertyHelper?.GetObject(Column?.IsForeignColumn() == true ? Column?.ForeignKeyValue! : Column?.Field!, value);
                 var uniqueId = "cbox" + Guid.NewGuid().ToString();
-                var val = Column?.IsForeignColumn() == true ? FilterValue : Parent!.PropHelper?.GetValue(value, Column?.Field);
+                var val = Column?.IsForeignColumn() == true ? FilterValue : Parent!.PropHelper?.GetValue(value, Column?.Field!);
                 object? CheckBoxValue = null;
                 var currentCulture = CultureInfo.CurrentCulture?.Name;
 
@@ -1199,7 +1297,7 @@ namespace Syncfusion.Blazor.Grids.Internal
 
                         isFiltered = true;
 #pragma warning disable BL0005
-                        FCol!.Value = FCol.Value?.GetType()?.Name == "JsonElement" ? SfBaseUtils.ChangeType(FCol.Value, Column?.ValueType) : FCol.Value!;
+                        FCol!.Value = FCol.Value?.GetType()?.Name == "JsonElement" ? SfBaseUtils.ChangeType(FCol.Value, Column?.ValueType!) : FCol.Value!;
 #pragma warning restore BL0005
                         var CurrentFilterValue = FCol.Value == null ? "null" : FCol.Value;
                         fValue = fValue == null ? "null" : fValue;
@@ -1531,7 +1629,7 @@ namespace Syncfusion.Blazor.Grids.Internal
             SearchValue = args?.Value?.ToString()!;
             VisibleProperty = true;
             var actionArgs = new ActionEventArgs<TContent>() { RequestType = Grids.Action.FilterSearchBegin, SearchString = SearchValue, ColumnName = Column?.Field!, Parent = Parent, CheckboxListData = null! };
-            await SfBaseUtils.InvokeEvent<ActionEventArgs<TContent>>(Parent!.GridEvents?.OnActionBegin, actionArgs).ConfigureAwait(true);
+            await SfBaseUtils.InvokeEvent<ActionEventArgs<TContent>>(Parent!.GridEvents?.OnActionBegin!, actionArgs).ConfigureAwait(true);
             await Parent.EventAggregator.NotifyAsync("ActionBegin", actionArgs).ConfigureAwait(true);
             var filterSearchingArgs = new CheckboxFilterSearchingEventArgs() { SearchText = SearchValue!, ColumnName = Column?.Field!, Parent = Parent, CheckboxListData = null! };
             if ((Parent.GridEvents?.CheckboxFilterSearching.HasDelegate == true) || Parent.IsRenderedFromTreeGrid)
@@ -1539,7 +1637,7 @@ namespace Syncfusion.Blazor.Grids.Internal
                 if(Parent.IsRenderedFromTreeGrid)
                     await Parent.EventAggregator.NotifyAsync("CheckboxFilterSearching", filterSearchingArgs).ConfigureAwait(true);
                 else
-                    await SfBaseUtils.InvokeEvent<CheckboxFilterSearchingEventArgs>(Parent.GridEvents?.CheckboxFilterSearching, filterSearchingArgs).ConfigureAwait(true);
+                    await SfBaseUtils.InvokeEvent<CheckboxFilterSearchingEventArgs>(Parent.GridEvents?.CheckboxFilterSearching!, filterSearchingArgs).ConfigureAwait(true);
                 
                 excelSearchOperator = actionArgs.ExcelSearchOperator.ToString().ToLower(System.Globalization.CultureInfo.CurrentCulture);
                 if(!SearchValue!.Equals(filterSearchingArgs.SearchText, StringComparison.Ordinal))
@@ -1564,7 +1662,7 @@ namespace Syncfusion.Blazor.Grids.Internal
                 CancelIcon = string.Empty;
                 SelectAllHandler();
             }
-            else if (Parent.DataManager.DataAdaptor.IsRemote())
+            else if (Parent.DataManager!.DataAdaptor!.IsRemote())
             {
 
             }

@@ -10,7 +10,7 @@ namespace Syncfusion.Blazor.Grids
     /// <summary>
     /// Configures grid edit settings.
     /// </summary>
-    public partial class GridEditSettings : SfOwningComponentBase
+    public partial class GridEditSettings : SfDataBoundComponent
     {
 
         [CascadingParameter]
@@ -70,32 +70,32 @@ namespace Syncfusion.Blazor.Grids
 
         /// <summary>
         /// Gets or sets a value indicating whether a focused cell enters edit mode
-        /// when a printable key (alphabets, digits, symbols) is pressed, without
-        /// requiring a double-click or F2.
+        /// when a printable key is pressed.
         /// </summary>
         /// <value>
-        /// <c>true</c> to enter edit mode on any printable key press; otherwise
-        /// <c>false</c>. The default value is <c>false</c>.
+        /// A <see cref="bool"/> value that determines whether typing directly into a
+        /// focused cell automatically starts editing. The default value is
+        /// <see langword="false"/>.
         /// </value>
         /// <remarks>
-        /// When this property is enabled, pressing a printable key on a focused cell
-        /// behaves like double-click: the cell editor opens with the input cleared
-        /// and pre-populated with the typed character, so the typed character
-        /// appears as the first character. The Enter key is treated as an explicit
-        /// "edit current value" trigger and opens the editor with the existing
-        /// value pre-populated.
+        /// When set to <see langword="true"/>, pressing a printable character key,
+        /// such as a letter, digit, or symbol, immediately places the focused cell
+        /// into edit mode.
+        /// The editor is opened with its current content cleared and the typed
+        /// character becomes the initial value.
+        /// Pressing the Enter key behaves differently. It opens the editor for the
+        /// current cell while retaining and selecting the existing value.
         /// This property is applicable only when <see cref="Mode"/> is set to
-        /// <see cref="EditMode.Cell"/>. It has no effect in other edit modes.
+        /// <see cref="EditMode.Cell"/> and has no effect in other edit modes.
         /// </remarks>
         /// <example>
-        /// <code>
-        /// <![CDATA[
-        /// <SfGrid DataSource="@Orders" @ref="DefaultGrid">
-        ///     <GridEditSettings AllowEditing="true" Mode="EditMode.Cell"
+        /// <code><![CDATA[
+        /// <SfGrid DataSource="@Orders">
+        ///     <GridEditSettings AllowEditing="true"
+        ///                       Mode="EditMode.Cell"
         ///                       AllowEditOnKeyPress="true" />
         /// </SfGrid>
-        /// ]]>
-        /// </code>
+        /// ]]></code>
         /// </example>
         [Parameter]
         public bool AllowEditOnKeyPress { get; set; }
@@ -103,27 +103,29 @@ namespace Syncfusion.Blazor.Grids
         private bool _allowEditOnKeyPress { get; set; }
 
         /// <summary>
-        /// Gets or sets the navigation direction of the Enter key when a cell is
-        /// in edit mode.
+        /// Gets or sets the navigation behavior of the Enter key while editing cells.
         /// </summary>
         /// <value>
-        /// One of the <see cref="EnterKeyDirection"/> values.
-        /// The default value is <see cref="EnterKeyDirection.None"/>.
+        /// An <see cref="EnterKeyDirection"/> value that specifies how focus moves
+        /// after a cell value is committed. The default value is
+        /// <see cref="EnterKeyDirection.None"/>.
         /// </value>
         /// <remarks>
         /// This property is applicable only when <see cref="Mode"/> is set to
-        /// <see cref="EditMode.Cell"/>. For other edit modes the Enter key keeps
-        /// its existing behaviour.
+        /// <see cref="EditMode.Cell"/>.
+        /// When enabled, pressing the Enter key saves the current cell value and
+        /// optionally moves focus according to the configured direction.
+        /// For edit modes other than <see cref="EditMode.Cell"/>, the Enter key
+        /// follows the default behavior associated with that mode.
         /// </remarks>
         /// <example>
-        /// <code>
-        /// <![CDATA[
-        /// <SfGrid DataSource="@Orders" @ref="DefaultGrid">
-        ///     <GridEditSettings AllowEditing="true" Mode="EditMode.Cell"
-        ///                       EnterKeyDirection="EnterKeyDirection.Row" />
+        /// <code><![CDATA[
+        /// <SfGrid DataSource="@Orders">
+        ///     <GridEditSettings AllowEditing="true"
+        ///                       Mode="EditMode.Cell"
+        ///                       EnterKeyDirection="EnterKeyDirection.NextColumn" />
         /// </SfGrid>
-        /// ]]>
-        /// </code>
+        /// ]]></code>
         /// </example>
         [Parameter]
         public EnterKeyDirection EnterKeyDirection { get; set; } = EnterKeyDirection.None;
@@ -228,6 +230,53 @@ namespace Syncfusion.Blazor.Grids
         /// </remarks>
         [Parameter]
         public bool ShowAddNewRow { get; set; }
+
+        /// <summary>
+        /// Gets or sets a value indicating whether the Undo/Redo functionality is enabled for batch editing operations.
+        /// </summary>
+        /// <value>
+        /// <c>true</c> if Undo/Redo is enabled for batch editing; otherwise, <c>false</c>. The default value is <c>false</c>.
+        /// </value>
+        /// <remarks>
+        /// This property is only effective when the <see cref="Syncfusion.Blazor.Grids.GridEditSettings.Mode"/> property is set to
+        /// <see cref="Syncfusion.Blazor.Grids.EditMode.Batch"/>. When enabled, the grid records batch edit actions (such as cell edits,
+        /// row additions, row deletions, paste, and auto-fill operations) into an undo/redo history that can be navigated using
+        /// <see cref="Syncfusion.Blazor.Grids.SfGrid{TValue}.UndoAsync"/>, <see cref="Syncfusion.Blazor.Grids.SfGrid{TValue}.RedoAsync"/>,
+        /// and related APIs.
+        /// </remarks>
+        [Parameter]
+        public bool EnableUndoRedo { get; set; } = false;
+
+        private bool _enableUndoRedo { get; set; }
+
+        /// <summary>
+        /// Gets or sets the maximum number of Undo/Redo steps to maintain in memory.
+        /// </summary>
+        /// <value>
+        /// The maximum number of actions to keep in the Undo/Redo history. The default value is <c>20</c>.
+        /// </value>
+        /// <remarks>
+        /// <para>
+        /// When the number of recorded actions exceeds this limit, the oldest action is discarded to make room for new ones.
+        /// The minimum value applied is <c>1</c>; any value less than <c>1</c> is treated as <c>1</c>. The clamp is silent;
+        /// no diagnostic is emitted when it engages.
+        /// </para>
+        /// <para>
+        /// The limit counts <em>actions</em>, not individual cells. A single <see cref="UndoRedoActionType.Paste"/> or
+        /// <see cref="UndoRedoActionType.AutoFill"/> action buffers every affected cell in its
+        /// internal previous values list, so one action can hold thousands of
+        /// cell change entries. Memory usage therefore scales with
+        /// <c>UndoRedoLimit × max cells per Paste/AutoFill</c>; size the buffer accordingly for large row counts.
+        /// </para>
+        /// <para>
+        /// This property is only effective when <see cref="EnableUndoRedo"/> is set to <c>true</c> and the
+        /// <see cref="Syncfusion.Blazor.Grids.GridEditSettings.Mode"/> is <see cref="Syncfusion.Blazor.Grids.EditMode.Batch"/>.
+        /// </para>
+        /// </remarks>
+        [Parameter]
+        public int UndoRedoLimit { get; set; } = 20;
+
+        private int _undoRedoLimit { get; set; }
         
         /// <summary>
         /// If ShowConfirmDialog is set to false, confirm dialog does not show when batch changes are saved or discarded.
@@ -297,6 +346,8 @@ namespace Syncfusion.Blazor.Grids
             _showDeleteConfirmDialog = ShowDeleteConfirmDialog;
             _allowEditOnKeyPress = AllowEditOnKeyPress;
             _enterKeyDirection = EnterKeyDirection;
+            _enableUndoRedo = EnableUndoRedo;
+            _undoRedoLimit = UndoRedoLimit;
         }
 
         /// <summary>
@@ -306,12 +357,15 @@ namespace Syncfusion.Blazor.Grids
         {
             await base.OnParametersSetAsync().ConfigureAwait(true);
 
+            bool enableUndoRedoChanged = !SfBaseUtils.Equals(EnableUndoRedo, _enableUndoRedo);
+            bool undoRedoLimitChanged = !SfBaseUtils.Equals(UndoRedoLimit, _undoRedoLimit);
             if(!SfBaseUtils.Equals(AllowAdding, _allowAdding) || !SfBaseUtils.Equals(AllowDeleting, _allowDeleting)
             || !SfBaseUtils.Equals(AllowEditOnDblClick, _allowEditOnDblClick) || !SfBaseUtils.Equals(AllowEditOnSingleClick, _allowEditOnSingleClick) || !SfBaseUtils.Equals(AllowEditing, _allowEditing)
             || !SfBaseUtils.Equals(AllowNextRowEdit, _allowNextRowEdit) || !SfBaseUtils.Equals(Dialog, _dialog)
             || !SfBaseUtils.Equals(Mode, _mode) || !SfBaseUtils.Equals(NewRowPosition, _newRowPosition)
             || !SfBaseUtils.Equals(ShowConfirmDialog, _showConfirmDialog) || !SfBaseUtils.Equals(ShowDeleteConfirmDialog, _showDeleteConfirmDialog)
-            || !SfBaseUtils.Equals(AllowEditOnKeyPress, _allowEditOnKeyPress) || !SfBaseUtils.Equals(EnterKeyDirection, _enterKeyDirection))
+            || !SfBaseUtils.Equals(AllowEditOnKeyPress, _allowEditOnKeyPress) || !SfBaseUtils.Equals(EnterKeyDirection, _enterKeyDirection)
+            || enableUndoRedoChanged || undoRedoLimitChanged)
             {
                 _allowAdding = AllowAdding;
                 _allowDeleting = AllowDeleting;
@@ -326,6 +380,27 @@ namespace Syncfusion.Blazor.Grids
                 _showDeleteConfirmDialog = ShowDeleteConfirmDialog;
                 _allowEditOnKeyPress = AllowEditOnKeyPress;
                 _enterKeyDirection = EnterKeyDirection;
+                _enableUndoRedo = EnableUndoRedo;
+                _undoRedoLimit = UndoRedoLimit;
+                if ((enableUndoRedoChanged || undoRedoLimitChanged) && BaseParent != null && PropertyChanges != null)
+                {
+                    if (enableUndoRedoChanged)
+                    {
+                        PropertyChanges.TryAdd("EnableUndoRedo", EnableUndoRedo);
+                        ((SfBaseComponent)BaseParent).PropertyChanges.TryAdd("EnableUndoRedo", EnableUndoRedo);
+                    }
+                    if (undoRedoLimitChanged)
+                    {
+                        PropertyChanges.TryAdd("UndoRedoLimit", UndoRedoLimit);
+                        ((SfBaseComponent)BaseParent).PropertyChanges.TryAdd("UndoRedoLimit", UndoRedoLimit);
+                    }
+                    ((SfBaseComponent)BaseParent).PropertyChanges.TryAdd(nameof(IGrid.EditSettings), this);
+                }
+            }
+            if (PropertyChanges != null && PropertyChanges.Count > 0 && BaseParent != null)
+            {
+                PropertyChanges.Clear();
+                await BaseParent.PropertyChanged().ConfigureAwait(true);
             }
             // Telemetry for editing modes
             GridTelemetryHelper.LogTelemetry(true, "Editing");

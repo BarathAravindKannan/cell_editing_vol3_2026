@@ -1,4 +1,4 @@
-﻿using Microsoft.AspNetCore.Components;
+using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Components.Web;
 using Syncfusion.Blazor.Calendars;
 using Syncfusion.Blazor.Data;
@@ -46,18 +46,33 @@ namespace Syncfusion.Blazor.Grids.Internal
 
         #region Component Parameters
 
+        /// <summary>
+        /// Gets or sets the parent grid.
+        /// </summary>
         [CascadingParameter]
         public SfGrid<TContent>? Parent { get; set; }
 
+        /// <summary>
+        /// Gets or sets the horizontal position value for the filter dialog.
+        /// </summary>
         [Parameter]
         public string Xvalue { get; set; } = "right";
 
+        /// <summary>
+        /// Gets or sets the vertical position value for the filter dialog.
+        /// </summary>
         [Parameter]
         public string Yvalue { get; set; } = "bottom";
 
+        /// <summary>
+        /// Gets or sets visibility for the filter dialog.
+        /// </summary>
         [Parameter]
         public bool IsVisible { get; set; } = false;
 
+        /// <summary>
+        /// Gets or sets the column associated with the filter menu.
+        /// </summary>
         [Parameter]
         public GridColumn? Column { get; set; }
 
@@ -82,6 +97,12 @@ namespace Syncfusion.Blazor.Grids.Internal
 
         private bool _isInteger { get; set; }
         private bool _isLong { get; set; }
+
+        /// <summary>
+        /// Tracks whether the dialog was toggled closed by clicking the filter icon.
+        /// Used to implement toggle behavior: first click opens, second click closes.
+        /// </summary>
+        private bool _isDialogToggledClosed { get; set; }
 
         #endregion
 
@@ -137,14 +158,20 @@ namespace Syncfusion.Blazor.Grids.Internal
 
         #region Utility Properties
 
-        private int Index { get; set; } = 0;
+        private int Index { get; set; }
         private List<DropdownBoolean>? DropData { get; set; }
-        public DialogEffect Effects = DialogEffect.None;
+        /// <summary>
+        /// Applies animation effects to the filter dialog.
+        /// </summary>
+        public DialogEffect Effects { get; set; } = DialogEffect.None;
 
         #endregion
 
         #region Component Lifecycle
 
+        /// <summary>
+        /// Initializes the component and registers event handlers for filter menu dialogs.
+        /// </summary>
         protected override void OnInitialized()
         {
             base.OnInitialized();
@@ -194,7 +221,8 @@ namespace Syncfusion.Blazor.Grids.Internal
                 {nameof(model.Format),model.Format},
                 {nameof(model.ShowClearButton),model.ShowClearButton},
                 { nameof(model.TimeFormat), model.TimeFormat },
-                { nameof(model.FirstDayOfWeek), model.FirstDayOfWeek }
+                { nameof(model.FirstDayOfWeek), model.FirstDayOfWeek },
+                { nameof(model.InputFormats), model.InputFormats }
 
             };
             }
@@ -212,7 +240,8 @@ namespace Syncfusion.Blazor.Grids.Internal
                 {nameof(model.Step),model.Step},
                 { nameof(model.Format), model.Format },
                 { nameof(model.Min), model.Min },
-                { nameof(model.Max), model.Max }
+                { nameof(model.Max), model.Max },
+                { nameof(model.InputFormats), model.InputFormats }
             };
             }
             else if (Column?.FilterEditorSettings is DateFilterParams dateParam && dateParam.DatePickerParams != null)
@@ -226,7 +255,8 @@ namespace Syncfusion.Blazor.Grids.Internal
                 {nameof(model.ShowClearButton),model.ShowClearButton},
                 {nameof(model.Format),model.Format},
                 {nameof(model.FirstDayOfWeek),model.FirstDayOfWeek},
-                {nameof(model.HtmlAttributes),model.HtmlAttributes}
+                {nameof(model.HtmlAttributes),model.HtmlAttributes},
+                {nameof(model.InputFormats),model.InputFormats}
             };
             }
 
@@ -264,9 +294,12 @@ namespace Syncfusion.Blazor.Grids.Internal
             }
         }
 
+        /// <summary>
+        /// Determines whether the component should be rendered.
+        /// </summary>
         protected override bool ShouldRender()
         {
-            return !this.Parent.FilterModule.IsCustomFilterApplied;
+            return !this.Parent!.FilterModule!.IsCustomFilterApplied;
         }
 
         #endregion
@@ -276,7 +309,7 @@ namespace Syncfusion.Blazor.Grids.Internal
         private async Task CustomValueHandler(CustomValueSpecifierEventArgs<TContent> args)
         {
             menuFilterValue = args.Text;
-            await CustomFilterValueMaintain();
+            await CustomFilterValueMaintain().ConfigureAwait(true);
             args.Item = CustomFilterItem!;
         }
 
@@ -285,22 +318,22 @@ namespace Syncfusion.Blazor.Grids.Internal
             args.EnableFullLookup = false;
             if (Parent!.FilterSettings != null && Parent.FilterSettings.Columns?.Count > 0)
             {
-                this.Parent.FilterModule.IsCustomFilterApplied = true;
+                this.Parent.FilterModule!.IsCustomFilterApplied = true;
             }
         }
 
         private async Task CustomFilterQuery(Syncfusion.Blazor.DropDowns.FilteringEventArgs args)
         {
             inputValues = args.Text;
-            this.Parent.FilterModule.IsCustomFilterApplied = true;
-            AutoComplete!.FilterOperator = StringOperatorDropDown?.Value;
+            this.Parent!.FilterModule!.IsCustomFilterApplied = true;
+            AutoComplete!.FilterOperator = StringOperatorDropDown?.Value!;
         }
 
         private async Task AutoCompleteDataBound(Syncfusion.Blazor.DropDowns.DataBoundEventArgs args)
         {
             if (Parent!.FilterModule?.FilterIconColumn != null)
             {
-                var isComplex = Parent.FilterModule.FilterIconColumn?.Field?.Contains(".") == true;
+                var isComplex = Parent.FilterModule.FilterIconColumn?.Field?.Contains('.', StringComparison.Ordinal) == true;
                 if (Parent.IsRenderedFromTreeGrid || isComplex)
                 {
                     if (!AutoComplete!.ListData!.Any())
@@ -314,7 +347,7 @@ namespace Syncfusion.Blazor.Grids.Internal
                         }
                     }
                     menuFilterValue = inputValues;
-                    await CustomFilterValueMaintain();
+                    await CustomFilterValueMaintain().ConfigureAwait(true);
                     AutoComplete.IsFilterQueryUpdated = false;
                 }
             }
@@ -322,12 +355,39 @@ namespace Syncfusion.Blazor.Grids.Internal
 
         private async Task CreatedHandler(Object args)
         {
-            if ((Parent!.FilterSettings!.Columns != null && Parent.FilterSettings.Columns.Any() && Parent.EnablePersistence) || (Parent.FilterSettings.Columns != null && Parent.FilterSettings.Columns.Any()))
+            if ((Parent!.FilterSettings!.Columns != null && Parent.FilterSettings.Columns.Count > 0 && Parent.EnablePersistence) || (Parent.FilterSettings.Columns != null && Parent.FilterSettings.Columns.Count > 0))
             {
                 var actualValue = Parent.FilterSettings.Columns[0]?.ActualValue;
                 menuFilterValue = actualValue != null ? actualValue.ToString()! : null!;
             }
-            await CustomFilterValueMaintain();
+            await CustomFilterValueMaintain().ConfigureAwait(true);
+        }
+
+        #endregion
+
+        #region Filter Dialog Toggle
+
+        /// <summary>
+        /// Toggle the filter dialog open/closed based on current state.
+        /// Called by filter icon click handler to implement toggle behavior.
+        /// </summary>
+        internal async Task OnFilterIconClickAsync()
+        {
+            bool isAlreadyOpen = Parent!.FilterModule!.IsFilterDialogOpen(Column!.Uid);
+            
+            if (isAlreadyOpen)
+            {
+                // Toggle close: hide dialog
+                _isDialogToggledClosed = true;
+                await MenuDialog!.HideAsync().ConfigureAwait(true);
+            }
+            else
+            {
+                // Open dialog and track state
+                _isDialogToggledClosed = false;
+                Parent.FilterModule.SetFilterDialogOpen(Column!.Uid);
+                await MenuDialog!.ShowAsync().ConfigureAwait(true);
+            }
         }
 
         #endregion
@@ -343,17 +403,17 @@ namespace Syncfusion.Blazor.Grids.Internal
                 if (Parent.FilterModule.IsColumnMenuFilter)
                 {
                     var dlgID = Column?.Uid + "-flmdlg";
-                    string[] positions = await Parent.InvokeMethod<string[]>("sfBlazor.Grid.filterPopupRender", false, new object[] { Parent.DataId, dlgID, Column?.Uid!, "menu", Parent.FilterModule.IsColumnMenuFilter });
+                    string[] positions = await Parent.InvokeMethod<string[]>("sfBlazor.Grid.filterPopupRender", false, new object[] { Parent.DataId, dlgID, Column?.Uid!, "menu", Parent.FilterModule.IsColumnMenuFilter }).ConfigureAwait(true);
                     if (positions != null)
                     {
                         XPosition = positions[0];
                         YPosition = positions[1];
-                        await OpenFilterDialog(XPosition, YPosition);
+                        await OpenFilterDialog(XPosition, YPosition).ConfigureAwait(true);
                     }
                 }
                 else
                 {
-                    await OpenFilterDialog();
+                    await OpenFilterDialog().ConfigureAwait(true);
                 }
             }
             this.Parent.FilterModule.IsCustomFilterApplied = false;
@@ -361,7 +421,11 @@ namespace Syncfusion.Blazor.Grids.Internal
 
         internal void Closed()
         {
-            this.Parent!.FilterModule!.FilterIconIsClicked = false;
+            // CRITICAL: Reset toggle state on ANY dialog close
+            Parent!.FilterModule!.ResetColumnDialogState(Column!.Uid);
+            _isDialogToggledClosed = false;
+
+            this.Parent.FilterModule.FilterIconIsClicked = false;
             NumberOperatorDropDown?.Dispose();
             StringOperatorDropDown?.Dispose();
             BoolOperatorDropDown?.Dispose();
@@ -379,9 +443,12 @@ namespace Syncfusion.Blazor.Grids.Internal
 
         internal async Task CloseHandler()
         {
+            // Reset toggle state on adaptive dialog close
+            Parent!.FilterModule!.ResetColumnDialogState(Column!.Uid);
+            _isDialogToggledClosed = false;
 
             await this.MenuAdaptiveDialog!.HideAsync().ConfigureAwait(true);
-            if (Parent!.FilterModule != null)
+            if (Parent.FilterModule != null)
             {
                 Parent.FilterModule.FilterIconIsClicked = false;
             }
@@ -394,20 +461,20 @@ namespace Syncfusion.Blazor.Grids.Internal
             {
                 var filterValue = menuFilterValue;
                 var splits = this.Column?.Field?.Split(".");
-                var item = (TContent)Activator.CreateInstance(typeof(TContent))!;
+                var item = Activator.CreateInstance<TContent>()!;
                 bool treegridInstance = (splits?.Contains("DataItem") == true);
-                dynamic data = (TContent)Activator.CreateInstance(typeof(TContent))!;
+                dynamic data = Activator.CreateInstance<TContent>()!;
                 string column = splits?.Length > 1 ? splits[splits.Length - 1] : this.Column?.Field!;
-                dynamic treeComplexData = (TContent)Activator.CreateInstance(typeof(TContent))!;
-                dynamic complexData = (TContent)Activator.CreateInstance(typeof(TContent))!;
+                dynamic treeComplexData = Activator.CreateInstance<TContent>()!;
+                dynamic complexData = Activator.CreateInstance<TContent>()!;
                 if (splits?.Length > 1)
                 {
                     string complexColumn = splits[splits.Length - 2];
                     string treeComplexColumn = splits.Length == 3 ? splits[splits.Length - 3] : "";
                     if (splits.Contains("DataItem"))
                     {
-                        var propInfo = item?.GetType()?.GetProperty(treeComplexColumn != "" ? treeComplexColumn : complexColumn);
-                        data = ReflectionExtension.TryCreateInstance(propInfo?.PropertyType);
+                        var propInfo = item?.GetType()?.GetProperty(!string.IsNullOrEmpty(treeComplexColumn) ? treeComplexColumn : complexColumn);
+                        data = ReflectionExtension.TryCreateInstance(propInfo?.PropertyType!);
                         treeComplexData = CloneUtils.Clone(data, propInfo?.GetType());
                     }
                     if (data is DynamicObject)
@@ -419,7 +486,7 @@ namespace Syncfusion.Blazor.Grids.Internal
                         }
                         else
                         {
-                            if (treeComplexColumn != "")
+                            if (!string.IsNullOrEmpty(treeComplexColumn))
                             {
                                 ReflectionExtension.SetValueToDynamicObject(treeComplexData, column, filterValue);
                                 ReflectionExtension.SetValueToDynamicObject(data, complexColumn, treeComplexData);
@@ -441,7 +508,7 @@ namespace Syncfusion.Blazor.Grids.Internal
                         }
                         else
                         {
-                            if (treeComplexColumn != "")
+                            if (!string.IsNullOrEmpty(treeComplexColumn))
                             {
                                 ReflectionExtension.SetValueToExpandoObject((IDictionary<string, object>)treeComplexData, column, filterValue);
                                 ReflectionExtension.SetValueToExpandoObject((IDictionary<string, object>)data, complexColumn, treeComplexData);
@@ -456,12 +523,12 @@ namespace Syncfusion.Blazor.Grids.Internal
                     }
                     else
                     {
-                        if (treeComplexColumn != "")
+                        if (!string.IsNullOrEmpty(treeComplexColumn))
                         {
                             var propInfo = item?.GetType()?.GetProperty(treeComplexColumn);
-                            var tempObj = ReflectionExtension.TryCreateInstance(propInfo?.PropertyType);
+                            var tempObj = ReflectionExtension.TryCreateInstance(propInfo?.PropertyType!);
                             var prop = tempObj?.GetType()?.GetProperty(complexColumn);
-                            treeComplexData = ReflectionExtension.TryCreateInstance(prop?.PropertyType);
+                            treeComplexData = ReflectionExtension.TryCreateInstance(prop?.PropertyType!);
                             ReflectionExtension.SetValue(treeComplexData, column, filterValue);
                             ReflectionExtension.SetValue(tempObj, complexColumn, treeComplexData);
                             ReflectionExtension.SetValue(complexData, treeComplexColumn, tempObj);
@@ -469,7 +536,7 @@ namespace Syncfusion.Blazor.Grids.Internal
                         else
                         {
                             var propInfo = item?.GetType()?.GetProperty(splits[splits.Length - 2]);
-                            var tempObj = ReflectionExtension.TryCreateInstance(propInfo?.PropertyType);
+                            var tempObj = ReflectionExtension.TryCreateInstance(propInfo?.PropertyType!);
                             tempObj?.GetType()?.GetProperty(column)?.SetValue(tempObj, filterValue);
                             ReflectionExtension.SetValue(complexData, complexColumn, tempObj);
                         }
@@ -495,11 +562,14 @@ namespace Syncfusion.Blazor.Grids.Internal
                 CustomFilterItem = item;
                 if (!(AutoComplete != null && AutoComplete.IsFilterQueryUpdated))
                 {
-                    await AutoComplete?.AddItemsAsync(new List<TContent>() { item })!;
+                    await (AutoComplete?.AddItemsAsync(new List<TContent>() { item })!).ConfigureAwait(true);
                 }
             }
         }
 
+        /// <summary>
+        /// Opens the filter dialog at the specified position and triggers related events before rendering.
+        /// </summary>
         public async Task OpenFilterDialog(string XPosition = "", string YPosition = "")
         {
             GetData();
@@ -514,9 +584,9 @@ namespace Syncfusion.Blazor.Grids.Internal
                 }
                 dialogOpeningArgs.FilterOperators = filterOperators;
                 if (Parent.IsRenderedFromTreeGrid)
-                    await Parent.EventAggregator.NotifyAsync("FilterDialogOpening", dialogOpeningArgs);
+                    await Parent.EventAggregator.NotifyAsync("FilterDialogOpening", dialogOpeningArgs).ConfigureAwait(true);
                 else
-                    await SfBaseUtils.InvokeEvent<FilterDialogOpeningEventArgs>(Parent?.GridEvents?.FilterDialogOpening, dialogOpeningArgs);
+                    await SfBaseUtils.InvokeEvent<FilterDialogOpeningEventArgs>(Parent?.GridEvents?.FilterDialogOpening!, dialogOpeningArgs).ConfigureAwait(true);
                 if (dialogOpeningArgs.Cancel)
                 {
                     EventCancelingOperation();
@@ -530,9 +600,9 @@ namespace Syncfusion.Blazor.Grids.Internal
                 actionArgs.FilterOperators = (List<object>)GetFilterOperators(Column!);
 
                 if (Parent.IsRenderedFromTreeGrid)
-                    await Parent.EventAggregator.NotifyAsync("ActionBegin", actionArgs);
+                    await Parent.EventAggregator.NotifyAsync("ActionBegin", actionArgs).ConfigureAwait(true);
                 else
-                    await SfBaseUtils.InvokeEvent<ActionEventArgs<TContent>>(Parent.GridEvents?.OnActionBegin, actionArgs);
+                    await SfBaseUtils.InvokeEvent<ActionEventArgs<TContent>>(Parent.GridEvents?.OnActionBegin!, actionArgs).ConfigureAwait(true);
 
                 if (actionArgs.Cancel)
                 {
@@ -549,20 +619,20 @@ namespace Syncfusion.Blazor.Grids.Internal
             }
 
             StateHasChanged();
-            await this.MenuDialog?.ShowAsync()!;
+            await (this.MenuDialog?.ShowAsync()!).ConfigureAwait(true);
             var CompleteArgs = new ActionEventArgs<TContent>() { RequestType = Grids.Action.FilterAfterOpen, Cancel = false, ColumnName = this.Column?.Field ?? string.Empty, Parent = Parent! };
 
             if (Parent != null && Parent.IsRenderedFromTreeGrid)
-                await Parent.EventAggregator.NotifyAsync("ActionComplete", CompleteArgs);
+                await Parent.EventAggregator.NotifyAsync("ActionComplete", CompleteArgs).ConfigureAwait(true);
             else
-                await SfBaseUtils.InvokeEvent<ActionEventArgs<TContent>>(Parent?.GridEvents?.OnActionComplete, CompleteArgs);
+                await SfBaseUtils.InvokeEvent<ActionEventArgs<TContent>>(Parent?.GridEvents?.OnActionComplete!, CompleteArgs).ConfigureAwait(true);
             if ((Parent?.GridEvents?.FilterDialogOpened.HasDelegate == true) || (Parent != null && Parent.IsRenderedFromTreeGrid))
             {
                 var dialogOpenedArgs = new FilterDialogOpenedEventArgs() { ColumnName = this.Column?.Field!, Parent = Parent };
                 if (Parent.IsRenderedFromTreeGrid)
-                    await Parent.EventAggregator.NotifyAsync("FilterDialogOpened", dialogOpenedArgs);
+                    await Parent.EventAggregator.NotifyAsync("FilterDialogOpened", dialogOpenedArgs).ConfigureAwait(true);
                 else
-                    await SfBaseUtils.InvokeEvent<FilterDialogOpenedEventArgs>(Parent.GridEvents?.FilterDialogOpened, dialogOpenedArgs);
+                    await SfBaseUtils.InvokeEvent<FilterDialogOpenedEventArgs>(Parent.GridEvents?.FilterDialogOpened!, dialogOpenedArgs).ConfigureAwait(true);
             }
             if (Parent != null && Parent.FilterModule != null)
             {
@@ -575,7 +645,15 @@ namespace Syncfusion.Blazor.Grids.Internal
         private void EventCancelingOperation()
         {
             if (Parent != null && Parent.FilterModule != null)
+            {
                 this.Parent.FilterModule.FilterIconIsClicked = false;
+                // CRITICAL: Reset toggle state to prevent stale OpenFilterColumnUid
+                // from causing the next click to be misinterpreted as a toggle-close
+                if (Column != null && !string.IsNullOrEmpty(Column.Uid))
+                {
+                    this.Parent.FilterModule.ResetColumnDialogState(Column.Uid);
+                }
+            }
             this.Parent!.EventAggregator.Trigger("FilterComponentUpdate", null!);
             return;
         }
@@ -641,10 +719,10 @@ namespace Syncfusion.Blazor.Grids.Internal
         {
             object value = "";
             var filterOperator = "";
-            this.Parent.FilterModule.IsCustomFilterApplied = false;
+            this.Parent!.FilterModule!.IsCustomFilterApplied = false;
             if (Column?.FilterTemplate != null && ModelInstance != null)
             {
-                value = ModelInstance?.GetType()?.GetProperty("Value")?.GetValue(ModelInstance)!;
+                value = ModelInstance.GetType()?.GetProperty("Value")?.GetValue(ModelInstance)!;
                 filterOperator = GetColumnFilterOperator();
             }
             else
@@ -661,7 +739,7 @@ namespace Syncfusion.Blazor.Grids.Internal
 
                     case ColumnType.Date:
                         value = DatePicker?.Value!;
-                        if (Column?.ValueType?.Name == "DateTime" && DateTime.TryParse(value?.ToString(), out var dateTimeValue) && dateTimeValue.TimeOfDay != TimeSpan.Zero)
+                        if (Column?.ValueType?.Name == "DateTime" && DatePicker?.Value != null && DateTime.TryParse(value.ToString(), out var dateTimeValue) && dateTimeValue.TimeOfDay != TimeSpan.Zero)
                         {
                             var result = Parent!.DataManager?.Json?.Where(item => item?.GetType()?.GetProperty(Column?.Field!)?.PropertyType == typeof(DateTime))?.Where(item =>
                             {
@@ -670,7 +748,7 @@ namespace Syncfusion.Blazor.Grids.Internal
                                 return resultDate;
                             })
                             ?.ToList();
-                            value = result?.Count > 0 ? DataUtil.GetObject(Column?.Field, result[0]) : value;
+                            value = result?.Count > 0 ? DataUtil.GetObject(Column?.Field!, result[0]) : value;
                         }
                         filterOperator = NumberOperatorDropDown?.Value;
                         break;
@@ -684,7 +762,7 @@ namespace Syncfusion.Blazor.Grids.Internal
                         break;
                     case ColumnType.DateTime:
                         value = DateTimePicker?.Value!;
-                        if (Column?.ValueType?.Name == "DateTime" && DateTime.TryParse(value?.ToString(), out var dateTime) && dateTime.TimeOfDay != TimeSpan.Zero)
+                        if (Column?.ValueType?.Name == "DateTime" && DateTimePicker?.Value != null && DateTime.TryParse(value.ToString(), out var dateTime) && dateTime.TimeOfDay != TimeSpan.Zero)
                         {
                             var result = Parent!.DataManager?.Json?.Where(item => item?.GetType()?.GetProperty(Column?.Field!)?.PropertyType == typeof(DateTime))?.Where(item =>
                             {
@@ -692,7 +770,7 @@ namespace Syncfusion.Blazor.Grids.Internal
                                 var resultDate = new DateTime(dateValue.Year, dateValue.Month, dateValue.Day, dateValue.Hour, dateValue.Minute, 0) == (DateTime)value;
                                 return resultDate;
                             })?.ToList();
-                            value = result?.Count > 0 ? DataUtil.GetObject(Column?.Field, result[0]) : value;
+                            value = result?.Count > 0 ? DataUtil.GetObject(Column?.Field!, result[0]) : value;
                         }
 
                         filterOperator = NumberOperatorDropDown?.Value;
@@ -709,17 +787,25 @@ namespace Syncfusion.Blazor.Grids.Internal
             }
             if (!Parent!.EnableAdaptiveUI || (Parent.EnableAdaptiveUI && (Parent.AdaptiveUIMode.Equals(AdaptiveMode.Mobile) && !Parent.SyncfusionService.IsDeviceMode) || (Parent.AdaptiveUIMode.Equals(AdaptiveMode.Desktop) && Parent.SyncfusionService.IsDeviceMode)))
             {
+             #if NET10_0_OR_GREATER
+                if (AutoComplete != null)
+                    {
+                        await AutoComplete.DisposeAsync().ConfigureAwait(true);
+                    }
+            #else
                 AutoComplete?.Dispose();
+            #endif
 
                 if ((Column?.IsForeignColumn() == true) && (Column?.IsGridForeignColumn == true))
                 {
                     Column?.AutoCompleteDispose();
                 }
-                await this.MenuDialog?.HideAsync()!;
+                await (this.MenuDialog?.HideAsync()!).ConfigureAwait(true);
             }
+
             else
             {
-                await this.MenuAdaptiveDialog?.HideAsync()!;
+                await (this.MenuAdaptiveDialog?.HideAsync()!).ConfigureAwait(true);
                 Parent.EventAggregator.Trigger("CloseAdaptiveDialog", null!);
             }
             if (Parent.ColumnMenuInstance != null)
@@ -733,11 +819,15 @@ namespace Syncfusion.Blazor.Grids.Internal
             }
             if (this.Parent != null && this.Parent.FilterModule != null)
             {
+                // CRITICAL FIX: Reset toggle state BEFORE setting FilterIconIsClicked to false
+                // If we don't do this here, the parent component will destroy FilterMenuRenderer
+                // before Closed() event fires, preventing proper state cleanup.
+                this.Parent.FilterModule.ResetColumnDialogState(Column!.Uid);
                 this.Parent.FilterModule.FilterIconColumn = null!;
                 this.Parent.FilterModule.FilterIconIsClicked = false;
             }
 
-            await Parent!.FilterModule!.FilterByColumn(Column?.Field ?? string.Empty, Filter<TContent>.GetOperator(filterOperator ?? string.Empty), value!, null!, Parent.FilterSettings!.EnableCaseSensitivity, Parent.FilterSettings.IgnoreAccent, null!, null!, Column?.Uid);
+            await Parent!.FilterModule!.FilterByColumn(Column?.Field ?? string.Empty, Filter<TContent>.GetOperator(filterOperator ?? string.Empty), value!, null!, Parent.FilterSettings!.EnableCaseSensitivity, Parent.FilterSettings.IgnoreAccent, null!, null!, Column?.Uid).ConfigureAwait(true);
             model = null!;
         }
 
@@ -811,15 +901,15 @@ namespace Syncfusion.Blazor.Grids.Internal
 
         private async Task ClearBtnClick()
         {
-            this.Parent.FilterModule.IsCustomFilterApplied = false;
+            this.Parent!.FilterModule!.IsCustomFilterApplied = false;
             model = null!;
             if (!Parent!.EnableAdaptiveUI || (Parent.EnableAdaptiveUI && (Parent.AdaptiveUIMode.Equals(AdaptiveMode.Mobile) && !Parent.SyncfusionService.IsDeviceMode) || (Parent.AdaptiveUIMode.Equals(AdaptiveMode.Desktop) && Parent.SyncfusionService.IsDeviceMode)))
             {
-                await this.MenuDialog?.HideAsync()!;
+                await (this.MenuDialog?.HideAsync()!).ConfigureAwait(true);
             }
             else
             {
-                await this.MenuAdaptiveDialog?.HideAsync()!;
+                await (this.MenuAdaptiveDialog?.HideAsync()!).ConfigureAwait(true);
                 Parent.EventAggregator.Trigger("CloseAdaptiveDialog", null!);
             }
             if (Parent.ColumnMenuInstance != null)
@@ -829,18 +919,16 @@ namespace Syncfusion.Blazor.Grids.Internal
 #pragma warning restore BL0005
                 Parent.ColumnMenuClass = $"e-hide-menu e-{Parent.ID}-column-menu e-grid-column-menu e-grid-menu";
                 Parent.IsColumnMenuFilter = false;
-                Parent.ColumnMenuInstance?.Close();
+                Parent.ColumnMenuInstance.Close();
             }
             if (this.Parent != null && this.Parent.FilterModule != null)
             {
                 this.Parent.FilterModule.FilterIconColumn = null!;
                 this.Parent.FilterModule.FilterIconIsClicked = false;
-                await Parent.FilterModule.RemoveFilterColumnByField(this.Column?.Field ?? string.Empty, this.Column?.Uid ?? string.Empty);
+                await Parent.FilterModule.RemoveFilterColumnByField(this.Column?.Field ?? string.Empty, this.Column?.Uid ?? string.Empty).ConfigureAwait(true);
             }
-
         }
-
-        private bool GetClass(int? stringIndex, List<object> StringDropDownValue)
+        private static bool GetClass(int? stringIndex, List<object> StringDropDownValue)
         {
             if (stringIndex.HasValue && stringIndex >= 0 && stringIndex < StringDropDownValue?.Count)
             {
@@ -857,8 +945,7 @@ namespace Syncfusion.Blazor.Grids.Internal
             }
             return true;
         }
-
-        private bool GetNumberClass(int? stringIndex, List<object> NumberDropDown)
+        private static bool GetNumberClass(int? stringIndex, List<object> NumberDropDown)
         {
             if (stringIndex.HasValue && stringIndex >= 0 && stringIndex < NumberDropDown?.Count)
             {
@@ -879,15 +966,14 @@ namespace Syncfusion.Blazor.Grids.Internal
         #endregion
 
         #region Helper Methods
-
-        private bool IsNullOrEmptyOperator(string OperatorValue)
+        private static bool IsNullOrEmptyOperator(string OperatorValue)
         {
-            switch (OperatorValue?.ToLower())
+            switch (OperatorValue?.ToUpperInvariant())
             {
-                case "isnull":
-                case "isnotnull":
-                case "isempty":
-                case "isnotempty":
+                case "ISNULL":
+                case "ISNOTNULL":
+                case "ISEMPTY":
+                case "ISNOTEMPTY":
                     return true;
                 default:
                     return false;

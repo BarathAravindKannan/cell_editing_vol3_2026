@@ -459,10 +459,10 @@ namespace Syncfusion.Blazor.Grids
         /// <param name="row">The row to search</param>
         /// <param name="column">The column definition to match</param>
         /// <returns>The cell matching the column, or null if not found</returns>
-        private static Cell<object> GetCellByColumn(Row<object> row, GridColumn column)
+        private static Cell<object>? GetCellByColumn(Row<object> row, GridColumn column)
         {
             if (row?.Cells == null)
-                return null!;
+                return null;
 
             if (!string.IsNullOrEmpty(column.Uid))
             {
@@ -478,7 +478,7 @@ namespace Syncfusion.Blazor.Grids
                     return cellByField;
             }
 
-            return null!;
+            return null;
         }
         /// <summary>
         /// Extracts the cell value from row data for comparison during spanning operations.
@@ -487,10 +487,10 @@ namespace Syncfusion.Blazor.Grids
         /// <param name="data">The row data object</param>
         /// <param name="column">The column definition</param>
         /// <returns>The cell value from the row data, or null if not found</returns>
-        private object GetCellValueForComparison(object data, GridColumn column)
+        private object? GetCellValueForComparison(object data, GridColumn column)
         {
             if (data == null || column == null || string.IsNullOrEmpty(column.Field))
-                return null!;
+                return null;
 
             // Fast path using PropHelper if available
             if (Parent.PropHelper != null)
@@ -498,7 +498,7 @@ namespace Syncfusion.Blazor.Grids
 
             // Fallback to reflection
             var property = data.GetType().GetProperty(column.Field);
-            return property?.CanRead == true ? property.GetValue(data)! : null!;
+            return property?.CanRead == true ? property.GetValue(data) : null;
         }
 
         /// <summary>
@@ -507,7 +507,7 @@ namespace Syncfusion.Blazor.Grids
         /// <param name="value1">The first value to compare</param>
         /// <param name="value2">The second value to compare</param>
         /// <returns>True if the values are equal; otherwise, false</returns>
-        private static bool AreValuesEqual(object value1, object value2)
+        private static bool AreValuesEqual(object? value1, object? value2)
         {
             if (value1 == null && value2 == null)
                 return true;

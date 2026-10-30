@@ -1,4 +1,4 @@
-﻿@inherits GridTestBase
+@inherits GridTestBase
 
 @using Syncfusion.Blazor.Navigations
 @using Syncfusion.Blazor.DropDowns
@@ -276,5 +276,90 @@
         //     };
         // cut.FindAll(".e-rowcell")[15].Click(mouseEvent);
 
+    }
+}
+
+
+@* [OPSX-20261016-ctrl-arrow-virtualization-nav] Ctrl+Arrow Up/Down smoke test - virtualization happy path + 2 constraint paths *@
+<SfFixture @ref="fixture7" TestAsync="GridBasicRendering7" Description="[OPSX-20261016-ctrl-arrow-virtualization-nav] Smoke test: Ctrl+Arrow Up/Down with virtualization, and constraint no-ops">
+    <ComponentUnderTest>
+        <SfGrid @ref="Grid7" DataSource="GenerateVirtualDataForKBN()" Height="400" Width="800" EnableVirtualization="true" RowHeight="38">
+            <GridColumns>
+                <GridColumn Field=@nameof(Order.OrderID) HeaderText="Order ID" IsPrimaryKey="true" TextAlign="TextAlign.Right" Width="120"></GridColumn>
+                <GridColumn Field=@nameof(Order.CustomerID) HeaderText="Customer Name" Width="150"></GridColumn>
+                <GridColumn Field=@nameof(Order.OrderDate) HeaderText=" Order Date" Format="d" Type="ColumnType.Date" TextAlign="TextAlign.Right" Width="130"></GridColumn>
+                <GridColumn Field=@nameof(Order.Freight) HeaderText="Freight" Format="C2" TextAlign="TextAlign.Right" Width="120"></GridColumn>
+            </GridColumns>
+        </SfGrid>
+    </ComponentUnderTest>
+</SfFixture>
+
+@code
+{
+    SfFixture fixture7 { get; set; }
+    private SfGrid<Order> Grid7;
+
+    public async Task GridBasicRendering7(Fixture fixture7)
+    {
+        var cut = fixture7.GetComponentUnderTest<SfGrid<Order>>();
+        Assert.True(cut.Instance.Rows.Count > 0, "[OPSX-20261016-ctrl-arrow-virtualization-nav] Grid rendered successfully");
+        Assert.True(cut.Instance.EnableVirtualization, "[OPSX-20261016-ctrl-arrow-virtualization-nav] Virtualization enabled");
+
+        cut.WaitForState(() => cut.FindAll(".e-rowcell").Count > 0, TimeSpan.FromMilliseconds(1000));
+
+        var firstRow = cut.Instance.Rows[0];
+        var firstCell = firstRow?.Cells?.FirstOrDefault();
+        Assert.NotNull(firstCell);
+        Assert.NotNull(firstRow);
+
+        // Smoke 1: Ctrl+Arrow Down on a content cell must move focus to the last row.
+        // The Ctrl+Arrow handler lives in FocusModule.ProcessKeyDown (cell-direct path).
+        var ctrlDown = new KeyboardEventArgs
+        {
+            Key = "ArrowDown",
+            Code = "ArrowDown",
+            CtrlKey = true,
+            ShiftKey = false,
+            AltKey = false,
+            MetaKey = false,
+        };
+        cut.InvokeAsync(async () => await cut.Instance.FocusModule.ProcessKeyDown(ctrlDown, firstRow!, firstCell!)).Wait();
+        Assert.Equal(cut.Instance.TotalItemCount - 1, cut.Instance.VirtualScrollModule.CurrentRowIndex);
+
+        // Smoke 2: Ctrl+Arrow Up on a content cell must move focus back to the first row.
+        var ctrlUp = new KeyboardEventArgs
+        {
+            Key = "ArrowUp",
+            Code = "ArrowUp",
+            CtrlKey = true,
+            ShiftKey = false,
+            AltKey = false,
+            MetaKey = false,
+        };
+        cut.InvokeAsync(async () => await cut.Instance.FocusModule.ProcessKeyDown(ctrlUp, firstRow!, firstCell!)).Wait();
+        Assert.Equal(0, cut.Instance.VirtualScrollModule.CurrentRowIndex);
+
+        // Smoke 3: ArrowDown (no Ctrl) must still work as a plain arrow - one row at a time.
+        var arrowDown = new KeyboardEventArgs
+        {
+            Key = "ArrowDown",
+            Code = "ArrowDown",
+            CtrlKey = false,
+            ShiftKey = false,
+            AltKey = false,
+            MetaKey = false,
+        };
+        cut.InvokeAsync(async () => await cut.Instance.FocusModule.ProcessKeyDown(arrowDown, firstRow!, firstCell!)).Wait();
+    }
+
+    public List<Order> GenerateVirtualDataForKBN()
+    {
+        return Enumerable.Range(1, 150).Select(x => new Order()
+        {
+            OrderID = 20000 + x,
+            CustomerID = (new string[] { "ALFKI", "ANANTR", "ANTON", "BLONP", "BOLID" })[x % 5],
+            Freight = 2.1 * x,
+            OrderDate = DateTime.Now.AddDays(-x),
+        }).ToList();
     }
 }

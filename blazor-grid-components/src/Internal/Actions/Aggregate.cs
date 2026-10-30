@@ -43,9 +43,7 @@ namespace Syncfusion.Blazor.Grids.Internal
 
         private async Task<IEnumerable<object>> ResolveAggregateDataSource()
         {
-            bool isRemoteAggregate = (Parent.DataManager.DataAdaptor.IsRemote() || Parent.DataManager.Adaptor == Adaptors.CustomAdaptor);
-            
-            IEnumerable<object> dataRows = isRemoteAggregate && Parent.CurrentViewData != null
+            bool isRemoteAggregate = (Parent.DataManager!.DataAdaptor!.IsRemote() || Parent.DataManager.Adaptor == Adaptors.CustomAdaptor); IEnumerable<object> dataRows = isRemoteAggregate && Parent.CurrentViewData != null
                 ? Parent.CurrentViewData
                 : Parent.Query != null && !Parent.IsRenderedFromTreeGrid
                     ? await ResolveQueryDataSource().ConfigureAwait(true)
@@ -61,7 +59,7 @@ namespace Syncfusion.Blazor.Grids.Internal
 
         private async Task<IEnumerable<object>> ResolveQueryDataSource()
         {
-            var queryResult = await Parent.DataManager.ExecuteQuery<T>(Parent.Query).ConfigureAwait(true);
+            var queryResult = await Parent.DataManager!.ExecuteQuery<T>(Parent.Query!).ConfigureAwait(true);
             return (IEnumerable<object>)queryResult!;
         }
 
@@ -73,7 +71,7 @@ namespace Syncfusion.Blazor.Grids.Internal
             {
                 currentViewRecords.Add((T)row.Data!);
             }
-            return (IEnumerable<Object>)currentViewRecords;
+            return currentViewRecords.Cast<object>().AsEnumerable();
         }
 
         #endregion
@@ -85,8 +83,8 @@ namespace Syncfusion.Blazor.Grids.Internal
             if (Parent == null || !Parent.AllowFiltering || Parent.FilterSettings?.Columns?.Count <= 0)
                 return dataRows;
 
-            bool isRemoteAggregate = (Parent.DataManager.DataAdaptor.IsRemote() || Parent.DataManager.Adaptor == Adaptors.CustomAdaptor);
-            
+            bool isRemoteAggregate = (Parent.DataManager!.DataAdaptor!.IsRemote() || Parent.DataManager.Adaptor == Adaptors.CustomAdaptor);
+
             if (Parent.GroupSettings?.Columns != null && !isRemoteAggregate)
             {
                 return await ApplyFilteredQueryForGrouping().ConfigureAwait(true);
@@ -102,8 +100,8 @@ namespace Syncfusion.Blazor.Grids.Internal
         private async Task<IEnumerable<object>> ApplyFilteredQueryForGrouping()
         {
             var query = new Query();
-            this.Parent.DataModule?.FilterQuery(query, Parent.FilterSettings.Columns);
-            object result = await Parent.DataManager.ExecuteQuery<T>(query).ConfigureAwait(true);
+            this.Parent.DataModule?.FilterQuery(query, Parent.FilterSettings?.Columns);
+            object result = await Parent.DataManager!.ExecuteQuery<T>(query).ConfigureAwait(true);
             return (IEnumerable<object>)(result is DataResult ? (IEnumerable<object>)((DataResult)result).Result! : result)!;
         }
 
@@ -115,13 +113,12 @@ namespace Syncfusion.Blazor.Grids.Internal
         {
             var batchChanges = Parent.EditModule!.GetBatchChanges();
             var dataList = dataRows.ToList();
-            var keyField = await Parent.GetPrimaryKeyFieldNamesAsync().ConfigureAwait(true);
-            var key = keyField?.Count > 0 ? keyField[0]?.ToString() : null;
+            var keyFields = await Parent.GetPrimaryKeyFieldNamesAsync().ConfigureAwait(true);
 
-            if (!string.IsNullOrEmpty(key))
+            if (keyFields != null && keyFields.Count > 0)
             {
-                MergeBatchChangedRecords(batchChanges, dataList, key);
-                MergeBatchDeletedRecords(batchChanges, dataList, key);
+                MergeBatchChangedRecords(batchChanges, dataList, keyFields);
+                MergeBatchDeletedRecords(batchChanges, dataList, keyFields);
             }
 
             MergeBatchAddedRecords(batchChanges, dataList);
@@ -129,46 +126,112 @@ namespace Syncfusion.Blazor.Grids.Internal
             return dataList;
         }
 
-        private void MergeBatchChangedRecords(BatchChanges<T> batchChanges, List<object> dataList, string? key)
+        private void MergeBatchChangedRecords(BatchChanges<T> batchChanges, List<object> dataList, List<string> keyFields)
         {
             if (batchChanges?.ChangedRecords?.Count <= 0)
                 return;
-
-            foreach (var rec in batchChanges.ChangedRecords)
+            bool isComposite = keyFields.Count > 1;
+            foreach (var rec in batchChanges?.ChangedRecords!)
             {
-                var index = dataList.FindIndex(e => Parent.PropHelper?.GetValue(e, key) != null 
-                    && Parent.PropHelper.GetValue(e, key).ToString() == Parent.PropHelper.GetValue(rec, key)?.ToString());
-
-                if (index >= 0 && index < dataList.Count)
+                if (isComposite)
                 {
-                    dataList[index] = rec!;
+                    var recKeyValues = Parent.EditModule?.GetPrimaryKeyValueAsObject(rec).GetAwaiter().GetResult();
+                    if (recKeyValues == null || recKeyValues.Count == 0)
+                    {
+                        continue;
+                    }
+                    var recCompositeKey = new CompositeKey(recKeyValues.ToArray());
+
+                    int index = -1;
+                    for (int i = 0; i < dataList.Count; i++)
+                    {
+                        var dataKeyValues = Parent.EditModule?.GetPrimaryKeyValueAsObject(dataList[i]).GetAwaiter().GetResult();
+                        if (dataKeyValues != null && dataKeyValues.Count > 0)
+                        {
+                            var dataCompositeKey = new CompositeKey(dataKeyValues.ToArray());
+                            if (recCompositeKey.Equals(dataCompositeKey))
+                            {
+                                index = i;
+                                break;
+                            }
+                        }
+                    }
+
+                    if (index >= 0 && index < dataList.Count)
+                    {
+                        dataList[index] = rec!;
+                    }
+                }
+                else
+                {
+                    var key = keyFields[0];
+                    var index = dataList.FindIndex(e => Parent.PropHelper?.GetValue(e, key!) != null
+                        && Parent.PropHelper.GetValue(e, key!).ToString() == Parent.PropHelper.GetValue(rec, key!)?.ToString());
+
+                    if (index >= 0 && index < dataList.Count)
+                    {
+                        dataList[index] = rec!;
+                    }
                 }
             }
         }
 
-        private void MergeBatchAddedRecords(BatchChanges<T> batchChanges, List<object> dataList)
+        private static void MergeBatchAddedRecords(BatchChanges<T> batchChanges, List<object> dataList)
         {
             if (batchChanges?.AddedRecords.Count <= 0)
                 return;
 
-            foreach (var rec in batchChanges.AddedRecords)
+            foreach (var rec in batchChanges?.AddedRecords!)
             {
                 dataList.Add(rec!);
             }
+
         }
 
-        private void MergeBatchDeletedRecords(BatchChanges<T> batchChanges, List<object> dataList, string? key)
+        private void MergeBatchDeletedRecords(BatchChanges<T> batchChanges, List<object> dataList, List<string> keyFields)
         {
             if (batchChanges?.DeletedRecords?.Count <= 0)
                 return;
-
-            foreach (var rec in batchChanges.DeletedRecords)
+            bool isComposite = keyFields.Count > 1;
+            foreach (var rec in batchChanges?.DeletedRecords!)
             {
-                var temp = dataList.FirstOrDefault(e => Parent.PropHelper?.GetValue(e, key) != null 
-                    && Parent.PropHelper.GetValue(e, key).Equals(Parent.PropHelper.GetValue(rec, key)));
-                if (temp != null)
+                if (isComposite)
                 {
-                    dataList.Remove(temp);
+                    var recKeyValues = Parent.EditModule?.GetPrimaryKeyValueAsObject(rec).GetAwaiter().GetResult();
+                    if (recKeyValues == null || recKeyValues.Count == 0)
+                    {
+                        continue;
+                    }
+                    var recCompositeKey = new CompositeKey(recKeyValues.ToArray());
+
+                    object? temp = null;
+                    foreach (var dataItem in dataList)
+                    {
+                        var dataKeyValues = Parent.EditModule?.GetPrimaryKeyValueAsObject(dataItem).GetAwaiter().GetResult();
+                        if (dataKeyValues != null && dataKeyValues.Count > 0)
+                        {
+                            var dataCompositeKey = new CompositeKey(dataKeyValues.ToArray());
+                            if (recCompositeKey.Equals(dataCompositeKey))
+                            {
+                                temp = dataItem;
+                                break;
+                            }
+                        }
+                    }
+                    if (temp != null)
+                    {
+                        dataList.Remove(temp);
+                    }
+                }
+                else
+                {
+                    var key = keyFields[0];
+                    var temp = dataList.FirstOrDefault(e => Parent.PropHelper?.GetValue(e, key!) != null
+                        && Parent.PropHelper.GetValue(e, key!).Equals(Parent.PropHelper.GetValue(rec, key!)));
+                    if (temp != null)
+                    {
+                        dataList.Remove(temp);
+                    }
                 }
             }
         }
@@ -227,24 +290,25 @@ namespace Syncfusion.Blazor.Grids.Internal
         private Dictionary<string, string> BuildGroupFormatters()
         {
             var groupByFormatter = new Dictionary<string, string>();
-
-            foreach (var group in Parent.GroupSettings!.Columns)
+            if (Parent.GroupSettings != null && Parent.GroupSettings.Columns != null)
             {
-                GridColumn? groupColumn = GridUtils.GetColumnByField(group, Parent.Columns!);
-                if (groupColumn != null)
+                foreach (var group in Parent.GroupSettings!.Columns)
                 {
-                    if (groupByFormatter.ContainsKey(group))
+                    GridColumn? groupColumn = GridUtils.GetColumnByField(group, Parent.Columns!);
+                    if (groupColumn != null)
                     {
-                        groupByFormatter[group] = groupColumn.Format!;
-                    }
-                    else
-                    {
-                        groupByFormatter.Add(group, groupColumn.Format!);
+                        if (groupByFormatter.ContainsKey(group))
+                        {
+                            groupByFormatter[group] = groupColumn.Format!;
+                        }
+                        else
+                        {
+                            groupByFormatter.Add(group, groupColumn.Format!);
+                        }
                     }
                 }
             }
-
-            return groupByFormatter;
+                return groupByFormatter;
         }
 
         private void UpdateAggregateRowsWithGroupData(IEnumerable aggregateData)
@@ -280,7 +344,7 @@ namespace Syncfusion.Blazor.Grids.Internal
 
         private void UpdateGroupRowCells(List<Row<object>>? originalSummaryRows, int index, List<Row<object>> updateRowObjects)
         {
-            var originalRowObjects = originalSummaryRows!.Where(e => string.Equals(e.GroupKey?.ToString(), originalSummaryRows[index].GroupKey?.ToString(), StringComparison.Ordinal)).ToList();
+            var originalRowObjects = originalSummaryRows!.Where(e => string.Equals(e.GroupKey?.ToString(), originalSummaryRows?[index].GroupKey?.ToString(), StringComparison.Ordinal)).ToList();
 
             for (var a = 0; a < originalRowObjects.Count; a++)
             {
@@ -401,7 +465,7 @@ namespace Syncfusion.Blazor.Grids.Internal
                                           .Select(col => col.Field)
                                           .ToArray();
 
-            int indent = Parent.GroupSettings!.Columns.IndexOf(group.Field);
+            int indent = Parent.GroupSettings!.Columns!.IndexOf(group.Field);
             var currentRow = new GroupModelGenerator<T>(Parent).GenerateCaptionRow(group, indent);
 
             Parent.Aggregates?.ForEach(aggregate =>

@@ -15,7 +15,7 @@
         <DropDownListFieldSettings Value="@(Model.Column.ForeignKeyField ?? Model.Column.Field)" Text="@Model.Column.ForeignKeyValue"></DropDownListFieldSettings>
         <DropDownListEvents TItem="TItem" ValueChange="ValueChange" TValue="TValue"></DropDownListEvents>
         <SfDataManager @attributes="Model.DataManagerAttributes">
-            @Model.Column.DataManager.ChildContent
+            @Model.Column.DataManager?.ChildContent
         </SfDataManager>
     </SfDropDownList>
 }
@@ -50,7 +50,7 @@ else
         Parent!.SetValue<T>((T)Model?.Value!, Model?.Column?.Field!);
         var columnData = Model?.Column?.ColumnData as IEnumerable<object>;
         string? fieldName = Model?.Column?.Field;
-        if (columnData != null && !columnData.Any(column => DataUtil.GetObject(fieldName, column)?.ToString() == args?.Value?.ToString()))
+        if (columnData != null && !columnData.Any(column => DataUtil.GetObject(fieldName!, column)?.ToString() == args?.Value?.ToString()))
         {
             var addColumnData = columnData.ToList();
             addColumnData.Insert(0, args.ItemData!);

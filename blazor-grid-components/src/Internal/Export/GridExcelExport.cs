@@ -445,13 +445,17 @@ namespace Syncfusion.Blazor.Grids.Internal
                     IsCustomCommandColumnInclude = ExportProps.IncludeCommandColumn;
                     if (ExportProps.DataSource != null)
                     {
-                        if (ExportProps.DataSource is SfDataManager && gridProp != null && gridProp.DataManager.Json == null)
+                        if (ExportProps.DataSource is SfDataManager && gridProp != null && gridProp.DataManager?.Json == null)
                         {
                             GridModel.DataManager = (SfDataManager)ExportProps.DataSource;
                         }
                         else
                         {
-                            GridModel.DataManager.Json = (IEnumerable<object>)ExportProps.DataSource;
+                            if(GridModel.DataManager != null)
+                            {
+                                GridModel.DataManager.Json = (IEnumerable<object>)ExportProps.DataSource;
+                            }
+                            
                             DataSource = (IEnumerable<object>)ExportProps.DataSource;
                         }
                     }
@@ -516,7 +520,7 @@ namespace Syncfusion.Blazor.Grids.Internal
 
                         if (column == null && GridColumns.Any(col => col.IsGridForeignColumn))
                         {
-                            var fColsList = ForeignKey<T>.GetForeignKeyColumns(GridColumns);
+                            var fColsList = ForeignKey<T>.GetForeignKeyColumnsAsync(GridColumns);
                             column = fColsList.FirstOrDefault(col => col.ForeignKeyValue?.Equals(fieldname, StringComparison.Ordinal) == true);
                         }
                     }
@@ -526,8 +530,8 @@ namespace Syncfusion.Blazor.Grids.Internal
             if (ExportProps?.DataSource == null || gridProp.Aggregates?.Count > 0)
             {
                 DataResult ExportData = await ExportHelper<T>.DataProcess(gridProp, ExportProps != null ? ExportProps.ExportType == Grids.ExportType.AllPages : true).ConfigureAwait(true);
-                DataSource = (IEnumerable<object>)ExportData.Result;
-                ExportAggregate = (Dictionary<string, object>)ExportData.Aggregates;
+                DataSource = (IEnumerable<object>)(ExportData.Result ?? Enumerable.Empty<object>());
+                ExportAggregate = (Dictionary<string, object>)(ExportData.Aggregates ?? new Dictionary<string, object>());
             }
             InitializeExcel(_workbook!);
             List<GridColumn> gridcolumns = GridModel.IsFixedColumnPresent() ? GridModel.RearrangeColumns(GridColumns!)! : GridColumns!;
@@ -722,9 +726,13 @@ namespace Syncfusion.Blazor.Grids.Internal
             }
             else if (Col.Columns.Count > 0)
             {
-                int ColSpan = ExportHelper<T>.GetColSpan(Col, 0, gridProp!);
+                int ColSpan = ExportHelper<T>.GetColSpan(Col, 0, gridProp!, IsTemplateColumnInclude, IsHideColumnInclude, IsCustomCommandColumnInclude);
                 CurrentCellIndex = ExportHelper<T>.GetCurrentCellIndex(SpannedCellIndex, CurrentCellIndex, headerRows > 0 ? RowIndex - headerRows - 1 : RowIndex - 1, colIndex);
                 colIndex++;
+                if (ColSpan == 0)
+                {
+                    return;
+                }
                 if (ColSpan > 0)
                 {
                     Sheet.Rows[RowIndex - 1].Cells[CurrentCellIndex].Value = Col.HeaderText;
@@ -764,6 +772,11 @@ namespace Syncfusion.Blazor.Grids.Internal
 
                 foreach (GridColumn InnerCol in Col.Columns)
                 {
+                    if (ExportHelper<T>.ShouldSkipLeafColumn(InnerCol, IsTemplateColumnInclude, IsCustomCommandColumnInclude))
+                    {
+                        continue;
+                    }
+
                     if (InnerCol.Columns != null)
                     {
                         GenerateStackedRows(InnerCol, RowIndex + 1, --ColDepth, SpannedCellIndex);
@@ -1002,7 +1015,7 @@ namespace Syncfusion.Blazor.Grids.Internal
             colIndex = 1;
             exportColumnCount = exportColumnCount > 0 ? exportColumnCount : TotalVisibleColumnsCount;
             var colspanLength = exportColumnCount + ExportHelper<T>.GetGroupColumnsCount(gridProp!);
-            string groupColumnName = context.Field;
+            string groupColumnName = context.Field ?? "";
             var groupCol = GridUtils.GetColumnByField(groupColumnName, GridColumns!);
             bool flag = (groupCol?.Type == ColumnType.Date || groupCol?.Type == ColumnType.DateTime) ? true : false;
             var keyName = context.Key == null ? (flag == true ? context.Key : string.Empty) : context.Key;
@@ -1039,8 +1052,8 @@ namespace Syncfusion.Blazor.Grids.Internal
 
             int captionCount = context.CountItems;
             string itemText = captionCount == 1 ? ExportLocalizer!.GetText("Grid_Item"): ExportLocalizer!.GetText("Grid_Items");
-            string txt = context.HeaderText ?? (!string.IsNullOrEmpty(groupCol?.HeaderText) ? groupCol.HeaderText : context.Field);
-            string headerText = txt;
+            string txt = context.HeaderText ?? (!string.IsNullOrEmpty(groupCol?.HeaderText) ? groupCol.HeaderText : context.Field ?? "");
+            string headerText = txt ?? "";
             using (var PropertyHelper = new PropertyInfoHelper())
             {
                 if (!string.IsNullOrEmpty(groupCol?.ForeignKeyValue) && groupCol?.GetForeignData() != null)
@@ -1063,8 +1076,8 @@ namespace Syncfusion.Blazor.Grids.Internal
                 CopyBorders(GridTableCellType.GroupCaptionCell, Row.Cells[i]);
                 CopyStyles(GridTableCellType.GroupCaptionCell, Row.Cells[i]);
             }
-            RenderCaption(headerText, context, groupCol!, itemText);
 
+             RenderCaption(headerText, context, groupCol!, itemText);
             if (mergeCount > 0)
             {
                 mergeCount = mergeCount - (groupLevel + 1);
@@ -1077,9 +1090,9 @@ namespace Syncfusion.Blazor.Grids.Internal
         {
             if (!(context.Items is IEnumerable<Group<T>>))
             {
-                GroupRecordCount = context.Items.AsQueryable().Count();
+                GroupRecordCount = context.Items!.AsQueryable().Count();
                 GroupCurrentIndex = 0;
-                foreach (T record in context.Items)
+                foreach (T record in context.Items!)
                 {
                     GroupCurrentIndex++;
                     ProcessRecordRow(record, context.Level, context);
@@ -1150,7 +1163,7 @@ namespace Syncfusion.Blazor.Grids.Internal
                                         }
                                     };
                         eventArgs.ForeignKeyValue = groupCol.ForeignKeyValue;
-                        var foreignData = DataOperations.PerformFiltering(foreignColumnData as IEnumerable<object>, query, "and").ToList();
+                        var foreignData = DataOperations.PerformFiltering(foreignColumnData as IEnumerable<object> ?? Enumerable.Empty<object>(), query, "and").ToList();
                         using (var PropertyHelper = new PropertyInfoHelper())
                         {
                             foreach (var val in foreignData)
@@ -1288,6 +1301,13 @@ namespace Syncfusion.Blazor.Grids.Internal
                 Row = Sheet.Rows.Add();
                 Row.Index = rowIndex;
                 GetRowCells(Row);
+
+                var indentCell = ExportHelper<T>.GetGroupColumnsCount(gridProp);
+                for (var j = indentCell > 0 ? indentCell - 1 : indentCell; j < TotalVisibleColumnsCount; j++)
+                {
+                    CopyStyles(GridTableCellType.CaptionCell, Row.Cells[j]);
+                }
+
                 Sheet.Rows[this.rowIndex - 1].Grouping.OutlineLevel = (groupedColumnsCount < 8 && GroupData?.Level > 0) ? GroupData.Level : 0;               
                 foreach (var summaryCol in summaryRow.Columns!)
                 {
@@ -1310,27 +1330,25 @@ namespace Syncfusion.Blazor.Grids.Internal
                         if (groupSummary && ExportHelper<T>.IsGroupingEnabled(gridProp) && GroupData != null)
                         {
                             GroupKeyValue = summaryCol.Field + " " + "-" + " " + summaryCol.Type?.ToString();
-                            SummaryObj = (IDictionary<string, object>)GroupData.Aggregates;
+                            SummaryObj = (IDictionary<string, object>)(GroupData.Aggregates ?? new Dictionary<string, object>());
                         }
 
-                        foreach (var SummaryData in SummaryObj)
+                        if(SummaryObj != null)
                         {
-                            if (SummaryData.Key == KeyValue || SummaryData.Key == GroupKeyValue)
+                            foreach (var SummaryData in SummaryObj)
                             {
-                                summaryValue = SummaryData.Value;
-                                break;
+                                if (SummaryData.Key == KeyValue || SummaryData.Key == GroupKeyValue)
+                                {
+                                    summaryValue = SummaryData.Value;
+                                    break;
+                                }
                             }
                         }
-
+                        
                         prefix = summaryCol.Type!.ToString()!;
                         colIndex = 0;
                         //process the summary column
                         ProcessSummaryColumn(summaryCol);
-                        var indentCell = ExportHelper<T>.GetGroupColumnsCount(gridProp);
-                        for (var j = indentCell > 0 ? indentCell - 1 : indentCell; j < TotalVisibleColumnsCount; j++)
-                        {
-                            CopyStyles(GridTableCellType.CaptionCell, Row.Cells[j]);
-                        }
 
                         Sheet.Rows[rowIndex - 1].Cells[summaryColumnTitleIndex - 1].Value = GetValue(summaryValue, summaryCol.Format!, false);
                         Sheet.Rows[rowIndex - 1].Cells[summaryColumnTitleIndex - 1].CellStyle.HAlign = Enum.Parse<HAlignType>(GetTextAlign(SummaryGridColumn.TextAlign).ToString());
@@ -1667,7 +1685,7 @@ namespace Syncfusion.Blazor.Grids.Internal
                         column.Width = Math.Round(result).ToString(CultureInfo.InvariantCulture);
                     }
                     // If column.Width is null or empty, or if column.Width is "auto", set the column width to "0".
-                    Sheet.Columns[colIndex - 1].Width = !string.IsNullOrEmpty(column.Width) && column.Width != "auto" ? column.Width.IndexOf("px", StringComparison.Ordinal) > 0 ? Convert.ToInt32(column.Width.Split("px")[0], CultureInfo.InvariantCulture) : Convert.ToInt32(column.Width, CultureInfo.InvariantCulture) : 0; // (int)this.PixeslToColumnWidth(Convert.ToInt32(column.Width));
+                    Sheet.Columns[colIndex - 1].Width = !string.IsNullOrEmpty(column.Width) && column.Width != "auto" ? column.Width.IndexOf("px", StringComparison.Ordinal) > 0 ? Convert.ToInt32(double.Parse(column.Width.Replace("px", "", StringComparison.Ordinal), CultureInfo.InvariantCulture)) : Convert.ToInt32(column.Width, CultureInfo.InvariantCulture) : 0; // (int)this.PixeslToColumnWidth(Convert.ToInt32(column.Width));
                 }
             }
         }
@@ -2153,21 +2171,22 @@ namespace Syncfusion.Blazor.Grids.Internal
             }
             if (columnFormat.ToLower(System.Globalization.CultureInfo.CurrentCulture).Contains('c', StringComparison.Ordinal))
             {
+                var symbol = $"[${culture!.NumberFormat.CurrencySymbol}]";
                 if (Convert.ToInt64(GetCurrentCell.Value, CultureInfo.InvariantCulture) >= 0)
                 {
                     switch (culture!.NumberFormat.CurrencyPositivePattern)
                     {
                         case 0:
-                            numberFormat = culture.NumberFormat.CurrencySymbol + numberFormat;
+                            numberFormat = symbol + numberFormat;
                             break;
                         case 1:
-                            numberFormat += culture.NumberFormat.CurrencySymbol;
+                            numberFormat += symbol;
                             break;
                         case 2:
-                            numberFormat = culture.NumberFormat.CurrencySymbol + " " + numberFormat;
+                            numberFormat = symbol + " " + numberFormat;
                             break;
                         case 3:
-                            numberFormat += "[$" + culture.NumberFormat.CurrencySymbol + "]";
+                            numberFormat += " " + symbol;
                             break;
                     }
                 }
@@ -2176,52 +2195,52 @@ namespace Syncfusion.Blazor.Grids.Internal
                     switch (culture!.NumberFormat.CurrencyNegativePattern)
                     {
                         case 0:
-                            numberFormat = "(" + culture.NumberFormat.CurrencySymbol + numberFormat + ")";
+                            numberFormat = "(" + symbol + numberFormat + ")";
                             break;
                         case 1:
-                            numberFormat = culture.NumberFormat.NegativeSign + culture.NumberFormat.CurrencySymbol + numberFormat;
+                            numberFormat = culture.NumberFormat.NegativeSign + symbol + numberFormat;
                             break;
                         case 2:
-                            numberFormat = culture.NumberFormat.CurrencySymbol + culture.NumberFormat.NegativeSign + numberFormat;
+                            numberFormat = symbol + culture.NumberFormat.NegativeSign + numberFormat;
                             break;
                         case 3:
-                            numberFormat = culture.NumberFormat.CurrencySymbol + numberFormat + culture.NumberFormat.NegativeSign;
+                            numberFormat = symbol + numberFormat + culture.NumberFormat.NegativeSign;
                             break;
                         case 4:
-                            numberFormat = "(" + numberFormat + culture.NumberFormat.CurrencySymbol + ")";
+                            numberFormat = "(" + numberFormat + symbol + ")";
                             break;
                         case 5:
-                            numberFormat = culture.NumberFormat.NegativeSign + numberFormat + culture.NumberFormat.CurrencySymbol;
+                            numberFormat = culture.NumberFormat.NegativeSign + numberFormat + symbol;
                             break;
                         case 6:
-                            numberFormat += culture.NumberFormat.NegativeSign + culture.NumberFormat.CurrencySymbol;
+                            numberFormat += culture.NumberFormat.NegativeSign + symbol;
                             break;
                         case 7:
-                            numberFormat += culture.NumberFormat.CurrencySymbol + culture.NumberFormat.NegativeSign;
+                            numberFormat += symbol + culture.NumberFormat.NegativeSign;
                             break;
                         case 8:
-                            numberFormat = culture.NumberFormat.NegativeSign + numberFormat + " " + culture.NumberFormat.CurrencySymbol;
+                            numberFormat = culture.NumberFormat.NegativeSign + numberFormat + " " + symbol;
                             break;
                         case 9:
-                            numberFormat = culture.NumberFormat.NegativeSign + culture.NumberFormat.CurrencySymbol + " " + numberFormat;
+                            numberFormat = culture.NumberFormat.NegativeSign + symbol + " " + numberFormat;
                             break;
                         case 10:
-                            numberFormat += " " + culture.NumberFormat.CurrencySymbol + culture.NumberFormat.NegativeSign;
+                            numberFormat += " " + symbol + culture.NumberFormat.NegativeSign;
                             break;
                         case 11:
-                            numberFormat = culture.NumberFormat.CurrencySymbol + " " + numberFormat + culture.NumberFormat.NegativeSign;
+                            numberFormat = symbol + " " + numberFormat + culture.NumberFormat.NegativeSign;
                             break;
                         case 12:
-                            numberFormat = culture.NumberFormat.CurrencySymbol + " " + culture.NumberFormat.NegativeSign + numberFormat;
+                            numberFormat = symbol + " " + culture.NumberFormat.NegativeSign + numberFormat;
                             break;
                         case 13:
-                            numberFormat += culture.NumberFormat.NegativeSign + " " + culture.NumberFormat.CurrencySymbol;
+                            numberFormat += culture.NumberFormat.NegativeSign + " " + symbol;
                             break;
                         case 14:
-                            numberFormat = "(" + culture.NumberFormat.CurrencySymbol + " " + numberFormat + ")";
+                            numberFormat = "(" + symbol + " " + numberFormat + ")";
                             break;
                         case 15:
-                            numberFormat = "(" + numberFormat + " " + culture.NumberFormat.CurrencySymbol + ")";
+                            numberFormat = "(" + numberFormat + " " + symbol + ")";
                             break;
                     }
                 }

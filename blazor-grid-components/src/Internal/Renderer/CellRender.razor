@@ -16,6 +16,10 @@
     {
         if (Name == null)
             throw new MissingMemberException($"Name must be provided to add Custom cell component");
-        cellRegister?.Parent?.CellService.AddCell(Name, ChildContent!);
+        
+        if (cellRegister?.Parent?.CellService != null)
+        {
+            cellRegister.Parent.CellService.AddCell(Name, ChildContent!);
+        }
     }
 }

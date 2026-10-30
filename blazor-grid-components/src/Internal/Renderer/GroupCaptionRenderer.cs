@@ -4,6 +4,7 @@ using Syncfusion.Blazor.Data;
 using Syncfusion.Blazor.Internal;
 using System;
 using System.Collections.Generic;
+using System.Globalization;
 using System.Linq;
 using System.Threading.Tasks;
 
@@ -44,6 +45,7 @@ namespace Syncfusion.Blazor.Grids.Internal
 
             var sequence = 0;
             var captionValue = GetCaption(row);
+            var captionText = captionValue?.ToString() ?? string.Empty;
             string txtClass = GridUtils.GetAlignmentClass(cell?.Column!);
 
             // Main caption TD
@@ -51,10 +53,10 @@ namespace Syncfusion.Blazor.Grids.Internal
             builder.AddAttribute(sequence++, "class", $"{GetClass(row, cell!, true)} {txtClass}");
             builder.AddAttribute(sequence++, "data-sf-style", GetStyle(row, cell!));
             builder.AddAttribute(sequence++, "colspan", cell?.ColSpan);
-            builder.AddAttribute(sequence++, "tabindex", cell?.TabIndex);
-            builder.AddAttribute(sequence++, "aria-label", $"{captionValue} {Parent!.Localizer?.GetText(GridLocaleKeys.GroupCaption)}");
+            builder.AddAttribute(sequence++, "tabindex", cell?.TabIndex.ToString(CultureInfo.InvariantCulture));
+            builder.AddAttribute(sequence++, "aria-label", $"{captionText} {Parent!.Localizer?.GetText(GridLocaleKeys.GroupCaption)}");
             builder.AddAttribute(sequence++, "data-uid", cell?.Uid);
-            builder.AddAttribute(sequence++, "title", captionValue);
+            builder.AddAttribute(sequence++, "title", captionText);
 
             // Event handlers
             builder.AddAttribute(sequence++, "onclick", EventCallback.Factory.Create<MouseEventArgs>(this, 
@@ -63,10 +65,11 @@ namespace Syncfusion.Blazor.Grids.Internal
                 (e) => OnGroupCaptionFocus(e)));
             builder.AddAttribute(sequence++, "onblur", EventCallback.Factory.Create<FocusEventArgs>(this,
                 async (e) => await OnGroupCaptionBlur(e, row, cell!).ConfigureAwait(true)));
-            builder.AddEventPreventDefaultAttribute(sequence++, "onkeydown", !IsLastCellInternal(row, cell));
+            builder.AddEventPreventDefaultAttribute(sequence++, "onkeydown", !IsLastCellInternal(row, cell!));
             builder.AddAttribute(sequence++, "onkeydown", EventCallback.Factory.Create<KeyboardEventArgs>(this,
                 async (e) => await OnGroupCaptionKeyDown(e, row, cell!).ConfigureAwait(true)));
 
+            // Render content
             // Render content
             if (Parent.GroupSettings!.CaptionTemplate != null)
             {
@@ -74,19 +77,41 @@ namespace Syncfusion.Blazor.Grids.Internal
             }
             else
             {
-                if (column?.DisableHtmlEncode == true)
+                var searchKey = Parent.FindHightLightModule?.SearchHighlightKey;
+                var shouldHighlightCaption = Parent.IsFindToolbarEnabled() &&
+                    Parent.FindHightLightModule != null &&
+                    !string.IsNullOrEmpty(searchKey);
+
+                if (shouldHighlightCaption && Parent.FindHightLightModule != null)
                 {
-                    builder.AddContent(sequence++, captionValue);
+                    var regularCssClass = "e-find-highlight";
+                    var activeCssClass = "e-find-highlight-active";
+                    var (_, highlightedHtml, updatedCounter, _) = Parent.FindHightLightModule.HighlightMatchesServerSideActive(
+                        captionText,
+                        searchKey!,
+                        regularCssClass,
+                        activeCssClass,
+                        Parent.FindHightLightModule.CurrentMatchIndex,
+                        Parent.FindHightLightModule.GlobalMatchCounter,
+                        out _,
+                        Parent.FindSettings?.CaseSensitive ?? false);
+
+                    Parent.FindHightLightModule.GlobalMatchCounter = updatedCounter;
+                    builder.AddContent(sequence++, new MarkupString(highlightedHtml));
+                }
+                else if (column?.DisableHtmlEncode == true)
+                {
+                    builder.AddContent(sequence++, captionText);
                 }
                 else
                 {
                     if (column?.EnableSanitization == false)
                     {
-                        builder.AddContent(sequence++, (MarkupString)($"{captionValue}"));
+                        builder.AddContent(sequence++, (MarkupString)captionText);
                     }
                     else
                     {
-                        builder.AddContent(sequence++, GridUtils.GetRawContent(SanitizeHtmlHelper.Sanitize($"{captionValue}")));
+                        builder.AddContent(sequence++, GridUtils.GetRawContent(SanitizeHtmlHelper.Sanitize(captionText)));
                     }
                 }
             }
@@ -101,8 +126,8 @@ namespace Syncfusion.Blazor.Grids.Internal
                     builder.OpenElement(sequence++, "td");
                     builder.AddAttribute(sequence++, "class", $"{GetClass(row, cell!, false)} {txtClass}");
                     builder.AddAttribute(sequence++, "colspan", Colspan);
-                    builder.AddAttribute(sequence++, "tabindex", cell?.TabIndex);
-                    builder.AddAttribute(sequence++, "title", captionValue);
+                    builder.AddAttribute(sequence++, "tabindex", cell?.TabIndex.ToString(CultureInfo.InvariantCulture));
+                    builder.AddAttribute(sequence++, "title", captionText);
                     builder.CloseElement();
                 }
             }
@@ -148,7 +173,7 @@ namespace Syncfusion.Blazor.Grids.Internal
         /// Gets the caption text for a group row, including aggregate values and localized item count.
         /// </summary>
         /// <param name="Row">The group row for which to generate the caption.</param>
-        private object GetCaption(Row<object> Row)
+        private string GetCaption(Row<object> Row)
         {
             var groupedData = Row?.Data as Group<TRow>;
             var groupAggregate = new AggregateTemplateContext();
@@ -161,7 +186,7 @@ namespace Syncfusion.Blazor.Grids.Internal
                 {
                     var aggregate = (groupedData.Aggregates as IDictionary<string, object>)!.FirstOrDefault(a =>
                         a.Key.Split(' ')[0] == firstAggregateColumn.Field);
-                    var appliedFormatValue = DataUtil.GetFormattedValue(aggregate.Value, firstAggregateColumn.Format);
+                    var appliedFormatValue = DataUtil.GetFormattedValue(aggregate.Value, firstAggregateColumn.Format!);
                     groupAggregate.Field = firstAggregateColumn.Field;
 
                     switch (firstAggregateColumn.Type)
@@ -199,12 +224,11 @@ namespace Syncfusion.Blazor.Grids.Internal
                 Field = groupedData!.Field,
                 Count = groupedData.CountItems,
                 GroupGuid = groupedData!.GroupGuid,
-                Key = groupedData.Key.ToString()!,
-                Level = groupedData.Level,
+                Key = groupedData?.Key?.ToString()!,
+                Level = groupedData!.Level,
                 GroupAggregates = groupAggregate
             };
-
-            column = GridUtils.GetColumnByField(groupedData.Field, (List<GridColumn>)Parent.Columns!)!;
+            column = GridUtils.GetColumnByField(groupedData.Field!, (List<GridColumn>)Parent.Columns!)!;
 
             if (column.IsForeignColumn())
             {

@@ -1,4 +1,4 @@
-﻿using Microsoft.AspNetCore.Components.Web;
+using Microsoft.AspNetCore.Components.Web;
 using Syncfusion.Blazor.Data;
 using Syncfusion.Blazor.Internal;
 using Syncfusion.ExcelExport;
@@ -28,6 +28,13 @@ namespace Syncfusion.Blazor.Grids.Internal
 
         //Mainly used for column virtualization cases updated when the axis is X
         private int TranslateY { get; set; }
+
+        /// <summary>
+        /// Height cache for DOM virtualization: keyed by (RowType, RecordId) to prevent cross-kind reuse.
+        /// RowType values: "Data", "DetailRow", "GroupCaption", "Summary"
+        /// Prevents DetailTemplate heights from polluting Data row heights, etc.
+        /// </summary>
+        private Dictionary<(string rowType, string recordId), int> _domVirtHeightCache { get; set; } = new Dictionary<(string rowType, string recordId), int>();
         #endregion
 
         #region Internal Properties
@@ -123,6 +130,22 @@ namespace Syncfusion.Blazor.Grids.Internal
         /// while virtualization is enabled and the new-row position is Bottom.
         /// </summary>
         internal bool HasAddOrCancelAction { get; set; }
+
+        /// <summary>
+        /// DOM Virtualization: Render window start index for rendering phase (independent from OverscanCount).
+        /// Used by GridVirtualContent.razor and GridContent.razor to cap rendered rows.
+        /// </summary>
+        internal int DomRenderStartIndex { get; set; }
+
+        /// <summary>
+        /// DOM Virtualization: Render window end index for rendering phase.
+        /// </summary>
+        internal int DomRenderEndIndex { get; set; }
+
+        /// <summary>
+        /// DOM Virtualization: Effective MaxPoolSize after clamping to safe floor (visible + RowBuffer).
+        /// </summary>
+        internal int EffectiveMaxPoolSize { get; set; } = 500;
         #endregion
 
         #region Constructor
@@ -145,7 +168,7 @@ namespace Syncfusion.Blazor.Grids.Internal
             HashSet<string> clearCacheActions = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
             {
                 "sorting", "reorder", "searching", "filtering", "refresh", "save", "delete", "grouping", 
-                "UnGrouping", "FreezeLineReorder", "RowDragAndDrop", "ClearFiltering"
+                "UnGrouping", "FreezeLineReorder", "RowDragAndDrop", "ClearFiltering", "paging"
             };
             if (clearCacheActions.Contains(requestType))
             {
@@ -169,6 +192,12 @@ namespace Syncfusion.Blazor.Grids.Internal
             FrozenCachedRowObject = new List<Row<object>>();
             ShiftSelectionRowIndexes = (-1, -1);
             ShiftSelectionCellIndexes = (-1, -1);
+
+            // Clear DOM virtualization height cache
+            if (_parent.EnableDomVirtualization)
+            {
+                _domVirtHeightCache.Clear();
+            }
         }
 
         /// <summary>
@@ -192,9 +221,10 @@ namespace Syncfusion.Blazor.Grids.Internal
         /// </summary>
         private void ResetIndexesForGrouping(string requestType)
         {
+            // Safe: Check GroupSettings exists before accessing Columns
             if ((requestType.Equals("grouping", StringComparison.OrdinalIgnoreCase) ||
                  requestType.Equals("ungrouping", StringComparison.OrdinalIgnoreCase)) &&
-                _parent.GroupSettings!.Columns?.Length > 0 && !IsObservable)
+                _parent.GroupSettings?.Columns?.Length > 0 && !IsObservable)
             {
                 RowStartIndex = RowEndIndex = 0;
             }
@@ -230,8 +260,15 @@ namespace Syncfusion.Blazor.Grids.Internal
             if (_parent.IsRendered && IsDataSourceChanged)
             {
                 IsDataSourceChanged = false;
-                await _parent.InvokeMethod("sfBlazor.Grid.refreshOnDataChange",
-                    new object[] { _parent.DataId }).ConfigureAwait(true);
+                try
+                {
+                    await _parent.InvokeMethod("sfBlazor.Grid.refreshOnDataChange",
+                        new object[] { _parent.DataId }).ConfigureAwait(true);
+                }
+                catch (System.Exception ex) when (ex is OperationCanceledException)
+                {
+
+                }
             }
         }
 
@@ -300,6 +337,199 @@ namespace Syncfusion.Blazor.Grids.Internal
         }
         #endregion
 
+        #region DOM Virtualization
+
+        /// <summary>
+        /// Gets the cached height for a row by (RowType, RecordId).
+        /// Returns the default row height if not found in cache.
+        /// </summary>
+        internal int GetCachedRowHeight(Row<object> row)
+        {
+            if (row == null || !_parent.EnableDomVirtualization)
+            {
+                return _parent.RowHeight > 0 ? (int)_parent.RowHeight : 30; // Default fallback
+            }
+
+            string recordId = GetRecordId(row);
+            if (_domVirtHeightCache.TryGetValue((row.RowType, recordId), out int cachedHeight))
+            {
+                return cachedHeight;
+            }
+
+            return _parent.RowHeight > 0 ? (int)_parent.RowHeight : 30;
+        }
+
+        /// <summary>
+        /// Caches the height for a row by (RowType, RecordId).
+        /// Prevents cross-kind reuse (e.g., DetailTemplate heights don't affect Data row heights).
+        /// </summary>
+        internal void CacheRowHeight(Row<object> row, int height)
+        {
+            if (row == null || !_parent.EnableDomVirtualization)
+            {
+                return;
+            }
+
+            string recordId = GetRecordId(row);
+            var cacheKey = (row.RowType, recordId);
+
+            if (_domVirtHeightCache.ContainsKey(cacheKey))
+            {
+                _domVirtHeightCache[cacheKey] = height;
+            }
+            else
+            {
+                _domVirtHeightCache.Add(cacheKey, height);
+            }
+        }
+
+        /// <summary>
+        /// Gets a unique identifier for a row (used as record ID in height cache).
+        /// Falls back to Index if Uid is not available.
+        /// </summary>
+        private string GetRecordId(Row<object> row)
+        {
+            if (row == null) return string.Empty;
+
+            // Try to use Uid if available (unique across all records)
+            if (!string.IsNullOrEmpty(row.Uid))
+            {
+                return row.Uid;
+            }
+
+            // Fall back to Index for fallback
+            return row.Index.ToString();
+        }
+
+        /// <summary>
+        /// Computes the render window for DOM virtualization.
+        /// Applies MaxPoolSize clamping with safe floor enforcement.
+        /// Safe floor = visible rows + RowBuffer (ensures no blank regions).
+        /// </summary>
+        internal void ComputeDomVirtualizationWindow(int scrollPosition, int viewportHeight)
+        {
+            if (!_parent.EnableDomVirtualization || _parent.DomVirtualizationSettings == null)
+            {
+                return;
+            }
+
+            int rowHeight = _parent.RowHeight > 0 ? (int)_parent.RowHeight : 30;
+            int visibleRows = viewportHeight / rowHeight;
+            int rowBuffer = (_parent.DomVirtualizationSettings.RowBuffer ?? 0) > 0 
+                ? _parent.DomVirtualizationSettings.RowBuffer.Value 
+                : 5;
+            int maxPoolSize = (_parent.DomVirtualizationSettings.MaxPoolSize ?? 0) > 0 
+                ? _parent.DomVirtualizationSettings.MaxPoolSize.Value 
+                : 500;
+
+            // Compute safe floor: must be at least visible + buffer
+            int safeFloor = visibleRows + rowBuffer;
+            int effectiveMaxPool = Math.Max(maxPoolSize, safeFloor);
+
+            // Log warning if clamped
+            if (effectiveMaxPool > maxPoolSize)
+            {
+                System.Diagnostics.Debug.WriteLine(
+                    $"[DOM Virt] MaxPoolSize clamped from {maxPoolSize} to {effectiveMaxPool} (safe floor: {visibleRows} visible + {rowBuffer} buffer)");
+            }
+
+            EffectiveMaxPoolSize = effectiveMaxPool;
+
+            // Compute render window start/end with RowBuffer offset
+            // RowBuffer is independent of OverscanCount: used for DOM-level buffering
+            int renderStart = Math.Max(0, (scrollPosition / rowHeight) - rowBuffer);
+            int renderEnd = Math.Min(renderStart + effectiveMaxPool, _parent.TotalItemCount);
+
+            DomRenderStartIndex = renderStart;
+            DomRenderEndIndex = renderEnd;
+
+            // Note: OverscanCount (via virtualIndex) is handled separately for data fetching via Fetch action.
+            // DOM Virt RowBuffer operates independently for DOM-only rendering optimization.
+        }
+
+        /// <summary>
+        /// Clears DOM virtualization height cache for specific rows (selective invalidation).
+        /// Used when filtering, sorting, or editing affects certain records.
+        /// </summary>
+        internal void InvalidateDomVirtCacheForRows(IEnumerable<string> recordIds)
+        {
+            if (!_parent.EnableDomVirtualization || recordIds == null)
+            {
+                return;
+            }
+
+            var keysToRemove = new List<(string, string)>();
+            foreach (var recordId in recordIds)
+            {
+                foreach (var cacheKey in _domVirtHeightCache.Keys)
+                {
+                    if (cacheKey.recordId == recordId)
+                    {
+                        keysToRemove.Add(cacheKey);
+                    }
+                }
+            }
+
+            foreach (var key in keysToRemove)
+            {
+                _domVirtHeightCache.Remove(key);
+            }
+        }
+
+        /// <summary>
+        /// Clears all DOM virtualization height cache (full invalidation).
+        /// Used on paging, data source change, refresh.
+        /// </summary>
+        internal void ClearDomVirtCache()
+        {
+            if (_parent.EnableDomVirtualization)
+            {
+                _domVirtHeightCache.Clear();
+            }
+        }
+
+        /// <summary>
+        /// Updates height cache for a specific row after DOM measurement (AutoRowHeight).
+        /// Called when GridRow component measures actual rendered height (e.g., text wrapping).
+        /// </summary>
+        internal void UpdateRowHeightInCache(string rowType, string recordId, int measuredHeight)
+        {
+            if (!_parent.EnableDomVirtualization || measuredHeight <= 0)
+            {
+                return;
+            }
+
+            var cacheKey = (rowType, recordId);
+            if (_domVirtHeightCache.ContainsKey(cacheKey))
+            {
+                // Update existing height
+                _domVirtHeightCache[cacheKey] = measuredHeight;
+            }
+            else
+            {
+                // Add new height entry
+                _domVirtHeightCache[cacheKey] = measuredHeight;
+            }
+        }
+
+        /// <summary>
+        /// Gets cached height for a row, or default RowHeight if not cached.
+        /// </summary>
+        internal int GetRowHeightFromCache(string rowType, string recordId)
+        {
+            if (!_parent.EnableDomVirtualization)
+            {
+                return _parent.RowHeight > 0 ? (int)_parent.RowHeight : 30;
+            }
+
+            var cacheKey = (rowType, recordId);
+            return _domVirtHeightCache.ContainsKey(cacheKey) 
+                ? _domVirtHeightCache[cacheKey] 
+                : (_parent.RowHeight > 0 ? (int)_parent.RowHeight : 30);
+        }
+
+        #endregion
+
         #region Column Virtualization
 
         /// <summary>
@@ -315,7 +545,7 @@ namespace Syncfusion.Blazor.Grids.Internal
             }
             if (_parent.FrozenColumns > 0)
             {
-                return _parent.FreezeModule.GetFrozenColumns().Concat(GetMovableColumnsList(StartColumnIndex, EndColumnIndex)).ToList();
+                return _parent.FreezeModule!.GetFrozenColumns().Concat(GetMovableColumnsList(StartColumnIndex, EndColumnIndex)).ToList();
             }
             if (_parent.FreezeModule!.GetFrozenCount() > 0 && _parent.Columns != null)
             {
@@ -449,7 +679,7 @@ namespace Syncfusion.Blazor.Grids.Internal
                 List<T> _data = null!;
                 if (_parent.CurrentViewData is Group<T> group)
                 {
-                    _data = group.Records.OfType<T>().ToList<T>();
+                    _data = group.Records!.OfType<T>().ToList<T>();
                 }
                 else
                 {
@@ -600,14 +830,20 @@ namespace Syncfusion.Blazor.Grids.Internal
         /// <param name="VirtualStartIndex">Virtual start index.</param>
         /// <param name="VirtualEndIndex">Virtual end index.</param>
         /// <param name="saveAction">Whether this is a save action.</param>
+        /// <param name="requestType">The string identifier of the request type (e.g., "Paging", "Sorting").</param>
         /// <returns>List containing query start and end indexes.</returns>
-        internal async Task<List<int>> GenerateQueryAndSetQueryIndex(Query query, bool foreignKeyHandle, bool isForeignKeyAction, int VirtualStartIndex, int VirtualEndIndex, bool saveAction = false)
+        internal async Task<List<int>> GenerateQueryAndSetQueryIndex(Query query, bool foreignKeyHandle, bool isForeignKeyAction, int VirtualStartIndex, int VirtualEndIndex, bool saveAction = false, string requestType = null!)
         {
             bool isStartIndexSet = false;
             int VStartIndex = VirtualStartIndex;
             GridPageSettings? gridPageSettings = _parent.PageSettings;
             int gridPageSize = gridPageSettings!.PageSize;
             int StartIndexToSort = (gridPageSettings.CurrentPage - 1) * gridPageSize;
+
+            if (requestType == "Refresh" && VStartIndex == 0 && gridPageSettings.CurrentPage > 1)
+            {
+                VirtualEndIndex = gridPageSize;
+            }
 
             // Below calculation done to do actions like sorting
             int VEndIndex = VirtualEndIndex != 0 ? VirtualEndIndex : (StartIndexToSort + gridPageSize);
@@ -1059,7 +1295,7 @@ namespace Syncfusion.Blazor.Grids.Internal
 
         internal void SetCurrentGroupedData()
         {
-            var currentViewData = (IEnumerable<object>)((DataResult)_parent.Data!).Result;
+            var currentViewData = (IEnumerable<object>?)((DataResult)_parent.Data!).Result ?? Enumerable.Empty<object>();
             var flattenedData = new List<GroupedDataItem>();
             int rowIndex = 0;
             int index = 0;
@@ -1085,7 +1321,7 @@ namespace Syncfusion.Blazor.Grids.Internal
                 }
             }
             CurrentGroupedData = flattenedData;
-            CurrentGroupedDataCaptionRowMap = CurrentGroupedData.Where(x => x.Uid != null && x.IsCaptionRow).ToDictionary(x => x.Uid, x => x);
+            CurrentGroupedDataCaptionRowMap = CurrentGroupedData.Where(x => x.Uid != null && x.IsCaptionRow).ToDictionary(x => x.Uid!, x => x);
         }
 
         private void AddGroupChildren(List<GroupedDataItem> list, Group<T> group, ref int rowIndex, ref int index, string parentUid)
@@ -1093,7 +1329,7 @@ namespace Syncfusion.Blazor.Grids.Internal
             int indent = group.Level;
             bool isExpanded = _parent.GroupSettings!.ExpandAllGroups;
 
-            foreach (var child in group.Items)
+            foreach (var child in group.Items ?? Enumerable.Empty<T>())
             {
                 var childUid = _parent.GetUid("grid-row");
 
@@ -1132,7 +1368,7 @@ namespace Syncfusion.Blazor.Grids.Internal
             }
             if (group?.Aggregates is IDictionary<string, object> agg)
             {
-                if (agg != null && agg.Count > 0)
+                if (agg.Count > 0)
                 {
                     list.Add(new GroupedDataItem
                     {
@@ -1162,7 +1398,8 @@ namespace Syncfusion.Blazor.Grids.Internal
                 if (!expandedRowIndexes.ContainsKey(count))
                 {
                     var totalExpandedCount = 0;
-                    IEnumerable<object> dataRows = (IEnumerable<object>)(row.Items);
+                    IEnumerable<object> dataRows = (IEnumerable<object>)(row.Items ?? Enumerable.Empty<object>());
+                    if(dataRows != null)
                     totalExpandedCount += dataRows.Count();
                     totalItemsCount += totalExpandedCount + 1;
                     if (dataRows != null && dataRows is Group<T>)
@@ -1214,7 +1451,7 @@ namespace Syncfusion.Blazor.Grids.Internal
 
         private static void GetExpandedCount(Group<T> value, ref int totalItems, ref int totalItemsCount)
         {
-            IEnumerable<object> dataValues = (IEnumerable<object>)(value.Items);
+            IEnumerable<object> dataValues = (IEnumerable<object>)(value.Items ?? Enumerable.Empty<object>());
             if (value.Items is Group<T>)
             {
                 foreach (Group<T> childValue in dataValues)
@@ -1525,7 +1762,7 @@ namespace Syncfusion.Blazor.Grids.Internal
         /// <returns>True if data source is local, false otherwise.</returns>
         internal bool IsLocal()
         {
-            return !(_parent.DataManager.DataAdaptor.IsRemote() || _parent.DataManager.Adaptor == Adaptors.CustomAdaptor);
+            return !(_parent.DataManager!.DataAdaptor!.IsRemote() || _parent.DataManager.Adaptor == Adaptors.CustomAdaptor);
         }
 
         /// <summary>
@@ -1860,6 +2097,10 @@ namespace Syncfusion.Blazor.Grids.Internal
                 HasAddOrCancelAction = false;
                 await _parent.InvokeMethod("sfBlazor.Grid.clientTransformUpdate", new object[] { _parent.DataId, null!, null!, false, true }).ConfigureAwait(true);
             }
+            if (_parent.FindHightLightModule != null)
+            {
+                _parent?.FindHightLightModule.PostRowNotifyForVirtualGrid(_parent.Rows, RowStartIndex).ConfigureAwait(true);
+            }  
         }
         #endregion
 

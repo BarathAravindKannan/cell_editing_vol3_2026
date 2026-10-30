@@ -1,4 +1,4 @@
-﻿using Syncfusion.Blazor.Data;
+using Syncfusion.Blazor.Data;
 using Syncfusion.Blazor.Internal;
 using Syncfusion.Blazor.Popups;
 using System;
@@ -63,11 +63,53 @@ namespace Syncfusion.Blazor.Grids.Internal
             {typeof(Int64?),typeof(Int64?)}
         };
 
+        /// <summary>
+        /// Tracks which column's filter dialog is currently open (if any).
+        /// Used for implementing toggle functionality: clicking same column icon twice closes the dialog.
+        /// </summary>
+        internal string? OpenFilterColumnUid { get; set; }
+
+        /// <summary>
+        /// Per-column toggle state dictionary for future extensibility.
+        /// </summary>
+        internal Dictionary<string, bool> ColumnToggleStates { get; set; } = new();
+
         #endregion
 
         #region Constructor
 
         public Filter(SfGrid<T> parent) => Parent = parent;
+
+        #endregion
+
+        #region Toggle State Management
+
+        /// <summary>
+        /// Check if a specific column's filter dialog is currently open.
+        /// </summary>
+        internal bool IsFilterDialogOpen(string columnUid)
+        {
+            return OpenFilterColumnUid == columnUid;
+        }
+
+        /// <summary>
+        /// Mark a column's filter dialog as open.
+        /// </summary>
+        internal void SetFilterDialogOpen(string columnUid)
+        {
+            OpenFilterColumnUid = columnUid;
+            ColumnToggleStates[columnUid] = true;
+        }
+
+        /// <summary>
+        /// Reset a column's dialog state (called when dialog closes).
+        /// </summary>
+        internal void ResetColumnDialogState(string columnUid)
+        {
+            if (OpenFilterColumnUid == columnUid)
+                OpenFilterColumnUid = null;
+            ColumnToggleStates.Remove(columnUid);
+        }
 
         #endregion
 
@@ -109,9 +151,12 @@ namespace Syncfusion.Blazor.Grids.Internal
             Predicate = !string.IsNullOrEmpty(Predicate) ? Predicate : (isCollection && _operator != Operator.NotEqual ? "or" : "and");
             var field = _column?.IsForeignColumn() == true ? _column.ForeignKeyValue : FieldName;
             var removeFilterColumns = Parent?.FilterSettings!.Columns?.Where(col => col.Field == field && col.Uid == _column?.Uid).ToList();
-            foreach (var col in removeFilterColumns!)
+            if (removeFilterColumns?.Count > 0)
             {
-                Parent?.FilterSettings!.Columns?.Remove(col);
+                foreach (var col in removeFilterColumns!)
+                {
+                    Parent?.FilterSettings!.Columns?.Remove(col);
+                }
             }
             foreach (var Fval in filterValues)
             {
@@ -162,6 +207,12 @@ namespace Syncfusion.Blazor.Grids.Internal
                 {
                     Parent.PagerRef.ExternalMessage = string.Empty;
                 }
+                
+                // CRITICAL FIX: Reset all filter dialog toggle states when clearing all filters
+                // Without this, filter dialogs cannot be reopened after clearing filters because
+                // the toggle state (OpenFilterColumnUid) remains set even though the filter is gone.
+                OpenFilterColumnUid = null;
+                ColumnToggleStates.Clear();
 
                 await UpdateFilterColumnsAsync().ConfigureAwait(true);
                 if (Parent.SelectionModule != null && Parent.SelectionModule.IsSelectFilteredField.Equals((string)Fields!, StringComparison.Ordinal))
@@ -232,7 +283,6 @@ namespace Syncfusion.Blazor.Grids.Internal
         {
             Type? filterModelType = modelInstance?.GetType();
             var filterValue = filterModelType?.GetProperty("Value")?.GetValue(modelInstance);
-
             if (filterValue == null || columnValueType?.BaseType != null && columnValueType.BaseType.Name.Equals("Enum", StringComparison.Ordinal) && ((int)filterValue) == 0)
             {
                 var enumName = hasPersistence && columnValueType?.BaseType?.Name.Equals("Enum", StringComparison.Ordinal) == true ? Enum.GetName(columnValueType, Convert.ToInt32(value, CultureInfo.CurrentCulture)) : null;
@@ -247,7 +297,8 @@ namespace Syncfusion.Blazor.Grids.Internal
                     enumValueProperty?.SetValue(modelInstance, value);
                 }
             }
-            Col.ActualValue = Col.ActualValue?.GetType().Name == "JsonElement" ? SfBaseUtils.ChangeType(Col.ActualValue, columnValueType) : Col.ActualValue!;
+            
+            Col.ActualValue = Col.ActualValue?.GetType().Name == "JsonElement" ? SfBaseUtils.ChangeType(Col.ActualValue, columnValueType!) : Col.ActualValue!;
             filterModelType?.GetProperty("ActualValue")?.SetValue(modelInstance, Col.ActualValue);
             filterModelType?.GetProperty("Field")?.SetValue(modelInstance, Col.Field);
             filterModelType?.GetProperty("Operator")?.SetValue(modelInstance, Col.Operator);
@@ -281,7 +332,8 @@ namespace Syncfusion.Blazor.Grids.Internal
 
         internal void HideColumnMenuPopup()
         {
-            Parent.EventAggregator.Trigger("HideColumnMenuPopup", null!);
+            // CRITICAL: Use null-coalescing to prevent NullReferenceException if EventAggregator is disposed
+            Parent?.EventAggregator?.Trigger("HideColumnMenuPopup", null!);
         }
 
         internal async Task RemoveFilterColumnByField(string FieldName, string uid = null!, string foreginKeyFieldName = null!)
@@ -312,6 +364,13 @@ namespace Syncfusion.Blazor.Grids.Internal
                         };
                         Parent.FilterSettings.Columns.Remove(GCol);
                         Parent.PageModule?.UpdateFilterMessage(Parent.FilterSettings.Columns, GCol.Predicate!);
+                        
+                        // CRITICAL FIX: Reset the column's dialog toggle state when removing its filter
+                        // Without this, the filter dialog for this column cannot be reopened after clearing
+                        if (FilterUid != null)
+                        {
+                            ResetColumnDialogState(FilterUid);
+                        }
                     }
                 }
             }
@@ -384,7 +443,7 @@ namespace Syncfusion.Blazor.Grids.Internal
 
         #region Filter Column Building
 
-        private GridFilterColumn BuildFilterColumn(string field, Operator filterOperator, object filterValue, bool matchCase, bool ignoreAccent, GridColumn? column, string predicate, object actualValue, string? inputField)
+        private static GridFilterColumn BuildFilterColumn(string field, Operator filterOperator, object filterValue, bool matchCase, bool ignoreAccent, GridColumn? column, string predicate, object actualValue, string? inputField)
         {
             return new GridFilterColumn()
             {
@@ -403,7 +462,7 @@ namespace Syncfusion.Blazor.Grids.Internal
             };
         }
 
-        private PredicateModel<object> BuildPredicateModel(string field, Operator filterOperator, object filterValue, bool matchCase, bool ignoreAccent, GridColumn? column, string predicate, object actualValue)
+        private static PredicateModel<object> BuildPredicateModel(string field, Operator filterOperator, object filterValue, bool matchCase, bool ignoreAccent, GridColumn? column, string predicate, object actualValue)
         {
             return new PredicateModel<object>()
             {
@@ -609,6 +668,11 @@ namespace Syncfusion.Blazor.Grids.Internal
         /// </summary>
         internal object? GetActualFilterValue(GridColumn Col, string StringValue)
         {
+            if (string.IsNullOrEmpty(StringValue))
+            {
+                return string.Empty;
+            }
+
             object value = string.Empty;
             int index = 0;
             string Condition = string.Empty;
@@ -622,18 +686,22 @@ namespace Syncfusion.Blazor.Grids.Internal
                     string[] SkipInputs = new string[] { ">", "<", "=", "!" };
                     for (var s = 0; s < SkipInputs.Length; s++)
                     {
-                        if (StringValue?.IndexOf(SkipInputs[s]) > -1)
+                        if (StringValue!.IndexOf(SkipInputs[s], StringComparison.Ordinal) > -1)
                         {
                             if (index < 3)
                             {
                                 index++;
-                                Condition = Condition + StringValue[index - 1];
+                                // Safe: Validate index is within string bounds
+                                if (StringValue != null && index - 1 < StringValue.Length)
+                                {
+                                    Condition = Condition + StringValue[index - 1];
+                                }
                             }
                         }
                     }
 
                     if (index != 0)
-                        value = StringValue?.Substring(index)!;
+                        value = StringValue!.Substring(index);
                     else
                         value = System.Text.RegularExpressions.Regex.Replace(StringValue ?? "", "[%*]+", "");
                     MapOperatorString(Condition, Col);
@@ -646,8 +714,7 @@ namespace Syncfusion.Blazor.Grids.Internal
                     MapOperatorString(Condition, Col);
                     if (Col?.ValueType == typeof(DateTimeOffset) || Col?.ValueType == typeof(DateTimeOffset?))
                     {
-                        DateTimeOffset.TryParse(StringValue, out var timer);
-                        value = timer;
+                        value = DateTimeOffset.TryParse(StringValue!, out var timer) ? timer : default;
                     }
                     else if (Col?.ValueType != null)
                     {
@@ -668,7 +735,7 @@ namespace Syncfusion.Blazor.Grids.Internal
                         value = StringValue;
                         FilterOperatorProperty = filterType!;
                     }
-                    else if (StringValue != null && (StringValue.StartsWith('*') || StringValue.StartsWith('%')))
+                    else if (StringValue.StartsWith('*') || StringValue.StartsWith('%'))
                     {
                         Condition = StringValue.StartsWith('*') ? "*" : "%";
                         MapOperatorString(Condition, Col);
@@ -677,27 +744,29 @@ namespace Syncfusion.Blazor.Grids.Internal
                     else
                     {
                         MapOperatorString(Condition, Col);
-                        value = System.Text.RegularExpressions.Regex.Replace(StringValue ?? "", "[<!=>=]+", "");
+                        value = System.Text.RegularExpressions.Regex.Replace(StringValue, "[<!=>=]+", "");
                     }
                     value = (StringValue == "null" || StringValue == "blanks") ? null! : (Col?.ValueType != null) ? SfBaseUtils.ChangeType(value, Col.ValueType)! : value!;
                     break;
             }
-            RawInputValue = !string.IsNullOrEmpty(Condition) ? StringValue! : string.Empty;
+            // Safe assignment: StringValue is guaranteed non-empty from early return guard at method entry
+            string safeStringValue = StringValue ?? string.Empty;
+            RawInputValue = !string.IsNullOrEmpty(Condition) ? safeStringValue : string.Empty;
             return value;
         }
 
         /// <summary>
         /// Converts date filter value to the desired format for processing.
         /// </summary>
-        internal string ConvertToDesiredDateFormat(string inputDate, string inputDateFormat, ColumnType columnType, bool defaultFormat = true)
+        internal static string ConvertToDesiredDateFormat(string inputDate, string inputDateFormat, ColumnType columnType, bool defaultFormat = true)
         {
             if (DateTime.TryParseExact(inputDate, inputDateFormat, System.Globalization.CultureInfo.InvariantCulture, System.Globalization.DateTimeStyles.None, out DateTime parsedDate))
             {
-                return columnType == ColumnType.DateOnly ? parsedDate.Date.ToString("MM/dd/yyyy") : parsedDate.ToString();
+                return columnType == ColumnType.DateOnly ? parsedDate.Date.ToString("MM/dd/yyyy", CultureInfo.InvariantCulture) : parsedDate.ToString(CultureInfo.InvariantCulture);
             }
             else if (!defaultFormat && DateTime.TryParseExact(inputDate, "M/dd/yyyy", System.Globalization.CultureInfo.InvariantCulture, System.Globalization.DateTimeStyles.None, out DateTime columnParsedDate))
             {
-                return columnParsedDate.Date.ToString(inputDateFormat);
+                return columnParsedDate.Date.ToString(inputDateFormat, CultureInfo.InvariantCulture);
             }
             else
             {
@@ -733,7 +802,7 @@ namespace Syncfusion.Blazor.Grids.Internal
                     var key = column?.IsForeignColumn() == true ? column.ForeignKeyValue! : column?.Field!;
                     if (!columnsAndFormats.ContainsKey(key))
                     {
-                        columnsAndFormats[key] = column?.Format;
+                        columnsAndFormats[key] = column?.Format!;
                     }
                 }
 
@@ -755,10 +824,10 @@ namespace Syncfusion.Blazor.Grids.Internal
                             values.Add(valueToAdd);
                             break;
                         case "JsonElement":
-                            var foreignKeyColumn = ForeignKey<T>.GetForeignKeyColumns(Parent.Columns!);
-                            GridColumn filteredGridColumn = await Parent.GetColumnByFieldAsync(column.Field);
-                            object convertedValue = SfBaseUtils.ChangeType(column.ActualValue,
-                                foreignKeyColumn != null && foreignKeyColumn.Count > 0 ? foreignKeyColumn.Where(col => col.Uid == column.Uid).FirstOrDefault()!.ValueType : filteredGridColumn.ValueType);
+                            var foreignKeyColumn = ForeignKey<T>.GetForeignKeyColumnsAsync(Parent.Columns!);
+                            GridColumn filteredGridColumn = await Parent.GetColumnByFieldAsync(column.Field).ConfigureAwait(true);
+                            object convertedValue = SfBaseUtils.ChangeType(column.ActualValue!,
+                                foreignKeyColumn != null && foreignKeyColumn.Count > 0 ? foreignKeyColumn.Where(col => col.Uid == column.Uid).FirstOrDefault()!.ValueType! : filteredGridColumn.ValueType!);
                             string formattedValue = DataUtil.GetFormattedValue(convertedValue, format);
                             values.Add(formattedValue);
                             break;
@@ -779,7 +848,7 @@ namespace Syncfusion.Blazor.Grids.Internal
         /// <summary>
         /// Recursively sets column format values for stacked headers.
         /// </summary>
-        private void SetValuesRecursively(List<GridColumn> columns, Dictionary<string, string> columnsAndFormats)
+        private static void SetValuesRecursively(List<GridColumn> columns, Dictionary<string, string> columnsAndFormats)
         {
             foreach (var column in columns)
             {
@@ -855,7 +924,10 @@ namespace Syncfusion.Blazor.Grids.Internal
 
         internal static bool IsNullOrEmptyOperator(string? op)
         {
-            return (op ?? string.Empty).ToLowerInvariant() is "isnull" or "isnotnull" or "isempty" or "isnotempty";
+            return string.Equals(op, "isnull", StringComparison.OrdinalIgnoreCase)
+                  || string.Equals(op, "isnotnull", StringComparison.OrdinalIgnoreCase)
+                  || string.Equals(op, "isempty", StringComparison.OrdinalIgnoreCase)
+                  || string.Equals(op, "isempty", StringComparison.OrdinalIgnoreCase);
         }
 
         internal static string GetDefaultOperator(ColumnType? type)
@@ -1041,23 +1113,39 @@ namespace Syncfusion.Blazor.Grids.Internal
 
         private string LocalizeOperator(string op)
         {
-            return (op ?? string.Empty).ToLowerInvariant() switch
+            op = op ?? string.Empty;
+
+            return op switch
             {
-                "equal" => Parent?.Localizer?.GetText(GridLocaleKeys.Equal) ?? "Equal",
-                "notequal" => Parent?.Localizer?.GetText(GridLocaleKeys.NotEqual) ?? "Not Equal",
-                "greaterthan" => Parent?.Localizer?.GetText(GridLocaleKeys.GreaterThan) ?? "Greater Than",
-                "greaterthanorequal" => Parent?.Localizer?.GetText(GridLocaleKeys.GreaterThanOrEqual) ?? "Greater Than Or Equal",
-                "lessthan" => Parent?.Localizer?.GetText(GridLocaleKeys.LessThan) ?? "Less Than",
-                "lessthanorequal" => Parent?.Localizer?.GetText(GridLocaleKeys.LessThanOrEqual) ?? "Less Than Or Equal",
-                "contains" => Parent?.Localizer?.GetText(GridLocaleKeys.Contains) ?? "Contains",
-                "doesnotcontain" => Parent?.Localizer?.GetText(GridLocaleKeys.DoesNotContain) ?? "Does Not Contain",
-                "startswith" => Parent?.Localizer?.GetText(GridLocaleKeys.StartsWith) ?? "Starts With",
-                "endswith" => Parent?.Localizer?.GetText(GridLocaleKeys.EndsWith) ?? "Ends With",
-                "isempty" => Parent?.Localizer?.GetText(GridLocaleKeys.IsEmpty) ?? "Is Empty",
-                "isnotempty" => Parent?.Localizer?.GetText(GridLocaleKeys.IsNotEmpty) ?? "Is Not Empty",
-                "isnull" => Parent?.Localizer?.GetText(GridLocaleKeys.IsNull) ?? "Is Null",
-                "isnotnull" => Parent?.Localizer?.GetText(GridLocaleKeys.IsNotNull) ?? "Is Not Null",
-                _ => op ?? string.Empty
+                _ when op.Equals("equal", StringComparison.OrdinalIgnoreCase) =>
+                    Parent?.Localizer?.GetText(GridLocaleKeys.Equal) ?? "Equal",
+                _ when op.Equals("notequal", StringComparison.OrdinalIgnoreCase) =>
+                    Parent?.Localizer?.GetText(GridLocaleKeys.NotEqual) ?? "Not Equal",
+                _ when op.Equals("greaterthan", StringComparison.OrdinalIgnoreCase) =>
+                    Parent?.Localizer?.GetText(GridLocaleKeys.GreaterThan) ?? "Greater Than",
+                _ when op.Equals("greaterthanorequal", StringComparison.OrdinalIgnoreCase) =>
+                    Parent?.Localizer?.GetText(GridLocaleKeys.GreaterThanOrEqual) ?? "Greater Than Or Equal",
+                _ when op.Equals("lessthan", StringComparison.OrdinalIgnoreCase) =>
+                    Parent?.Localizer?.GetText(GridLocaleKeys.LessThan) ?? "Less Than",
+                _ when op.Equals("lessthanorequal", StringComparison.OrdinalIgnoreCase) =>
+                    Parent?.Localizer?.GetText(GridLocaleKeys.LessThanOrEqual) ?? "Less Than Or Equal",
+                _ when op.Equals("contains", StringComparison.OrdinalIgnoreCase) =>
+                    Parent?.Localizer?.GetText(GridLocaleKeys.Contains) ?? "Contains",
+                _ when op.Equals("doesnotcontain", StringComparison.OrdinalIgnoreCase) =>
+                    Parent?.Localizer?.GetText(GridLocaleKeys.DoesNotContain) ?? "Does Not Contain",
+                _ when op.Equals("startswith", StringComparison.OrdinalIgnoreCase) =>
+                    Parent?.Localizer?.GetText(GridLocaleKeys.StartsWith) ?? "Starts With",
+                _ when op.Equals("endswith", StringComparison.OrdinalIgnoreCase) =>
+                    Parent?.Localizer?.GetText(GridLocaleKeys.EndsWith) ?? "Ends With",
+                _ when op.Equals("isempty", StringComparison.OrdinalIgnoreCase) =>
+                    Parent?.Localizer?.GetText(GridLocaleKeys.IsEmpty) ?? "Is Empty",
+                _ when op.Equals("isnotempty", StringComparison.OrdinalIgnoreCase) =>
+                    Parent?.Localizer?.GetText(GridLocaleKeys.IsNotEmpty) ?? "Is Not Empty",
+                _ when op.Equals("isnull", StringComparison.OrdinalIgnoreCase) =>
+                    Parent?.Localizer?.GetText(GridLocaleKeys.IsNull) ?? "Is Null",
+                _ when op.Equals("isnotnull", StringComparison.OrdinalIgnoreCase) =>
+                    Parent?.Localizer?.GetText(GridLocaleKeys.IsNotNull) ?? "Is Not Null",
+                _ => op
             };
         }
 
@@ -1079,7 +1167,8 @@ namespace Syncfusion.Blazor.Grids.Internal
                 IsColumnMenuFilter = false;
             }
 
-            Parent.EventAggregator.Trigger("FilterComponentUpdate", null!);
+            // CRITICAL: Use null-coalescing to prevent NullReferenceException if EventAggregator is disposed
+            Parent?.EventAggregator?.Trigger("FilterComponentUpdate", null!);
         }
 
         internal async Task FilterPopupClose()
@@ -1087,28 +1176,34 @@ namespace Syncfusion.Blazor.Grids.Internal
             if (FilterIconColumn != null && (Parent.FilterSettings!.Type == FilterType.Menu || (FilterIconColumn.FilterSettings != null && FilterIconColumn.FilterSettings.Type == FilterType.Menu)) && FilterIconColumn.FilterTemplate != null)
             {
                 ShouldTemplateDispose = true;
-                Parent.EventAggregator.Trigger("FilterComponentUpdate", null!);
+                Parent.EventAggregator?.Trigger("FilterComponentUpdate", null!);
                 ShouldTemplateDispose = false;
             }
-            if (Parent.FilterModule != null && FilterDialogInstance != null)
+            if (Parent?.FilterModule != null && FilterDialogInstance != null)
             {
                 if (GetFilterType(FilterIconColumn!) == "Excel")
                 {
                     ExcelDialog = true;
-                    Parent.EventAggregator.Trigger("FilterComponentUpdate", null!);
+                    Parent.EventAggregator?.Trigger("FilterComponentUpdate", null!);
+                }
+
+                // CRITICAL: Reset toggle state when popup closes (e.g., clicking outside dialog)
+                if (FilterIconColumn != null)
+                {
+                    ResetColumnDialogState(FilterIconColumn.Uid);
                 }
 
                 FilterIconIsClicked = false;
-                Parent.EventAggregator.Trigger("FilterComponentUpdate", null!);
+                Parent.EventAggregator?.Trigger("FilterComponentUpdate", null!);
                 ExcelDialog = false;
             }
 
-            if (Parent.ChooserDialogInstance != null && !Parent.ShowChooser)
+            if (Parent?.ChooserDialogInstance != null && !Parent.ShowChooser)
             {
-                Parent.EventAggregator.Trigger("HideColumnChooser", null!);
+                Parent.EventAggregator?.Trigger("HideColumnChooser", null!);
             }
 
-            if (Parent.ColumnMenuInstance != null && Parent.FilterModule != null)
+            if (Parent?.ColumnMenuInstance != null && Parent.FilterModule != null)
             {
                 HideColumnMenuPopup();
             }
@@ -1119,8 +1214,9 @@ namespace Syncfusion.Blazor.Grids.Internal
             if (Parent != null && Parent.FilterSettings != null && Parent.FilterSettings.ShowFilterBarOperator)
             {
                 // Trigger component update to close all open operator dropdowns in the filter bar
-                Parent.EventAggregator.Trigger("CloseOperatorDropdown", null!);
-                await Task.CompletedTask;
+                // CRITICAL: Use null-coalescing to prevent NullReferenceException if EventAggregator is disposed
+                Parent.EventAggregator?.Trigger("CloseOperatorDropdown", null!);
+                await Task.CompletedTask.ConfigureAwait(true);
             }
         }
 

@@ -4,7 +4,6 @@ import { SfGrid } from './sf-grid-fn';
 import { parentsUntil } from './util';
 import { Column } from './interfaces';
 
-// eslint-disable-next-line valid-jsdoc, jsdoc/require-param, jsdoc/require-returns
 /**
  * Constructor for the HeaderDragDrop class.
  *
@@ -67,17 +66,17 @@ export class HeaderDragDrop {
             drop: this.drop as (e: DropEventArgs) => void
         });
     }
-    // eslint-disable-next-line valid-jsdoc, jsdoc/require-param
     /**
      * Function handler for drag start event.
      *
      * @returns {void}
      */
-    private dragStart: Function = (e: { target: HTMLElement, event: MouseEvent } & BlazorDragEventArgs) => {
+    private dragStart: (e: { target: HTMLElement, event: MouseEvent } & BlazorDragEventArgs) => void =
+        (e: { target: HTMLElement, event: MouseEvent } & BlazorDragEventArgs) => {
         const gObj: SfGrid = this.parent;
         document.body.classList.add('e-prevent-select');
         const popup: HTMLElement = (gObj.element.querySelector('.e-gridpopup') as HTMLElement);
-        if (popup) {
+        if (!isNullOrUndefined(popup)) {
             popup.style.display = 'none';
         }
         this.parent.reorderModule.dragStart({ target: e.target, column: this.column, event: e.event });
@@ -85,8 +84,9 @@ export class HeaderDragDrop {
         this.parent.groupModule.columnDragStart({ target: e.target, column: this.column, event: e.event});
 
         e.bindEvents(e.dragElement);
-    }
-    private drag: Function = (e: { target: HTMLElement, event: MouseEventArgs }): void => {
+        }
+    private drag: (e: { target: HTMLElement, event: MouseEventArgs }) => void =
+        (e: { target: HTMLElement, event: MouseEventArgs }): void => {
         const gObj: SfGrid = this.parent;
         const target: Element = e.target;
         if (target) {
@@ -94,8 +94,10 @@ export class HeaderDragDrop {
             const contentElement: Element = getClosest(target, '.e-gridcontent');
             const pagerElement: Element = getClosest(target, '.e-gridpager');
             const cloneElement: HTMLElement = this.parent.element.querySelector('.e-cloneproperties') as HTMLElement;
-            if (!closest || closest.getAttribute('id') !== gObj.element.getAttribute('id') || (contentElement && closest.getAttribute('id') === getClosest(contentElement, '.e-grid').getAttribute('id')) || pagerElement) {
-                classList(cloneElement, ['e-notallowedcur'], ['e-defaultcur']);
+            if (!isNullOrUndefined(cloneElement)) {
+                if (!closest || closest.getAttribute('id') !== gObj.element.getAttribute('id') || (contentElement && closest.getAttribute('id') === getClosest(contentElement, '.e-grid').getAttribute('id')) || pagerElement) {
+                    classList(cloneElement, ['e-notallowedcur'], ['e-defaultcur']);
+                }
                 if (gObj.options.allowReordering) {
                     const upArrowElement : HTMLElement | null = gObj.options.enableColumnVirtualization ? gObj.element.querySelector('.e-reorderuparrow-virtual') : gObj.element.querySelector('.e-reorderuparrow');
                     const downArrowElement : HTMLElement | null = gObj.options.enableColumnVirtualization ? gObj.element.querySelector('.e-reorderdownarrow-virtual') : gObj.element.querySelector('.e-reorderdownarrow');
@@ -109,21 +111,22 @@ export class HeaderDragDrop {
                 if (!gObj.options.groupReordering) {
                     return;
                 }
-            }
-            if (gObj.options.allowReordering) {
-                this.parent.reorderModule.drag({ target: e.target, column: this.column, event: e.event });
-            }
-            if (gObj.options.allowGrouping) {
-                this.parent.groupModule.columnDrag({ target: e.target });
+                if (gObj.options.allowReordering) {
+                    this.parent.reorderModule.drag({ target: e.target, column: this.column, event: e.event });
+                }
+                if (gObj.options.allowGrouping) {
+                    this.parent.groupModule.columnDrag({ target: e.target });
+                }
             }
         }
     }
-    private dragStop: Function = (e: { target: HTMLElement, event: MouseEventArgs, helper: Element }) => {
-        const gObj: SfGrid = this.parent;
+    private dragStop: (e: { target: HTMLElement, event: MouseEventArgs, helper: Element }) => void =
+        (e: { target: HTMLElement, event: MouseEventArgs, helper: Element }) => {
+            const gObj: SfGrid = this.parent;
         document.body.classList.remove('e-prevent-select');
         let cancel: boolean;
         const popup: HTMLElement = (gObj.element.querySelector('.e-gridpopup') as HTMLElement);
-        if (popup) {
+        if (!isNullOrUndefined(popup)) {
             popup.style.display = 'none';
         }
         if ((!parentsUntil(e.target, 'e-headercell') && !parentsUntil(e.target, 'e-groupdroparea')) ||
@@ -132,6 +135,7 @@ export class HeaderDragDrop {
             remove(e.helper);
             cancel = true;
             if (gObj.options.allowGrouping && this.parent.groupModule) {
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
                 EventHandler.remove(window as any, 'touchmove', this.parent.groupModule.preventTouchOnWindow);
             }
         }
@@ -139,7 +143,7 @@ export class HeaderDragDrop {
             this.parent.reorderModule.dragStop({ target: e.target, event: e.event, column: this.column, cancel: cancel });
         }
     }
-    private drop: Function = (e: DropEventArgs) => {
+    private drop: (e: DropEventArgs) => void = (e: DropEventArgs) => {
         const gObj: SfGrid = this.parent;
         const closest: Element = getClosest(e.target, '.e-grid');
         remove(e.droppedElement);
@@ -159,7 +163,8 @@ export class HeaderDragDrop {
 
     }
 
-    private helper: Function = (e: { sender: MouseEvent, element: Element, currentTargetElement: HTMLElement }) => {
+    private helper: (e: { sender: MouseEvent, element: Element, currentTargetElement: HTMLElement }) => HTMLElement | false =
+        (e: { sender: MouseEvent, element: Element, currentTargetElement: HTMLElement }) => {
         const gObj: SfGrid = this.parent;
         let target: Element = (e.sender.target as Element);
         if (gObj.options.isFixedColumnPresent && e.currentTargetElement && e.sender.target) {
@@ -172,10 +177,12 @@ export class HeaderDragDrop {
         const closest: HTMLElement = getClosest(target, '.e-headercell:not(.e-stackedHeaderCell)') as HTMLElement;
         if (closest) {
             const dropElement: Element = closest.querySelector('.e-headercelldiv') || closest.querySelector('.e-stackedheadercelldiv');
-            const uID: string = dropElement.getAttribute('e-mappinguid');
-            const column: Column = gObj.getColumnByUid(uID);
-            if (!isNullOrUndefined(column) && !column.allowGrouping && !column.allowReordering) {
-                return false;
+            if (!isNullOrUndefined(dropElement)) {
+                const uID: string = dropElement.getAttribute('e-mappinguid');
+                const column: Column = gObj.getColumnByUid(uID);
+                if (!isNullOrUndefined(column) && !column.allowGrouping && !column.allowReordering) {
+                    return false;
+                }
             }
         }
         const parentEle: HTMLElement = parentsUntil(target, 'e-headercell') as HTMLElement;
@@ -191,25 +198,27 @@ export class HeaderDragDrop {
         const height: number = element.offsetHeight;
         const headercelldiv: Element = element.querySelector('.e-headercelldiv') || element.querySelector('.e-stackedheadercelldiv');
         let col: Column;
-        if (headercelldiv) {
+        if (!isNullOrUndefined(headercelldiv)) {
             if (element.querySelector('.e-stackedheadercelldiv')) {
                 col = gObj.getStackedHeaderColumnByHeaderText(
                     (headercelldiv as HTMLElement).innerText.trim(), <Column[]>gObj.options.columns);
             } else {
                 col = gObj.getColumnByUid(headercelldiv.getAttribute('e-mappinguid'));
             }
-            this.column = col;
-            const stackedColumns: Column[] = this.column.columns;
-            const fixedColumnsOrder: Column[] = this.parent.reorderModule.processStackedColumns(this.parent.options.columns);
-            const indexOftheElement: number = parseInt(element.getAttribute('aria-colindex'), 10) - 1;
-            const isStackedChildAllLocked: boolean = !isNullOrUndefined(stackedColumns) && stackedColumns.length > 0 ?
-                this.parent.reorderModule.isAnyColumnFixed(fixedColumnsOrder[parseInt(indexOftheElement.toString(), 10)]) : false;
-            if (this.column.fixedColumn || isStackedChildAllLocked) {
-                return false;
+            if (!isNullOrUndefined(col)) {
+                this.column = col;
+                const stackedColumns: Column[] = this.column.columns;
+                const fixedColumnsOrder: Column[] = this.parent.reorderModule.processStackedColumns(this.parent.options.columns);
+                const indexOftheElement: number = parseInt(element.getAttribute('aria-colindex'), 10) - 1;
+                const isStackedChildAllLocked: boolean = !isNullOrUndefined(stackedColumns) && stackedColumns.length > 0 ?
+                    this.parent.reorderModule.isAnyColumnFixed(fixedColumnsOrder[parseInt(indexOftheElement.toString(), 10)]) : false;
+                if (this.column.fixedColumn || isStackedChildAllLocked) {
+                    return false;
+                }
+                visualElement.setAttribute('e-mappinguid', headercelldiv.getAttribute('e-mappinguid'));
             }
-            visualElement.setAttribute('e-mappinguid', headercelldiv.getAttribute('e-mappinguid'));
         }
-        visualElement.innerText = headercelldiv ? isNullOrUndefined(col.headerText) ?
+        visualElement.innerText = !isNullOrUndefined(headercelldiv) && !isNullOrUndefined(col) ? isNullOrUndefined(col.headerText) ?
             col.field : col.headerText : element.innerText;
         visualElement.style.width = element.offsetWidth + 'px';
         visualElement.style.height = element.offsetHeight + 'px';

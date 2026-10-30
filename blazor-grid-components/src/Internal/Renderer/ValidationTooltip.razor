@@ -24,7 +24,7 @@
     {
         arrowBottom = "block";
     }
-    if (Parent?.EditModule != null && Parent.EditModule.ErrorResult.Any(x => x.FieldName == Field) || (isComplexColumn && Parent?.EditModule != null && Parent.EditModule.ErrorResult.Any(x => Field!.Contains(x.FieldName))))
+    if (Parent?.EditModule != null && Parent.EditModule.ErrorResult.Any(x => x.FieldName == Field) || (isComplexColumn && Parent?.EditModule != null && Parent.EditModule.ErrorResult.Any(x => Field!.Contains(x.FieldName ?? ""))))
     {
         string? editModuleKeyCode = Parent.EditModule.KeyCode;
         if (Parent.EditModule.position.ContainsKey(Column?.Uid!))
@@ -37,7 +37,7 @@
         {
             return;
         }
-        Message = Parent.EditModule.ErrorResult.Find(x => Field!.Contains(x.FieldName))?.Message;
+        Message = Parent.EditModule.ErrorResult.Find(x => Field!.Contains(x.FieldName ?? ""))?.Message;
     }
     <div class="@GetClassName(Column!)" id="@($"{complexField}_Error")" e-mappinguid="@($"{Column?.Uid}_Error")" data-sf-style="@($"{Position} display: {display}")">
         <div class="e-tip-content">

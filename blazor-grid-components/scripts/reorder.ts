@@ -102,10 +102,13 @@ export class Reorder {
             const columnsOrder: Column[] = (stackedHdrColumn.length > 0 && stackedCols.length > 0) ? columnsList :
                 this.parent.options.columns;
             const flatColumns: Column[] = this.getColumnsModel(columnsOrder);
-            if (!isNullOrUndefined(dropElement.parentElement) &&
-                !isNullOrUndefined((dropElement.parentElement as HTMLElement).parentElement)) {
-                const thElement: Element = (dropElement.parentElement as HTMLElement).parentElement as Element;
-                isStackedColumnLocked = this.stackedLockedColumn(flatColumns, thElement);
+            const parentElem: HTMLElement = dropElement.parentElement as HTMLElement;
+            if (!isNullOrUndefined(parentElem)) {
+                const grandparentElem: HTMLElement = parentElem.parentElement as HTMLElement;
+                if (!isNullOrUndefined(grandparentElem)) {
+                    const thElement: Element = grandparentElem;
+                    isStackedColumnLocked = this.stackedLockedColumn(flatColumns, thElement);
+                }
             }
         }
         if (!closestElement(e.target, 'th') || (!isNullOrUndefined(column) && (!column.allowReordering || column.fixedColumn)) || isStackedColumnLocked) {

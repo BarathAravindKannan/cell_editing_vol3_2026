@@ -50,18 +50,18 @@ namespace Syncfusion.Blazor.Grids.Internal
         {
             if (key?.Equals("Enter", StringComparison.Ordinal) == true && Parent != null && Parent.AllowSorting)
             {
-                await SortColumn(column, sortDirection, true);
+                await SortColumn(column, sortDirection, true).ConfigureAwait(true);
             }
         }
 
         internal async Task InitiateSort(GridColumn Column, string Class, MouseEventArgs e)
         {
             var Direction = !Class?.Contains("e-ascending", StringComparison.Ordinal) == true ? SortDirection.Ascending : SortDirection.Descending;
-            var GCols = Parent.AllowGrouping? Parent.GroupSettings!.Columns?.ToList() ?? new List<string>() : new List<string>();
+            var GCols = Parent.AllowGrouping && Parent.GroupSettings?.Columns != null ? Parent.GroupSettings.Columns.ToList() : new List<string>();
             if (e.ShiftKey || (Parent.SortSettings!.AllowUnsort && Class?.Contains("e-descending", StringComparison.Ordinal) == true) && 
-                (!GCols.Contains(Column?.Field!)))
+                (!GCols.Contains(Column?.Field ?? string.Empty)))
             {
-                await RemoveSortColumn(Column?.Field!, isCtrlKeyPressed: e.CtrlKey || ((Parent.IsMacDevice ?? false) && e.MetaKey) || (Parent.SyncfusionService.IsDeviceMode && Parent.AllowMultiSorting)).ConfigureAwait(true);
+                await RemoveSortColumn(Column?.Field ?? string.Empty, isCtrlKeyPressed: e.CtrlKey || ((Parent.IsMacDevice ?? false) && e.MetaKey) || (Parent.SyncfusionService.IsDeviceMode && Parent.AllowMultiSorting)).ConfigureAwait(true);
             }
             else
             {
@@ -281,7 +281,7 @@ namespace Syncfusion.Blazor.Grids.Internal
             List<GridSortColumn> columns = Parent.SortSettings!.Columns?.ToList() ?? new List<GridSortColumn>();
             List<GridSortColumn> groupCols = new List<GridSortColumn>();
             var groupedColumns = Parent.GroupSettings!.Columns?.ToList();
-            var level = Parent.GroupSettings.Columns.IndexOf((Row.Data as Group<T>)?.Field) + 1;
+            var level = Parent.GroupSettings.Columns!.IndexOf((Row.Data as Group<T>)?.Field) + 1;
             if (groupedColumns?.Count > 0 && Parent.GroupSettings.Columns?.Length != level)
             {
                 for (var i = level; i < Parent.GroupSettings.Columns?.Length; i++)
@@ -492,7 +492,7 @@ namespace Syncfusion.Blazor.Grids.Internal
         internal string GetSortDirectionStringByField(string fieldName)
         {
             var sortedColumns = Parent?.SortSettings?.Columns;
-            if (sortedColumns != null && sortedColumns.Any())
+            if (sortedColumns != null && sortedColumns.Count > 0)
             {
                 foreach (var col in sortedColumns)
                 {
@@ -510,7 +510,7 @@ namespace Syncfusion.Blazor.Grids.Internal
         /// </summary>
         /// <param name="currentDirection">The current sort direction string.</param>
         /// <returns>The next sort direction string in the cycle.</returns>
-        internal string GetNextSortDirection(string currentDirection)
+        internal static string GetNextSortDirection(string currentDirection)
         {
             return currentDirection switch
             {
@@ -523,14 +523,13 @@ namespace Syncfusion.Blazor.Grids.Internal
         /// <summary>
         /// Determines if a sort menu item should be disabled based on the current sort state and column.
         /// </summary>
-        /// <param name="columnField">The field name of the target column.</param>
+        /// <param name="targetColumn">The target column to evaluate for sorting.</param>
         /// <param name="sortDirectionItem">The sort direction menu item (e.g., "SortAscending", "SortDescending").</param>
-        /// <param name="columnAllowSorting">Whether the target column allows sorting.</param>
         /// <returns>True if the menu item should be disabled; otherwise false.</returns>
         internal bool IsSortMenuItemDisabled(GridColumn? targetColumn, string sortDirectionItem)
         {
             string? columnField = targetColumn?.Field;
-            if ((!Parent!.AllowSorting) || (targetColumn != null && columnField == null))
+            if ((!Parent!.AllowSorting) || (targetColumn != null && (columnField == null || !targetColumn.AllowSorting)))
             {
                 return true;
             }
@@ -540,11 +539,10 @@ namespace Syncfusion.Blazor.Grids.Internal
             {
                 return false;
             }
-            var targetDirection = sortDirectionItem.ToLower(System.Globalization.CultureInfo.InvariantCulture).Replace("sort", "");
+            var targetDirection = sortDirectionItem.Replace("sort", "", StringComparison.OrdinalIgnoreCase);
             foreach (var col in sortColumns)
             {
-                if (col.Field == columnField &&
-                    col.Direction.ToString().ToLower(System.Globalization.CultureInfo.InvariantCulture) == targetDirection)
+                if (col.Field == columnField && string.Equals(col.Direction.ToString(), targetDirection, StringComparison.OrdinalIgnoreCase))
                 {
                     return true;
                 }

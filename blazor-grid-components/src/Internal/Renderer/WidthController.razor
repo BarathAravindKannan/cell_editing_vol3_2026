@@ -117,16 +117,16 @@
 
     #region Event Handlers
 
-    internal void ColumnWidthStateChange(object args)
+    internal async Task ColumnWidthStateChange(object args)
     {
-        StateHasChanged();
+        await InvokeAsync(StateHasChanged);
     }
 
     #endregion
     
     #region Lifecycle Methods
     protected override void OnInitialized()
-        =>  Parent?.EventAggregator.Add("ColumnWidthStateChange", ColumnWidthStateChange);
+        => Parent?.EventAggregator.AddAsync("ColumnWidthStateChange", async (task, args) => await ColumnWidthStateChange(args));
     
     #endregion
 

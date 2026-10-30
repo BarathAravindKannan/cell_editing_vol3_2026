@@ -7,12 +7,14 @@ using System.Text.Json.Serialization;
 using Syncfusion.Blazor.Internal;
 using Syncfusion.Blazor.Data;
 using Syncfusion.Blazor.Grids.Internal;
+using Syncfusion.Blazor.Grids.Actions;
 using System.Linq;
 using System.Runtime.CompilerServices;
 using System.Globalization;
 using System.Collections.Specialized;
 using System.IO;
 using Microsoft.AspNetCore.Components.Forms;
+using Microsoft.JSInterop;
 
 namespace Syncfusion.Blazor.Grids
 {
@@ -573,14 +575,82 @@ namespace Syncfusion.Blazor.Grids
         {
             await InvokeMethod("sfBlazor.Grid.copyToClipBoard", new object[] { DataId, withHeader! }).ConfigureAwait(true);
         }
-	
+
+        /// <summary>
+        /// Pastes the current clipboard content into the selected cells of the grid.
+        /// </summary>
+        /// <returns>
+        /// A <see cref="Task"/> that represents the asynchronous paste operation.
+        /// </returns>
+        /// <remarks>
+        /// <para>
+        /// This method retrieves the current clipboard content and inserts it into the selected
+        /// grid cells. The operation supports both single-value and tabular clipboard data.
+        /// </para>
+        /// <para>
+        /// When a single value is copied and multiple cells are selected, the value is automatically
+        /// replicated across all selected cells (Smart Paste). When tabular data is copied from a
+        /// spreadsheet or similar application, the content is pasted while preserving its original
+        /// row and column structure (Matrix Paste).
+        /// </para>
+        /// <para>
+        /// To perform a paste operation, the grid must meet the following requirements:
+        /// </para>
+        /// <list type="bullet">
+        /// <item>
+        /// <description>Cell selection must be enabled.</description>
+        /// </item>
+        /// <item>
+        /// <description>
+        /// The cell selection mode must be configured as <c>Box</c> or <c>BoxWithBorder</c>.
+        /// </description>
+        /// </item>
+        /// <item>
+        /// <description>The target columns must be editable.</description>
+        /// </item>
+        /// <item>
+        /// <description>
+        /// Either batch editing or cell editing must be enabled.
+        /// </description>
+        /// </item>
+        /// </list>
+        /// <para>
+        /// Clipboard paste operations can be initiated by using the <c>Ctrl + V</c> keyboard shortcut
+        /// or by calling this method programmatically.
+        /// </para>
+        /// </remarks>
+        /// <example>
+        /// <code><![CDATA[
+        /// <button @onclick="Paste">Paste</button>
+        ///
+        /// <SfGrid @ref="Grid" DataSource="@Orders">
+        ///     ...
+        /// </SfGrid>
+        ///
+        /// @code {
+        ///     private SfGrid<Order> Grid;
+        ///
+        ///     private async Task Paste()
+        ///     {
+        ///         await Grid.PasteAsync();
+        ///     }
+        /// }
+        /// ]]>
+        /// </code>
+        /// </example>
+        public async Task PasteAsync()
+        {
+            await InvokeMethod<bool>("sfBlazor.Grid.pasteFromClipboard", false, new object[] { DataId }).ConfigureAwait(true);
+        }
+
+
         /// <summary>
         /// Exports the grid data to a CSV file.
         /// </summary>
         /// <param name="excelExportProperties">An object of type <see cref="ExcelExportProperties"/>, provides properties to customize the column, data source, theme, etc. for the exported CSV file. If not provided, default values will be used.</param>
         /// <returns>A <see cref="System.Threading.Tasks.Task"/> representing the asynchronous operation.</returns>
         /// <remarks>
-	    /// <c>AllowExcelExport</c> property must be <c>true</c> to use this feature.
+        /// <c>AllowExcelExport</c> property must be <c>true</c> to use this feature.
         /// <c>excelExportProperties</c> object can be used to customize the appearance of the exported CSV file.
         /// If not provided, this method will use default values.
         /// </remarks>
@@ -740,6 +810,87 @@ namespace Syncfusion.Blazor.Grids
         }
 
         /// <summary>
+        /// Deletes a record in the grid by specifying one or more primary key field names and the corresponding record data.
+        /// </summary>
+        /// <param name="primaryKeyFields">
+        /// A read-only collection of primary key column names, identified by their
+        /// <see cref="GridColumn.Field"/> properties, that uniquely identify the record to be deleted.
+        /// </param>
+        /// <param name="data">
+        /// The data object representing the record to be deleted.
+        /// </param>
+        /// <returns>
+        /// A <see cref="System.Threading.Tasks.Task"/> representing the asynchronous operation.
+        /// </returns>
+        /// <remarks>
+        /// This method will delete a record only when <see cref="GridEditSettings.AllowDeleting"/>
+        /// is set to <see langword="true"/>.
+        ///
+        /// <para>
+        /// The <paramref name="primaryKeyFields"/> parameter is useful when the grid is configured
+        /// with multiple primary key columns (composite keys). The specified key fields, together
+        /// with the values available in <paramref name="data"/>, are used to identify the target record.
+        /// </para>
+        ///
+        /// <para>
+        /// If neither <paramref name="primaryKeyFields"/> nor <paramref name="data"/> is provided
+        /// and no records are selected, an alert with the key <c>DeleteAlert</c> is displayed.
+        /// </para>
+        ///
+        /// <para>
+        /// If <see cref="GridEditSettings.ShowDeleteConfirmDialog"/> is set to
+        /// <see langword="true"/>, a confirmation dialog with the key
+        /// <c>DeleteConfirmAlert</c> is displayed before deleting the record.
+        /// </para>
+        /// </remarks>
+        /// <example>
+        /// <code><![CDATA[
+        /// <button id="DeleteRecords" @onclick="DeleteRecords">DeleteRecords</button>
+        ///
+        /// <SfGrid @ref="grid" DataSource="@Orders">
+        ///     <GridEditSettings AllowDeleting="true"></GridEditSettings>
+        ///     .......
+        /// </SfGrid>
+        ///
+        /// @code {
+        ///     SfGrid<Order> grid;
+        ///
+        ///     private async Task DeleteRecords()
+        ///     {
+        ///         var data = new Order()
+        ///         {
+        ///             OrderID = 1006,
+        ///             ProductID = 1,
+        ///             CustomerID = "ALFKI"
+        ///         };
+        ///
+        ///         await grid.DeleteRecordAsync(
+        ///             new List<string> { "OrderID", "ProductID" },
+        ///             data);
+        ///     }
+        /// }
+        /// ]]></code>
+        /// </example>
+        public async Task DeleteRecordAsync(IReadOnlyList<string> primaryKeyFields, TValue data)
+        {
+            if (primaryKeyFields == null || !primaryKeyFields.Any())
+            {
+                return;
+            }
+
+            if (EditSettings != null && !EditSettings.AllowDeleting)
+            {
+                return;
+            }
+            if (!EditModule!.ValidateDeleteOperation(data!))
+            {
+                return;
+            }
+
+            await EditModule!.DeleteRecord(primaryKeyFields, data!).ConfigureAwait(true);
+        }
+
+        /// <summary>
         /// Delete any visible row by TR element.
         /// </summary>
         /// <exclude/>
@@ -757,9 +908,8 @@ namespace Syncfusion.Blazor.Grids
         /// <param name="fieldName">The column name of the cell to be edited, identified by its <see cref="GridColumn.Field"/> property.</param>
         /// <returns>A <see cref="System.Threading.Tasks.Task"/> representing the asynchronous operation.</returns>
         /// <remarks>
-        /// This method edits the cell if the <see cref="GridEditSettings.Mode"/> is set to <c>EditMode.Batch</c> or <c>EditMode.Cell</c> and <see cref="GridEditSettings.AllowEditing"/> is set to <c>true</c>.
+        /// This method edits the cell if the <see cref="GridEditSettings.Mode"/> is set to <see cref="EditMode.Batch"/> or <see cref="EditMode.Cell"/> and <see cref="GridEditSettings.AllowEditing"/> is set to <c>true</c>.
         /// It will search for the row and cell based on the provided <c>index</c> and <c>fieldName</c>, and call <c>EditModule.EditCell</c> to edit the cell.
-        /// In <see cref="EditMode.Cell"/>, the <see cref="Syncfusion.Blazor.Grids.GridEvents{TValue}.CellEditing"/> event is raised before the editor opens.
         /// </remarks>
         /// <example>
         /// <code>
@@ -962,7 +1112,7 @@ namespace Syncfusion.Blazor.Grids
         /// </example>
         public async Task FilterByColumnAsync(string fieldName, string filterOperator, object filterValue, string predicate = null!, Nullable<bool> matchCase = null, Nullable<bool> ignoreAccent = null, object actualFilterValue = null!, object actualOperator = null!, string columnUid = null!)
         {
-            Operator fOperator = Filter<TValue>.GetOperator(filterOperator?.ToLower()!);
+            Operator fOperator = Filter<TValue>.GetOperator(filterOperator?.ToLower(CultureInfo.CurrentCulture)!);
             await (FilterModule?.FilterByColumn(fieldName, fOperator, filterValue, predicate, matchCase, ignoreAccent, actualFilterValue, actualOperator, columnUid))!.ConfigureAwait(true)!;
         }
 	
@@ -1285,7 +1435,7 @@ namespace Syncfusion.Blazor.Grids
         /// </example>
         public async Task<List<GridColumn>> GetForeignKeyColumnsAsync()
         {
-            return await ForeignKeyModule!.GetForeignKeyColumnsAsync();
+            return await ForeignKeyModule!.GetForeignKeyColumnsAsync().ConfigureAwait(true);
         }
 
         /// <summary>
@@ -1411,44 +1561,106 @@ namespace Syncfusion.Blazor.Grids
         /// </example>
         public async Task<int> GetRowIndexByPrimaryKeyAsync(object value, bool searchAcrossRecords = false)
         {
-            if (Rows.Count == 0)
+            var pKey = await GetPrimaryKeyFieldNamesAsync().ConfigureAwait(true);
+            if (value == null || pKey == null || pKey.Count == 0)
+            {
+                return -1;
+            }
+            var singleKeyDict = new Dictionary<string, object> { { pKey[0]!, value } };
+            return await GetRowIndexByPrimaryKeyAsync(singleKeyDict, searchAcrossRecords).ConfigureAwait(true);
+        }
+
+        /// <summary>
+        /// Gets the index of a row in the grid using the specified primary key value or values.
+        /// By default, the index is retrieved only from the records in the current view.
+        /// To search across the entire dataset, set <paramref name="searchAcrossRecords"/> to <c>true</c>.
+        /// </summary>
+        /// <param name="primaryKeyValues">
+        /// A read-only dictionary that maps primary key column field names to their corresponding values.
+        /// For grids with a single primary key column, provide a dictionary containing one key-value pair.
+        /// For grids with composite primary keys, provide all primary key field names and their corresponding values.
+        /// Field names are matched against the grid's primary key columns, and the order of entries in the dictionary is not significant.
+        /// </param>
+        /// <param name="searchAcrossRecords">
+        /// A boolean value indicating whether to search across all records in the data source (<c>true</c>)
+        /// or only within the records currently available in the grid view (<c>false</c>).
+        /// </param>
+        /// <returns>
+        /// A <see cref="System.Threading.Tasks.Task"/> representing the asynchronous operation, with the result
+        /// containing the zero-based index of the matching row, or <c>-1</c> if no matching row is found.
+        /// </returns>
+        /// <remarks>
+        /// A primary key column must be defined using the <see cref="Syncfusion.Blazor.Grids.GridColumn.IsPrimaryKey"/> property.
+        /// <para>
+        /// For grids with composite primary keys, all primary key field names and values must be provided in
+        /// <paramref name="primaryKeyValues"/> to uniquely identify the row.
+        /// </para>
+        /// <para>
+        /// When <paramref name="searchAcrossRecords"/> is set to <c>true</c>, a request is sent to the server
+        /// to retrieve the complete dataset. The row index is then calculated from the full set of records,
+        /// regardless of the records currently loaded in the grid.
+        /// </para>
+        /// </remarks>
+        /// <example>
+        /// <code>
+        /// <![CDATA[
+        /// <button id="GetRowIndexByPrimaryKey" @onclick="GetDataHandler">Get Row Index</button>
+        /// <SfGrid @ref="grid" DataSource="@Orders">
+        ///     ...
+        /// </SfGrid>
+        ///
+        /// @code {
+        ///     SfGrid<Order> grid;
+        ///
+        ///     private async Task GetDataHandler()
+        ///     {
+        ///         var rowIndex = await grid.GetRowIndexByPrimaryKeyAsync(
+        ///             new Dictionary<string, object>
+        ///             {
+        ///                 { "OrderID", 15 }
+        ///             },
+        ///             searchAcrossRecords: true);
+        ///     }
+        /// }
+        /// ]]>
+        /// </code>
+        /// </example>
+        public async Task<int> GetRowIndexByPrimaryKeyAsync(IReadOnlyDictionary<string, object>? primaryKeyValues,bool searchAcrossRecords = false)
+        {
+            if (Rows.Count == 0 || primaryKeyValues == null || primaryKeyValues.Count == 0)
             {
                 return -1;
             }
             var pKey = await GetPrimaryKeyFieldNamesAsync().ConfigureAwait(true);
-            var key = pKey.Count != 0 ? pKey[0] : string.Empty;
-            if (searchAcrossRecords)
-                return await GetPrimaryKeyIndexAcrossPageAsync(value, key).ConfigureAwait(true);
-            var dataRows = Rows.Where(_ => _.IsDataRow).ToList();
-            var row = dataRows.Find(row => !GridUtils.CompareValues(PropHelper?.GetObject(key, row.Data!), value));
-            int rowIndex = row != null ? row.Index!.Value : -1;
-            return await Task.FromResult<int>(rowIndex).ConfigureAwait(true);
-        }
-        private async Task<int> GetPrimaryKeyIndexAcrossPageAsync(object value, string primaryKey)
-        {
-            if(GroupModule != null)
-            GroupModule.IsLazyExpandAll = AllowGrouping && GroupSettings!.EnableLazyLoading && GroupSettings.Columns?.Length > 0 ? true : false;
-            var query = DataModule?.GenerateQuery(true)!;
-            query.Queries.Select = new List<string> { primaryKey };
-            query.Queries.Take = TotalItemCount;
-            query.Queries.Skip = 0;
-            query.Queries.RequiresCounts = true;
-            var dataResult = await DataManager.ExecuteQuery<TValue>(query).ConfigureAwait(true) as DataResult;
-            if (dataResult?.Result == null) return -1;
-            if (AllowGrouping && GroupSettings!.Columns?.Length > 0 && GroupModule != null)
+            if (pKey == null || pKey.Count == 0)
             {
-                GroupModule.IsLazyExpandAll = false;
-                return GroupModule.ProcessGroupedData(dataResult, primaryKey, value);
-            }
-            int index = 0;
-            foreach (var item in dataResult.Result.Cast<object>())
-            {
-                var itemValue = PropHelper?.GetObject(primaryKey, item);
-                if (!GridUtils.CompareValues(itemValue, value))
-                    return index;
-                index++;
-            }
                 return -1;
+            }
+            var values = BuildPositionalKeyValues(primaryKeyValues, pKey);
+            if (searchAcrossRecords)
+                return await GetPrimaryKeyIndexAcrossPageAsync(values, pKey).ConfigureAwait(true);
+            var dataRows = Rows.Where(_ => _.IsDataRow).ToList();
+            if (pKey.Count > 1)
+            {
+                var targetCompositeKey = new CompositeKey(values.ToArray());
+                foreach (var dataRow in dataRows)
+                {
+                    var rowKeyValues = EditModule?.GetPrimaryKeyValueAsObject(dataRow.Data!).GetAwaiter().GetResult();
+                    if (rowKeyValues != null && rowKeyValues.Count > 0 &&
+                        targetCompositeKey.Equals(new CompositeKey(rowKeyValues.ToArray())))
+                    {
+                        return await Task.FromResult<int>(Convert.ToInt32(dataRow.Index!.Value)).ConfigureAwait(true);
+                    }
+                }
+                return await Task.FromResult<int>(-1).ConfigureAwait(true);
+            }
+            else
+            {
+                var key = pKey[0];
+                var row = dataRows.Find(row => !GridUtils.CompareValues(PropHelper?.GetObject(key, row.Data!), values[0]));
+                int rowIndex = row != null ? row.Index!.Value : -1;
+                return await Task.FromResult<int>(rowIndex).ConfigureAwait(true);
+            }
         }
 
         /// <summary>
@@ -1656,7 +1868,7 @@ namespace Syncfusion.Blazor.Grids
         {
             if (PageModule != null)
             {
-                await PageModule.GoToPageAsync(pageNo);
+                await PageModule.GoToPageAsync(pageNo).ConfigureAwait(true);
             }
         }
 
@@ -2490,188 +2702,6 @@ namespace Syncfusion.Blazor.Grids
         }
 
         /// <summary>
-        /// Cancels the current cell edit in <see cref="EditMode.Cell"/>, discarding
-        /// the value typed in the editor and restoring the original cell value.
-        /// </summary>
-        /// <returns>
-        /// A <see cref="System.Threading.Tasks.Task"/> representing the asynchronous
-        /// operation.
-        /// </returns>
-        /// <remarks>
-        /// Fires the
-        /// <see cref="Syncfusion.Blazor.Grids.GridEvents{TValue}.CellEditCanceling"/>
-        /// event before cancellation. If the event handler sets
-        /// <see cref="Syncfusion.Blazor.Grids.CellEditCancelingEventArgs{TValue}.Cancel"/>
-        /// to <c>true</c>, the editor remains open and the cell value is preserved.
-        /// On successful cancellation, the
-        /// <see cref="Syncfusion.Blazor.Grids.GridEvents{TValue}.CellEditCanceled"/>
-        /// event is raised.
-        /// This method has no effect when no cell is in edit state or when the
-        /// current <see cref="GridEditSettings.Mode"/> is not
-        /// <see cref="EditMode.Cell"/>.
-        /// </remarks>
-        /// <example>
-        /// <code>
-        /// <![CDATA[
-        /// <button id="CancelCellEdit" @onclick="CancelCellEditHandler">Cancel edit</button>
-        /// <SfGrid DataSource="@Orders" @ref="DefaultGrid">
-        ///     <GridEditSettings AllowEditing="true" Mode="EditMode.Cell" />
-        /// </SfGrid>
-        /// @code {
-        ///     private SfGrid<Order> DefaultGrid = null!;
-        ///     private async Task CancelCellEditHandler()
-        ///     {
-        ///         await DefaultGrid.CancelCellEditAsync();
-        ///     }
-        /// }
-        /// ]]>
-        /// </code>
-        /// </example>
-        public async Task CancelCellEditAsync()
-        {
-            if (EditSettings?.Mode == EditMode.Cell && IsEdit)
-            {
-                IsEdit = false;
-                FocusModule?.ClearCurrent();
-                var row = Rows?.Find(r => r.Index == FocusModule?.SelectedRowIndex);
-                var cell = row?.Cells.Find(cell => cell.CellType == CellType.Data && cell.Index == FocusModule?.SelectedCellIndex);
-                await FocusModule!.Focus(row?.Uid!, cell?.Uid!, cellColIndex: cell?.Index + 1 ?? -1);
-            }
-        }
-
-        /// <summary>
-        /// Returns the current editing state of the cell editor in
-        /// <see cref="EditMode.Cell"/>.
-        /// </summary>
-        /// <returns>
-        /// A <see cref="Task"/> that yields a
-        /// <see cref="Syncfusion.Blazor.Grids.CellEditStateResult"/>. When a cell is
-        /// open, <see cref="Syncfusion.Blazor.Grids.CellEditStateResult.IsEditing"/>
-        /// is <c>true</c> and the other properties are populated. When no cell is in
-        /// edit state, <see cref="Syncfusion.Blazor.Grids.CellEditStateResult.IsEditing"/>
-        /// is <c>false</c> and the other properties carry their default values
-        /// (<c>ColumnName</c> = <c>null</c>, <c>RowIndex</c> = <c>-1</c>,
-        /// <c>CurrentValue</c> = <c>null</c>, <c>OriginalRowData</c> = <c>null</c>).
-        /// </returns>
-        /// <remarks>
-        /// This method only inspects state. It does not open or close any editor.
-        /// It returns a default result when the current
-        /// <see cref="GridEditSettings.Mode"/> is not
-        /// <see cref="EditMode.Cell"/>.
-        /// </remarks>
-        /// <example>
-        /// <code>
-        /// <![CDATA[
-        /// <button id="GetState" @onclick="GetStateHandler">Get current cell state</button>
-        /// <SfGrid DataSource="@Orders" @ref="DefaultGrid">
-        ///     <GridEditSettings AllowEditing="true" Mode="EditMode.Cell" />
-        /// </SfGrid>
-        /// @code {
-        ///     private SfGrid<Order> DefaultGrid = null!;
-        ///     private async Task GetStateHandler()
-        ///     {
-        ///         var state = await DefaultGrid.GetCurrentCellEditStateAsync();
-        ///         if (state.IsEditing)
-        ///         {
-        ///             Console.WriteLine($"Editing {state.ColumnName} at row {state.RowIndex}");
-        ///         }
-        ///     }
-        /// }
-        /// ]]>
-        /// </code>
-        /// </example>
-        public Task<CellEditStateResult> GetCurrentCellEditStateAsync()
-        {
-            var result = new CellEditStateResult();
-            if (EditSettings?.Mode == EditMode.Cell
-                && IsEdit
-                && EditModule != null
-                && EditModule.OriginalRow != null
-                && EditModule.OriginalCell?.Column != null)
-            {
-                var field = EditModule.OriginalCell.Column.Field;
-                result.IsEditing = true;
-                result.ColumnName = field;
-                result.RowIndex = EditModule.OriginalRow.Index ?? -1;
-                result.CurrentValue = EditModule.CloneData != null ? PropHelper?.GetObject(field, EditModule.CloneData) : null;
-                result.OriginalRowData = EditModule.OriginalRow.Data;
-            }
-            return Task.FromResult(result);
-        }
-
-        /// <summary>
-        /// Saves a single cell directly to the datasource.
-        /// </summary>
-        /// <param name="primaryKeyValue">The primary key value of the row containing the cell to save.</param>
-        /// <param name="columnField">The field name of the column to save.</param>
-        /// <param name="newValue">The new value for the cell.</param>
-        /// <remarks>
-        /// This method works only when <see cref="GridEditSettings.Mode"/> is <see cref="EditMode.Cell"/>.
-        /// </remarks>
-        /// <example>
-        /// <code>
-        /// <![CDATA[
-        /// <button @onclick="SaveSingleCellHandler">Save Cell</button>
-        /// <SfGrid @ref="grid" DataSource="@Orders">
-        ///     <GridEditSettings AllowEditing="true" Mode="EditMode.Cell" />
-        /// </SfGrid>
-        /// @code {
-        ///     private SfGrid<Order> grid = null!;
-        ///     private async Task SaveSingleCellHandler()
-        ///     {
-        ///         // Save the cell with primary key "10248" in the "Freight" column to value 50.5
-        ///         await grid.SaveCellToDatasourceAsync("10248", "Freight", 50.5);
-        ///     }
-        /// }
-        /// ]]>
-        /// </code>
-        /// </example>
-        public async Task SaveCellToDatasourceAsync(object primaryKeyValue, string columnField, object? newValue)
-        {
-            if (EditSettings?.AllowEditing == false || EditModule == null || EditModule.IsCellEditMode() == false || string.IsNullOrWhiteSpace(columnField))
-                return;
-            await EditModule.SaveCellToDatasourceAsync(primaryKeyValue, columnField, newValue);
-        }
-
-        /// <summary>
-        /// Saves multiple cells directly to the datasource when in Cell Edit Mode.
-        /// </summary>
-        /// <param name="cellUpdates">List of cell update operations to perform.</param>
-        /// <remarks>
-        /// This method works only when <see cref="GridEditSettings.Mode"/> is <see cref="EditMode.Cell"/>.
-        /// Multiple cell updates targeting the same row are automatically merged into a single row update.
-        /// </remarks>
-        /// <example>
-        /// <code>
-        /// <![CDATA[
-        /// <button @onclick="SaveMultipleCellsHandler">Save Multiple Cells</button>
-        /// <SfGrid @ref="grid" DataSource="@Orders">
-        ///     <GridEditSettings AllowEditing="true" Mode="EditMode.Cell" />
-        /// </SfGrid>
-        /// @code {
-        ///     private SfGrid<Order> grid = null!;
-        ///     private async Task SaveMultipleCellsHandler()
-        ///     {
-        ///         var cellUpdates = new List<CellUpdate>
-        ///         {
-        ///             new CellUpdate { PrimaryKeyValue = "10248", ColumnField = "Freight", NewValue = 50.5 },
-        ///             new CellUpdate { PrimaryKeyValue = "10248", ColumnField = "ShippedDate", NewValue = new DateTime(2024, 1, 15) },
-        ///             new CellUpdate { PrimaryKeyValue = "10249", ColumnField = "Freight", NewValue = 35.25 }
-        ///         };
-        ///         await grid.SaveCellsToDatasourceAsync(cellUpdates);
-        ///     }
-        /// }
-        /// ]]>
-        /// </code>
-        /// </example>
-        public async Task SaveCellsToDatasourceAsync(List<CellUpdate> cellUpdates)
-        {
-            if (EditSettings?.AllowEditing == false || EditModule == null || EditModule.IsCellEditMode() == false || cellUpdates == null || cellUpdates.Count == 0)
-                return;
-            await EditModule.SaveCellsToDatasourceAsync(cellUpdates);
-        }
-
-        /// <summary>
         /// Selects a cell by the given index.
         /// </summary>
         /// <param name="cellIndex">The row and cell index of the cell to be selected. For example (0, 1).</param>
@@ -2813,10 +2843,10 @@ namespace Syncfusion.Blazor.Grids
                 bool isBatchOrCellEditMode = EditModule?.IsCellOrBatchEditMode() == true && FocusModule.SelectedCellIndex != null && FocusModule.SelectedCellIndex >= 0;
                 if (!isBatchOrCellEditMode)
                 {
-                    FocusModule.SelectedCellIndex = dataRows.Count != 0 ? dataRows.FirstOrDefault()?.Cells.Where(x => x.Visible && x.CellType != CellType.RowDrag).First().Index ?? 0 : 0;
+                       FocusModule.SelectedCellIndex = dataRows.Count != 0 ? dataRows.FirstOrDefault()?.Cells.Where(x => x.Visible && x.CellType != CellType.RowDrag).FirstOrDefault()?.Index ?? 0 : 0;
                 }
             }
-            
+
             if (selectAcrossPages && AllowPaging && index >= 0 && index < TotalItemCount)
             {
                 bool isLazyGroup = AllowGrouping && GroupSettings!.EnableLazyLoading && GroupSettings.Columns?.Length > 0;
@@ -2930,9 +2960,139 @@ namespace Syncfusion.Blazor.Grids
         /// </example>
         public async Task SetCellValueAsync(object key, string fieldName, object value)
         {
-            if (key != null)
+            if(key != null)
             {
                 await EditModule!.SetCellValue(key, fieldName, value).ConfigureAwait(true);
+            }
+        }
+
+        /// <summary>
+        /// Updates one or more cell values in the grid data source.
+        /// </summary>
+        /// <param name="cellValueUpdates">
+        /// A collection of <see cref="CellUpdate"/> objects that specify the rows,
+        /// columns, and values to update.
+        /// </param>
+        /// <returns>
+        /// A <see cref="Task"/> that represents the asynchronous update operation.
+        /// </returns>
+        /// <remarks>
+        /// <para>
+        /// Each update identifies a row using <see cref="CellUpdate.PrimaryKeyValue"/>,
+        /// a column using <see cref="CellUpdate.ColumnField"/>, and the value to assign
+        /// using <see cref="CellUpdate.NewValue"/>.
+        /// </para>
+        /// <para>
+        /// The grid must contain a column configured as the primary key by setting
+        /// <see cref="GridColumn.IsPrimaryKey"/> to <see langword="true"/>.
+        /// </para>
+        /// </remarks>
+        /// <example>
+        /// The following example updates the <c>Freight</c> and <c>CustomerID</c>
+        /// fields in two different rows.
+        /// <code><![CDATA[
+        /// <button @onclick="UpdateCellValues">Update cell values</button>
+        /// <SfGrid @ref="grid" DataSource="@Orders">
+        ///     <GridColumns>
+        ///         <GridColumn Field="@nameof(Order.OrderID)" IsPrimaryKey="true" HeaderText="Order ID" />
+        ///         <GridColumn Field="@nameof(Order.CustomerID)" HeaderText="Customer ID" />
+        ///         <GridColumn Field="@nameof(Order.Freight)" HeaderText="Freight" />
+        ///     </GridColumns>
+        /// </SfGrid>
+        /// @code {
+        ///     private SfGrid<Order> grid = default!;
+        ///
+        ///     private async Task UpdateCellValues()
+        ///     {
+        ///         var cellValueUpdates = new List<CellUpdate>
+        ///         {
+        ///             new CellUpdate
+        ///             {
+        ///                 PrimaryKeyValue = 1005,
+        ///                 ColumnField = nameof(Order.Freight),
+        ///                 NewValue = 50.5
+        ///             },
+        ///             new CellUpdate
+        ///             {
+        ///                 PrimaryKeyValue = 1006,
+        ///                 ColumnField = nameof(Order.CustomerID),
+        ///                 NewValue = "ALFKI"
+        ///             }
+        ///         };
+        ///
+        ///         await grid.SetCellValueAsync(cellValueUpdates);
+        ///     }
+        /// }
+        /// ]]></code>
+        /// </example>
+        public async Task SetCellValueAsync(IReadOnlyList<CellUpdate> cellValueUpdates)
+        {
+            await EditModule!.SetCellValue(cellValueUpdates).ConfigureAwait(true);
+        }
+
+        /// <summary>
+        /// Updates the value of a particular cell based on the specified primary key value or values.
+        /// </summary>
+        /// <param name="primaryKeyValues">
+        /// A read-only dictionary that maps primary key column field names to their corresponding values.
+        /// For grids with a single primary key column, provide a dictionary containing one key-value pair.
+        /// For grids with composite primary keys, provide all primary key field names and their corresponding values.
+        /// Field names are matched against the grid's primary key columns, and the order of entries in the dictionary is not significant.
+        /// </param>
+        /// <param name="fieldName">
+        /// The name of the column to update, identified by its <see cref="GridColumn.Field"/> property.
+        /// </param>
+        /// <param name="value">
+        /// The new value for the cell.
+        /// </param>
+        /// <returns>
+        /// A <see cref="System.Threading.Tasks.Task"/> representing the asynchronous operation.
+        /// </returns>
+        /// <remarks>
+        /// This method updates the value of the specified cell in the row identified by the provided primary key value or values.
+        /// <para>
+        /// A primary key column must be defined using the <see cref="GridColumn.IsPrimaryKey"/> property.
+        /// </para>
+        /// <para>
+        /// For grids with composite primary keys, all primary key field names and values must be provided in
+        /// <paramref name="primaryKeyValues"/> to uniquely identify the row.
+        /// </para>
+        /// </remarks>
+        /// <example>
+        /// <code>
+        /// <![CDATA[
+        /// <button id="SetCellValueComposite" @onclick="CompositeHandler">Update Cell Value</button>
+        /// <SfGrid @ref="grid" DataSource="@OrderItems">
+        ///     ........
+        /// </SfGrid>
+        ///
+        /// @code {
+        ///     SfGrid<OrderItem> grid;
+        ///
+        ///     private async Task CompositeHandler()
+        ///     {
+        ///         await grid.SetCellValueAsync(
+        ///             new Dictionary<string, object>
+        ///             {
+        ///                 { "OrderID", 10248 },
+        ///                 { "ItemID", 2001 }
+        ///             },
+        ///             "Quantity",
+        ///             5);
+        ///     }
+        /// }
+        /// ]]>
+        /// </code>
+        /// </example>
+        public async Task SetCellValueAsync(IReadOnlyDictionary<string, object>? primaryKeyValues, string fieldName, object value)
+        {
+            if (primaryKeyValues != null && primaryKeyValues.Count > 0)
+            {
+                List<CellUpdate> cellUpdates = new List<CellUpdate>
+                {
+                    new CellUpdate { ColumnField = fieldName, NewValue = value, PrimaryKeyValues = primaryKeyValues }
+                };
+                await EditModule!.SetCellValue(cellUpdates).ConfigureAwait(true);
             }
         }
 
@@ -2999,10 +3159,13 @@ namespace Syncfusion.Blazor.Grids
         /// </example>
         public async Task SetRowDataAsync(object primaryKeyValue, TValue rowData)
         {
-            if (primaryKeyValue != null && EditModule != null)
+            var pKey = await GetPrimaryKeyFieldNamesAsync().ConfigureAwait(true);
+            if (primaryKeyValue == null || pKey == null || pKey.Count == 0)
             {
-                await EditModule.SetRowData(primaryKeyValue, rowData!).ConfigureAwait(true);
+                return;
             }
+            var singleKeyDict = new Dictionary<string, object> { { pKey[0]!, primaryKeyValue } };
+            await SetRowDataAsync(singleKeyDict, rowData).ConfigureAwait(true);
         }
 
         /// <summary>
@@ -3035,9 +3198,92 @@ namespace Syncfusion.Blazor.Grids
         /// </example>
         public async Task SetRowDataAsync(object primaryKeyValue, TValue rowData, bool preventDataUpdate)
         {
-            if (primaryKeyValue != null && EditModule != null)
+            var pKey = await GetPrimaryKeyFieldNamesAsync().ConfigureAwait(true);
+            if (primaryKeyValue == null || pKey == null || pKey.Count == 0)
             {
-                await EditModule.SetRowData(primaryKeyValue, rowData!, preventDataUpdate).ConfigureAwait(true);
+                return;
+            }
+            var singleKeyDict = new Dictionary<string, object> { { pKey[0]!, primaryKeyValue } };
+            await SetRowDataAsync(singleKeyDict, rowData, preventDataUpdate).ConfigureAwait(true);
+        }
+
+        /// <summary>
+        /// Updates and refreshes the values of a particular row based on the specified primary key value or values.
+        /// </summary>
+        /// <param name="primaryKeyValues">
+        /// A read-only dictionary that maps primary key column field names to their corresponding values.
+        /// For grids with a single primary key column, provide a dictionary containing one key-value pair.
+        /// For grids with composite primary keys, provide all primary key field names and their corresponding values.
+        /// Field names are matched against the grid's primary key columns, and the order of entries in the dictionary is not significant.
+        /// </param>
+        /// <param name="rowData">
+        /// The new data object used to update the row.
+        /// </param>
+        /// <param name="preventDataUpdate">
+        /// A boolean value indicating whether to prevent updating the underlying data source.
+        /// When set to <see langword="true"/>, only the row UI is refreshed without updating the data source.
+        /// When set to <see langword="false"/>, both the data source and the row UI are updated.
+        /// It is an optional parameter and the default value is <see langword="false"/>.
+        /// </param>
+        /// <returns>
+        /// A <see cref="System.Threading.Tasks.Task"/> representing the asynchronous operation.
+        /// </returns>
+        /// <remarks>
+        /// This method updates the row identified by the specified primary key value or values and refreshes
+        /// the corresponding row in the grid.
+        /// <para>
+        /// A primary key column must be specified using the <see cref="GridColumn.IsPrimaryKey"/> property.
+        /// </para>
+        /// <para>
+        /// For grids with composite primary keys, all primary key field names and values must be provided in
+        /// <paramref name="primaryKeyValues"/> to uniquely identify the row.
+        /// </para>
+        /// <para>
+        /// When <paramref name="preventDataUpdate"/> is set to <see langword="true"/>, the grid refreshes the
+        /// row using the values from <paramref name="rowData"/> without modifying the underlying data source.
+        /// This is useful when the UI needs to be updated temporarily without persisting changes to the data collection.
+        /// </para>
+        /// </remarks>
+        /// <example>
+        /// <code>
+        /// <![CDATA[
+        /// <button id="SetRowData" @onclick="DataHandler">SetRowData</button>
+        /// <SfGrid @ref="grid" DataSource="@Orders">
+        ///     ........
+        /// </SfGrid>
+        ///
+        /// @code {
+        ///     SfGrid<Order> grid;
+        ///
+        ///     private async Task DataHandler()
+        ///     {
+        ///         var rowData = new Order()
+        ///         {
+        ///             OrderID = 1006,
+        ///             CustomerID = "ALFKI",
+        ///             OrderDate = new DateTime(1995, 03, 25),
+        ///             Freight = 25.7 * 2
+        ///         };
+        ///
+        ///         await grid.SetRowDataAsync(
+        ///             new Dictionary<string, object>
+        ///             {
+        ///                 { "OrderID", 1006 }
+        ///             },
+        ///             rowData,
+        ///             true);
+        ///     }
+        /// }
+        /// ]]>
+        /// </code>
+        /// </example>
+        public async Task SetRowDataAsync(IReadOnlyDictionary<string, object>? primaryKeyValues, TValue rowData, bool preventDataUpdate = false)
+        {
+            if (primaryKeyValues != null && EditModule != null)
+            {
+                var pKey = await GetPrimaryKeyFieldNamesAsync().ConfigureAwait(true);
+                var positional = BuildPositionalKeyValues(primaryKeyValues, pKey);
+                await EditModule.SetRowData(positional, rowData!, preventDataUpdate).ConfigureAwait(true);
             }
         }
 
@@ -3081,6 +3327,11 @@ namespace Syncfusion.Blazor.Grids
             }
 
             ForceUpdate = true;
+            if (GridEvents?.HeaderCellInfo.HasDelegate == true)
+            {
+                IsColumnHeaderChange = false;
+            }
+
             var columnsChangingEventArgs = new ColumnVisibilityChangingEventArgs() { Cancel = false, VisibleColumns = await GetVisibleColumnsAsync().ConfigureAwait(true), HiddenColumns = await GetHiddenColumnsAsync().ConfigureAwait(true) };
             await ModelChanged(new ActionEventArgs<TValue>() { RequestType = Action.ColumnState }, suppressEvent: suppressEvent, eventArgs: columnsChangingEventArgs, requestType: "ColumnState").ConfigureAwait(true);
             if (columnsChangingEventArgs.Cancel)
@@ -3504,11 +3755,11 @@ namespace Syncfusion.Blazor.Grids
         /// </example>
         public async Task StartEditAsync()
         {
-            if (!EditSettings!.AllowEditing || EditSettings.Mode == EditMode.Batch)
+            if (!EditSettings!.AllowEditing || EditModule!.IsCellOrBatchEditMode())
             {
                 return;
             }
-            var Row = EditModule!.GetSelectedRowForEdit();
+            var Row = await EditModule!.GetSelectedRowForEdit().ConfigureAwait(true);
             if (Row == null)
             {
                 return;
@@ -3580,7 +3831,7 @@ namespace Syncfusion.Blazor.Grids
         {
             if (EditSettings != null && EditSettings.Mode.Equals(EditMode.Batch))
             {
-                await EditModule!.UpdateCell(rowIndex, field, value).ConfigureAwait(true);
+                await EditModule!.UpdateCell(rowIndex, field, value, false).ConfigureAwait(true);
             }
         }
 
@@ -3793,6 +4044,224 @@ namespace Syncfusion.Blazor.Grids
                 await SearchModule.PerformSearch(searchString).ConfigureAwait(true);
             }
         }
+
+        /// <summary>
+        /// Highlights all cells containing the specified search key in the grid without filtering rows.
+        /// </summary>
+        /// <param name="findKey">The text to find and highlight in the grid cells. Pass <see langword="null"/> or an empty string (<c>""</c>) to clear all highlighting and reset the find state without requiring a separate <see cref="ResetFindAsync()"/> call. Whitespace-only strings (e.g., <c>"   "</c>) are treated as valid search text and will attempt to find whitespace matches in grid cells.</param>
+        /// <returns>A <see cref="System.Threading.Tasks.Task"/> representing the asynchronous operation.</returns>
+        /// <remarks>
+        /// <para>
+        /// When <paramref name="findKey"/> is <see langword="null"/> or an empty string (<c>""</c>), 
+        /// the method clears all highlighting and resets the find state.
+        /// No separate call to <see cref="ResetFindAsync()"/> is required.
+        /// </para>
+        /// <para>
+        /// <b>Whitespace strings:</b> Strings containing only whitespace characters (e.g., <c>"   "</c>) are treated as valid search terms 
+        /// and will search for whitespace matches in grid cells. They do not trigger a clear operation.
+        /// </para>
+        /// <para>
+        /// This method highlights text in grid cells using the CSS class specified in
+        /// <see cref="GridFindSettings.HighlightCssClass"/>. The match counter reflects all matches in the dataset when virtualized, 
+        /// or in the currently visible/filtered data when paginated. When pagination changes, highlighting is
+        /// automatically reapplied to the newly visible cells.
+        /// </para>
+        /// <para>
+        /// <list type="bullet">
+        ///   <item><description><b>Column templates and command columns</b>: cells rendered through <see cref="GridColumn.Template"/>, <see cref="GridColumn.EditTemplate"/>, or any <see cref="GridCommandColumn"/> declared inside <see cref="GridColumn.Commands"/> are not scanned, highlighted, counted in total matches, or reachable via "Next" / "Previous" navigation; only the plain text content rendered by the default cell pipeline for data columns is eligible for matching.</description></item>
+        ///   <item><description><b>Edit-form text</b>: uncommitted text typed into the Add / Edit / Inline form editors (input, numeric, dropdown, date picker, etc.) is not searched, highlighted, counted in total matches, or reachable via navigation; the Find feature operates on the committed, display-time cell value only.</description></item>
+        ///   <item><description><b>Column opt-out</b>: columns with <see cref="GridColumn.AllowSearchHighlight"/> set to <see langword="false"/> are excluded from search, match counting, and navigation.</description></item>
+        /// </list>
+        /// </para>
+        /// </remarks>
+        /// <example>
+        /// <code>
+        /// <![CDATA[
+        /// <button id="FindText" @onclick="FindText">Find Text</button>
+        /// <button id="ClearFind" @onclick="ClearFind">Clear Find</button>
+        /// <SfGrid @ref="grid" Toolbar="@(new List<string> { "Find" })" DataSource="@Orders">
+        ///     ........
+        /// </SfGrid>
+        /// @code{
+        ///     SfGrid<Order> grid;
+        ///     private async Task FindText()
+        ///     {
+        ///         await grid.FindHighlightAsync("USA");
+        ///     }
+        ///     private async Task ClearFind()
+        ///     {
+        ///         await grid.ResetFindAsync();
+        ///     }
+        /// }
+        /// ]]>
+        /// </code>
+        /// </example>
+        public async Task FindHighlightAsync(string findKey)
+        {
+            if(FindHightLightModule == null)
+            {
+                return;
+            }
+            FindHightLightModule.IsFromMethodHighLight = true;
+            await FindHightLightModule.FindHighlightAsync(findKey, true).ConfigureAwait(true);
+        }
+
+        /// <summary>
+        /// Clears all highlighting and resets the find state in the grid.
+        /// </summary>
+        /// <returns>A <see cref="System.Threading.Tasks.Task"/> representing the asynchronous operation.</returns>
+        /// <remarks>
+        /// This method clears the current find highlighting, resets the match counter.
+        /// The grid is refreshed to reflect these changes.
+        /// </remarks>
+        /// <example>
+        /// <code>
+        /// <![CDATA[
+        /// <button id="ClearFind" @onclick="ClearFind">Clear Find</button>
+        /// <SfGrid @ref="grid" Toolbar="@(new List<string> { "Find" })" DataSource="@Orders">
+        ///     ........
+        /// </SfGrid>
+        /// @code{
+        ///     SfGrid<Order> grid;
+        ///     private async Task ClearFind()
+        ///     {
+        ///         await grid.ResetFindAsync();
+        ///     }
+        /// }
+        /// ]]>
+        /// </code>
+        /// </example>
+        public async Task ResetFindAsync()
+        {
+            if (FindHightLightModule == null)
+            {
+                return;
+            }
+            await FindHightLightModule.ClearFindProperties().ConfigureAwait(true);
+            await FindHightLightModule.RefreshGrid().ConfigureAwait(true);
+        }
+
+        /// <summary>
+        /// Moves the active Find and Highlight match to the next match on the <see cref="SfGrid{TValue}"/>.
+        /// </summary>
+        /// <returns>
+        /// A <see cref="System.Threading.Tasks.Task"/> that completes after the grid updates the active match.
+        /// </returns>
+        /// <remarks>
+        /// <para>
+        /// Mirrors the <b>Next</b> button in the Find toolbar and the <c>Enter</c> key in the find input.
+        /// </para>
+        /// <para>
+        /// If no match is active after <see cref="FindHighlightAsync(string)"/>, the first match becomes active. At the last match, navigation wraps to the first match.
+        /// </para>
+        /// <para>
+        /// Columns with <see cref="GridColumn.AllowSearchHighlight"/> set to <see langword="false"/> are skipped.
+        /// </para>
+        /// </remarks>
+        /// <example>
+        /// <code>
+        /// <![CDATA[
+        /// <SfGrid @ref="grid" Toolbar="@(new List<string> { "Find" })" DataSource="@Orders">
+        ///     ........
+        /// </SfGrid>
+        /// @code{
+        ///     SfGrid<Order> grid;
+        ///     private async Task FindNext() => await grid.FindNextHighlightAsync();
+        /// }
+        /// ]]>
+        /// </code>
+        /// </example>
+        public async Task FindNextHighlightAsync()
+        {
+            if (FindHightLightModule == null) return;
+            FindHightLightModule.IsFromMethodHighLight = true;
+            _shouldRender = false;
+            await FindHightLightModule.GoToNextAsync().ConfigureAwait(true);
+        }
+
+        /// <summary>
+        /// Moves the active Find and Highlight match to the previous match on the <see cref="SfGrid{TValue}"/>.
+        /// </summary>
+        /// <returns>
+        /// A <see cref="System.Threading.Tasks.Task"/> that completes after the grid updates the active match.
+        /// </returns>
+        /// <remarks>
+        /// <para>
+        /// Mirrors the <b>Previous</b> button in the Find toolbar and the <c>Shift+Enter</c> key in the find input.
+        /// </para>
+        /// <para>
+        /// If no match is active after <see cref="FindHighlightAsync(string)"/>, the last match becomes active. At the first match, navigation wraps to the last match.
+        /// </para>
+        /// <para>
+        /// Columns with <see cref="GridColumn.AllowSearchHighlight"/> set to <see langword="false"/> are skipped.
+        /// </para>
+        /// </remarks>
+        /// <example>
+        /// <code>
+        /// <![CDATA[
+        /// <SfGrid @ref="grid" Toolbar="@(new List<string> { "Find" })" DataSource="@Orders">
+        ///     ........
+        /// </SfGrid>
+        /// @code{
+        ///     SfGrid<Order> grid;
+        ///     private async Task FindPrev() => await grid.FindPreviousHighlightAsync();
+        /// }
+        /// ]]>
+        /// </code>
+        /// </example>
+        public async Task FindPreviousHighlightAsync()
+        {
+            if (FindHightLightModule == null) return;
+            FindHightLightModule.IsFromMethodHighLight = true;
+            _shouldRender = false;
+            await FindHightLightModule.GoToPreviousAsync().ConfigureAwait(true);
+        }
+
+        /// <summary>
+        /// Activates a specific Find and Highlight match by its one-based index on the <see cref="SfGrid{TValue}"/>.
+        /// </summary>
+        /// <param name="matchNumber">
+        /// A 1-based <see cref="int"/> index of the match to activate. Values below <c>1</c> are clamped to the first match; values above the total match count are clamped to the last match. No exception is thrown for out-of-range values.
+        /// </param>
+        /// <returns>
+        /// A <see cref="System.Threading.Tasks.Task"/> that completes after the grid updates the active match.
+        /// </returns>
+        /// <remarks>
+        /// <para>
+        /// Jumps directly to a match produced by <see cref="FindHighlightAsync(string)"/>.
+        /// </para>
+        /// <para>
+        /// Performs no action when no matches are available.
+        /// </para>
+        /// <para>
+        /// Columns with <see cref="GridColumn.AllowSearchHighlight"/> set to <see langword="false"/> are skipped.
+        /// </para>
+        /// </remarks>
+        /// <example>
+        /// <code>
+        /// <![CDATA[
+        /// <SfGrid @ref="grid" Toolbar="@(new List<string> { "Find" })" DataSource="@Orders">
+        ///     ........
+        /// </SfGrid>
+        /// @code{
+        ///     SfGrid<Order> grid;
+        ///     private async Task JumpToMatch()
+        ///     {
+        ///         await grid.FindHighlightAsync("Smith");
+        ///         await grid.FindGoToAsync(3);
+        ///     }
+        /// }
+        /// ]]>
+        /// </code>
+        /// </example>
+        public async Task FindGoToAsync(int matchNumber)
+        {
+            if (FindHightLightModule == null) return;
+            FindHightLightModule.IsFromMethodHighLight = true;
+            _shouldRender = false;
+            await FindHightLightModule.GoToAsync(matchNumber).ConfigureAwait(true);
+        }
+
 
         /// <summary>
         /// Refreshes the grid header and content. Passing the additional parameter as <c>true</c> ensures the component is reinitialized with dynamic changes.
@@ -4206,6 +4675,15 @@ namespace Syncfusion.Blazor.Grids
                     var infiniteScrollSettings = value == null ? await GridInfiniteScrollSettings.Initialize(this).ConfigureAwait(true) : (GridInfiniteScrollSettings)value;
                     InfiniteScrollSettings = _infiniteScrollSettings = infiniteScrollSettings;
                     break;
+                case nameof(FindSettings):
+                    var findSettings = value == null ? await GridFindSettings.Initialize(this).ConfigureAwait(true) : (GridFindSettings)value;
+                    FindSettings = _findSettings = findSettings;
+                    break;
+                case nameof(WebMcpSettings):
+                    var webMcpSettings = value == null ? new GridWebMcpSettings() : (GridWebMcpSettings)value;
+                    WebMcpSettings = _webMcpSettings = webMcpSettings;
+                    HasWebMcpSettingsChanges = true;
+                    break;
             }
 
             DirectParameters.AddOrUpdateItem(key, value!);
@@ -4216,6 +4694,225 @@ namespace Syncfusion.Blazor.Grids
         {
             return ShouldRenderHiddenColumns || isVisible || (AllowGrouping && (GroupSettings?.Columns?.Contains(field) ?? false));
         }
+
+        #region WebMCP Integration Methods
+
+        /// <summary>
+        /// Gets the WebMCP tools available for this grid.
+        /// </summary>
+        /// <param name="toolNames">
+        /// A collection of tool names to filter by, or <see langword="null"/> to
+        /// return all available WebMCP tools.
+        /// </param>
+        /// <returns>
+        /// A <see cref="Task{TResult}"/> that resolves to an
+        /// <see cref="IReadOnlyList{T}"/> of <see cref="IWebMcpTool"/> instances
+        /// representing the matching WebMCP tool definitions.
+        /// </returns>
+        /// <remarks>
+        /// <para>
+        /// This method returns the effective WebMCP tool catalog associated with the
+        /// grid, including built-in and custom tool definitions that have been
+        /// registered for this instance.
+        /// </para>
+        /// <para>
+        /// When <paramref name="toolNames"/> is specified, only tools whose names
+        /// match the supplied values are returned. When it is
+        /// <see langword="null"/>, all available tools are returned.
+        /// </para>
+        /// <para>
+        /// If WebMCP is not initialized, the grid does not support WebMCP, or no
+        /// adapter is available, an empty collection is returned.
+        /// </para>
+        /// </remarks>
+        /// <example>
+        /// <![CDATA[
+        /// <button @onclick="GetToolsAsync">
+        ///     Get Available WebMCP Tools
+        /// </button>
+        ///
+        /// <SfGrid TValue="OrderData"
+        ///         DataSource="@Orders"
+        ///         EnableWebMcp="true"
+        ///         @ref="Grid">
+        /// </SfGrid>
+        ///
+        /// @code {
+        ///     private SfGrid<OrderData>? Grid;
+        ///
+        ///     private async Task GetToolsAsync()
+        ///     {
+        ///         if (Grid == null)
+        ///         {
+        ///             return;
+        ///         }
+        ///
+        ///         var tools = await Grid.GetWebMcpToolsAsync();
+        ///     }
+        /// }
+        /// ]]>
+        /// </example>
+        public async Task<IReadOnlyList<IWebMcpTool>> GetWebMcpToolsAsync(IEnumerable<string>? toolNames = null)
+        {
+            return await Task.FromResult(_webMcpAdapter == null
+                ? new List<IWebMcpTool>()
+                : WebMcpAdapter<TValue>.GetTools(toolNames)).ConfigureAwait(false);
+        }
+
+
+        #endregion
+
+        #region Undo/Redo Public API Methods
+
+        /// <summary>
+        /// Reverts the most recent batch edit operation and updates the grid UI to reflect the previous state.
+        /// </summary>
+        /// <returns>A task that represents the asynchronous undo operation.</returns>
+        /// <remarks>
+        /// This API is only effective when the <see cref="Syncfusion.Blazor.Grids.GridEditSettings.EnableUndoRedo"/> property is
+        /// <c>true</c> and the <see cref="Syncfusion.Blazor.Grids.GridEditSettings.Mode"/> is set to
+        /// <see cref="Syncfusion.Blazor.Grids.EditMode.Batch"/>. If a cell is currently in edit mode, the in-progress edit is
+        /// <b>closed and discarded</b> before the undo is applied — staged batch changes (added rows, dirty cells, edited data)
+        /// are preserved and other staged edits are not pushed onto the undo stack. The pending cell value is <b>not</b> committed
+        /// and therefore is <b>not</b> recorded on the undo stack. The <see cref="Syncfusion.Blazor.Grids.GridEvents{TValue}.OnUndo"/>
+        /// event is raised before the operation and the <see cref="Syncfusion.Blazor.Grids.GridEvents{TValue}.OnUndoCompleted"/>
+        /// event is raised after the grid UI has been refreshed.
+        /// <para>
+        /// This method is a silent <b>no-op</b> when the undo stack is empty or Undo/Redo is disabled. It returns successfully and does
+        /// not throw. Callers that need to detect a no-op should observe the absence of <c>OnUndo</c>/<c>OnUndoCompleted</c> events or
+        /// inspect <see cref="Syncfusion.Blazor.Grids.GridEditSettings.EnableUndoRedo"/>. Subscribers to the
+        /// <see cref="Syncfusion.Blazor.Grids.GridEvents{TValue}.OnBatchCancel"/> event will see one notification fire as a side effect
+        /// of closing the active cell editor; that notification is incidental to the undo and should not be used to gate the undo
+        /// operation.
+        /// </para>
+        /// </remarks>
+        public async Task UndoAsync()
+        {
+            if (IsEdit && EditModule != null)
+            {
+                await EditModule.CloseEdit(true).ConfigureAwait(true);
+            }
+
+            if (UndoRedoManager != null)
+            {
+                await UndoRedoManager.PerformUndoAsync().ConfigureAwait(true);
+            }
+            EventAggregator?.Trigger("UndoRedoStackChanged", null!);
+        }
+
+        /// <summary>
+        /// Reapplies the most recently undone batch edit operation and updates the grid UI accordingly.
+        /// </summary>
+        /// <returns>A task that represents the asynchronous redo operation.</returns>
+        /// <remarks>
+        /// This API is only effective when the <see cref="Syncfusion.Blazor.Grids.GridEditSettings.EnableUndoRedo"/> property is
+        /// <c>true</c> and the <see cref="Syncfusion.Blazor.Grids.GridEditSettings.Mode"/> is set to
+        /// <see cref="Syncfusion.Blazor.Grids.EditMode.Batch"/>. If a cell is currently in edit mode, the in-progress edit is
+        /// <b>closed and discarded</b> before the redo is applied — staged batch changes (added rows, dirty cells, edited data)
+        /// are preserved and other staged edits are not pushed onto the undo stack. The pending cell value is <b>not</b> committed
+        /// and therefore is <b>not</b> recorded on the undo stack. The <see cref="Syncfusion.Blazor.Grids.GridEvents{TValue}.OnRedo"/>
+        /// event is raised before the operation and the <see cref="Syncfusion.Blazor.Grids.GridEvents{TValue}.OnRedoCompleted"/>
+        /// event is raised after the grid UI has been refreshed.
+        /// <para>
+        /// This method is a silent <b>no-op</b> when the redo stack is empty or Undo/Redo is disabled. It returns successfully and does
+        /// not throw. Callers that need to detect a no-op should observe the absence of <c>OnRedo</c>/<c>OnRedoCompleted</c> events or
+        /// inspect <see cref="Syncfusion.Blazor.Grids.GridEditSettings.EnableUndoRedo"/>. Subscribers to the
+        /// <see cref="Syncfusion.Blazor.Grids.GridEvents{TValue}.OnBatchCancel"/> event will see one notification fire as a side effect
+        /// of closing the active cell editor; that notification is incidental to the redo and should not be used to gate the redo
+        /// operation.
+        /// </para>
+        /// </remarks>
+        public async Task RedoAsync()
+        {
+            if (IsEdit && EditModule != null)
+            {
+                await EditModule.CloseEdit(true).ConfigureAwait(true);
+            }
+
+            if (UndoRedoManager != null)
+            {
+                await UndoRedoManager.PerformRedoAsync().ConfigureAwait(true);
+            }
+            EventAggregator?.Trigger("UndoRedoStackChanged", null!);
+        }
+
+        /// <summary>
+        /// Undoes all recorded batch operations sequentially until the undo stack is empty.
+        /// </summary>
+        /// <returns>A task that represents the asynchronous undo-all operation.</returns>
+        /// <remarks>
+        /// This API moves every action from the undo stack to the redo stack. The grid UI is updated for each action in sequence.
+        /// The <see cref="Syncfusion.Blazor.Grids.GridEvents{TValue}.OnUndo"/> and
+        /// <see cref="Syncfusion.Blazor.Grids.GridEvents{TValue}.OnUndoCompleted"/> events fire <b>once per action</b>
+        /// consumed by the loop, not once for the bulk call; audit code therefore receives one invocation per undone action.
+        /// This API is only effective when the <see cref="Syncfusion.Blazor.Grids.GridEditSettings.EnableUndoRedo"/> property is
+        /// <c>true</c> and the <see cref="Syncfusion.Blazor.Grids.GridEditSettings.Mode"/> is set to
+        /// <see cref="Syncfusion.Blazor.Grids.EditMode.Batch"/>.
+        /// <para>
+        /// This method is a silent <b>no-op</b> when the undo stack is already empty or Undo/Redo is disabled; no events are raised and no
+        /// exception is thrown.
+        /// </para>
+        /// </remarks>
+        public async Task UndoAllAsync()
+        {
+            if (UndoRedoManager != null)
+            {
+                await UndoRedoManager.UndoAllAsync().ConfigureAwait(true);
+            }
+            EventAggregator?.Trigger("UndoRedoStackChanged", null!);
+        }
+
+        /// <summary>
+        /// Redoes all undone batch operations sequentially until the redo stack is empty.
+        /// </summary>
+        /// <returns>A task that represents the asynchronous redo-all operation.</returns>
+        /// <remarks>
+        /// This API moves every action from the redo stack back to the undo stack. The grid UI is updated for each action in
+        /// sequence. The <see cref="Syncfusion.Blazor.Grids.GridEvents{TValue}.OnRedo"/> and
+        /// <see cref="Syncfusion.Blazor.Grids.GridEvents{TValue}.OnRedoCompleted"/> events fire <b>once per action</b>
+        /// consumed by the loop, not once for the bulk call; audit code therefore receives one invocation per redone action.
+        /// This API is only effective when the <see cref="Syncfusion.Blazor.Grids.GridEditSettings.EnableUndoRedo"/>
+        /// property is <c>true</c> and the <see cref="Syncfusion.Blazor.Grids.GridEditSettings.Mode"/> is set to
+        /// <see cref="Syncfusion.Blazor.Grids.EditMode.Batch"/>.
+        /// <para>
+        /// This method is a silent <b>no-op</b> when the redo stack is already empty or Undo/Redo is disabled; no events are raised and no
+        /// exception is thrown.
+        /// </para>
+        /// </remarks>
+        public async Task RedoAllAsync()
+        {
+            if (UndoRedoManager != null)
+            {
+                await UndoRedoManager.RedoAllAsync().ConfigureAwait(true);
+            }
+            EventAggregator?.Trigger("UndoRedoStackChanged", null!);
+        }
+
+        /// <summary>
+        /// Clears both the Undo and Redo stacks and resets the Undo/Redo history to a clean state.
+        /// </summary>
+        /// <returns>A task that represents the asynchronous clear operation.</returns>
+        /// <remarks>
+        /// Any pending Undo or Redo operation is discarded.
+        /// None of the <see cref="Syncfusion.Blazor.Grids.GridEvents{TValue}.OnUndo"/>,
+        /// <see cref="Syncfusion.Blazor.Grids.GridEvents{TValue}.OnUndoCompleted"/>,
+        /// <see cref="Syncfusion.Blazor.Grids.GridEvents{TValue}.OnRedo"/>, or
+        /// <see cref="Syncfusion.Blazor.Grids.GridEvents{TValue}.OnRedoCompleted"/> events are raised by this call.
+        /// <para>
+        /// This method is always safe to call: it is a silent <b>no-op</b> when the Undo/Redo manager is not initialized and never
+        /// throws.
+        /// </para>
+        /// </remarks>
+        public async Task ClearUndoRedoAsync()
+        {
+            if (UndoRedoManager != null)
+            {
+                UndoRedoManager.Clear();
+                EventAggregator?.Trigger("UndoRedoStackChanged", null!);
+            }
+        }
+
+        #endregion
 
     }
 }

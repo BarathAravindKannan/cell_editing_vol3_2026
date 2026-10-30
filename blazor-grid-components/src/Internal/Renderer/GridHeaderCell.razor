@@ -1,4 +1,4 @@
-﻿@namespace Syncfusion.Blazor.Grids.Internal
+@namespace Syncfusion.Blazor.Grids.Internal
 @typeparam TContent
 @inherits GridHeaderBase<TContent>
 @using System.Globalization;
@@ -7,13 +7,15 @@
 @using Microsoft.AspNetCore.Components.Web
 
 @{
-    string? cellType = cell?.CellType.ToString().ToLower(CultureInfo.InvariantCulture );
-    bool columnVisible = IsStackedHeaderColumnsVisible(column!);
-    string className = Parent!.FreezeModule!.GetFreezeLeftCount() > 0 || (Parent.FreezeModule!.GetFrozenCount() > 0 && Parent.FreezeModule!.GetFreezeRightCount() < 1) ? " e-leftfreeze" : "";
+    string? cellType = cell?.CellType.ToString().ToLower(CultureInfo.InvariantCulture);
+    bool columnVisible = column != null && IsStackedHeaderColumnsVisible(column);
+    string className = (Parent?.FreezeModule != null && Parent.FreezeModule.GetFreezeLeftCount() > 0) || 
+                       (Parent?.FreezeModule != null && Parent.FreezeModule.GetFrozenCount() > 0 && Parent.FreezeModule.GetFreezeRightCount() < 1) 
+                       ? " e-leftfreeze" : "";
 
     @if (cellType!.Equals("indent"))
     {
-        string lastClass = Parent.GroupSettings!.Columns!.Count() - 1 == HeaderCellParameters?.Iteration ? " e-lastgroupleftcell" : "";
+        string lastClass = Parent!.GroupSettings!.Columns!.Count() - 1 == HeaderCellParameters?.Iteration ? " e-lastgroupleftcell" : "";
         <th class=@($"e-grouptopleftcell {lastClass} {className}") data-sf-style="@GetStyle(HeaderCellParameters?.Row!, cell!)">
             <div class="e-headercelldiv e-emptycell">
                    <span class="e-emptyindentcell">Indent</span>
@@ -22,7 +24,7 @@
     }
     else if (cellType.Equals("detailindent"))
     {
-        if(Parent.FreezeModule!.GetFreezeLeftCount() > 0 || (Parent.FreezeModule!.GetFrozenCount() > 0 && Parent.FreezeModule!.GetFreezeRightCount() < 1))
+        if(Parent?.FreezeModule != null && (Parent.FreezeModule.GetFreezeLeftCount() > 0 || (Parent.FreezeModule.GetFrozenCount() > 0 && Parent.FreezeModule.GetFreezeRightCount() < 1)))
         {
             <th class=@($"e-detailheadercell {className}") data-sf-style="@GetStyle(HeaderCellParameters?.Row!, cell!)">
                 <div class="e-emptycell">
@@ -41,7 +43,7 @@
     }
     else if (cellType.Equals("rowdrag"))
     {
-        if(Parent.FreezeModule!.GetFreezeLeftCount() > 0 || (Parent.FreezeModule!.GetFrozenCount() > 0 && Parent.FreezeModule!.GetFreezeRightCount() < 1))
+        if(Parent!.FreezeModule!.GetFreezeLeftCount() > 0 || (Parent.FreezeModule!.GetFrozenCount() > 0 && Parent.FreezeModule!.GetFreezeRightCount() < 1))
         {
             <th class=@($"e-rowdragheader {className}") data-sf-style="@GetStyle(HeaderCellParameters?.Row!, cell!)">
                 <div class="e-emptycell">
@@ -58,19 +60,19 @@
             </th>
         }
     }
-    else if (columnVisible && Parent.ShouldRenderColumn(column!.Visible, column?.Field ?? string.Empty) || IsStackedHeaderVisible(column!))
+    else if (columnVisible && Parent!.ShouldRenderColumn(column!.Visible, column?.Field ?? string.Empty) || IsStackedHeaderVisible(column!))
     {
         string headerText = column?.HeaderText ?? column?.Field ?? string.Empty;
         bool isStackedCell = (cell != null && cell.IsStacked);
         string styleText = GetHeaderStyle(column!);
         <th class="@($"{classNames} {focusClass} {selectionClass}")" data-uid="@cell?.Uid"
         role="columnheader" 
-        tabindex="@(EnsureHeaderTabIndex(cell!))"
+        tabindex="@EnsureHeaderTabIndex(cell!).ToString(CultureInfo.InvariantCulture)"
         aria-colindex="@($"{cell?.Index + 1}")"
         @attributes="GridUtils.GetAttributeValues(attribute!, styleText)"
         @onclick="@(async (MouseEventArgs args) =>
                             {
-                                if (!Parent.IsResizing) //Unable to stop this from stopPropagation.
+                                if (!Parent!.IsResizing) //Unable to stop this from stopPropagation.
                                 {
                                     await Parent.FocusModule?.CellClickHandler((HeaderCellParameters!.Row!, cell!), args, true)!;
                                     await Parent.SortModule?.SortClickHandler(column!, GetSortIconOrAriaValue(column!, "sortIcon"), args)!;
@@ -86,12 +88,12 @@
                                 selectionClass = Parent.EnablePivotSelection ? "e-active e-selectionbackground" : string.Empty;
                             })"
         @onkeydown:preventDefault="true"
-        @onkeydown="async (KeyboardEventArgs e) => await Parent.FocusModule!.ProcessKeyDown(e, HeaderCellParameters?.Row!, cell!, true)">
+        @onkeydown="async (KeyboardEventArgs e) => await Parent!.FocusModule!.ProcessKeyDown(e, HeaderCellParameters?.Row!, cell!, true)">
             <div class="@($"e-headercell-container{(isStackedCell ? " e-stacked-header" : "")}")">
             <div e-mappinguid="@column?.Uid"
               class="@($"{GetDivClassName(column!, cell!)} {GetAlignmentHeaderText(column!)}")" >
 
-                @if (Parent.SortSettings?.Columns != null && Parent.SortSettings?.Columns.Count > 1 && !isCheckbox && !isStackedCell)
+                @if (Parent!.SortSettings?.Columns != null && Parent.SortSettings?.Columns.Count > 1 && !isCheckbox && !isStackedCell)
                 {
                     if (Parent.SortSettings.Columns.Any(col => col.Field == column?.Field))
                     {
@@ -556,10 +558,6 @@
         {
             elementDescription =!string.IsNullOrEmpty(elementDescription) ? elementDescription + ". " + Localizer?.GetText(GridLocaleKeys.ColumnMenuDescription) : Localizer!.GetText(GridLocaleKeys.ColumnMenuDescription) ;
         }
-        if (column.Type.Equals(ColumnType.CheckBox))
-        {
-            attributes.AddOrUpdateItem("aria-label", Localizer?.GetText(GridLocaleKeys.HeaderSelectionCheckBoxARIA)!);
-        }
         if(!string.IsNullOrEmpty(elementDescription))
         {
             accessibility = elementDescription;
@@ -651,12 +649,31 @@
 
     internal async Task FilterIconClicked(GridColumn Col, MouseEventArgs Args)
     {
-        if (Parent!.FilterModule != null)
+        // CRITICAL: Validate Parent is not null before accessing its members
+        if (Parent?.FilterModule == null)
         {
-            this.Parent.FilterModule.IsCustomFilterApplied = false;
-            this.Parent.FilterModule.FilterIconIsClicked = true;
-            this.Parent.FilterModule.FilterIconColumn = Col;
-            this.Parent.EventAggregator.Trigger("FilterComponentUpdate", null!);
+            return;
+        }
+
+        this.Parent.FilterModule.IsCustomFilterApplied = false;
+        
+        // Implement toggle behavior: check if dialog is already open for this column
+        bool isAlreadyOpen = Parent.FilterModule.IsFilterDialogOpen(Col.Uid);
+        
+        if (isAlreadyOpen)
+        {
+            // Toggle close: reset the state without rendering the dialog
+            Parent.FilterModule.ResetColumnDialogState(Col.Uid);
+            Parent.FilterModule.FilterIconIsClicked = false;
+            Parent.EventAggregator?.Trigger("FilterComponentUpdate", null!);
+        }
+        else
+        {
+            // Open dialog normally
+            Parent.FilterModule.FilterIconIsClicked = true;
+            Parent.FilterModule.FilterIconColumn = Col;
+            Parent.FilterModule.SetFilterDialogOpen(Col.Uid);
+            Parent.EventAggregator?.Trigger("FilterComponentUpdate", null!);
         }
     }
 

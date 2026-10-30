@@ -1,4 +1,4 @@
-﻿using Microsoft.AspNetCore.Components;
+using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Components.Rendering;
 using Microsoft.AspNetCore.Components.Web;
 using Syncfusion.Blazor.Internal;
@@ -7,6 +7,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
+using System.Globalization;
 
 namespace Syncfusion.Blazor.Grids.Internal
 {
@@ -44,6 +45,16 @@ namespace Syncfusion.Blazor.Grids.Internal
             public bool CheckBoxChecked { get; set; }
             public string FocusClass { get; set; } = string.Empty;
             public bool IsRecordClickEvent { get; set; }
+            
+            /// <summary>
+            /// For Find and Highlight feature - stores the current search/find key
+            /// </summary>
+            internal string? HighlightKey { get; set; }
+            
+            /// <summary>
+            /// For Find and Highlight feature - stores count of matches in this cell
+            /// </summary>
+            internal int MatchCount { get; set; }
         }
 
         #endregion
@@ -76,19 +87,24 @@ namespace Syncfusion.Blazor.Grids.Internal
                 var response = new Dictionary<string, bool>();
                 Parent.EventAggregator?.Trigger("CheckQueryCellInfoCache", response);
                 shouldCache = response.ContainsKey("ShouldCache") && response["ShouldCache"];
-                if (response["ShouldAddDataItem"] && cell.Column?.Field?.Contains("DataItem") == false)
+                if (response["ShouldAddDataItem"] && cell.Column?.Field?.Contains("DataItem", StringComparison.Ordinal) == false)
                 {
-                    Parent.PropHelper.SetValue(cell.Column, nameof(cell.Column.Field), $"DataItem.{cell.Column.Field}");
+                    Parent?.PropHelper?.SetValue(cell.Column, nameof(cell.Column.Field), $"DataItem.{cell.Column.Field}");
                 }
             }
-            if (shouldCache || Parent.IsRenderedFromPivotTable)
+            if (shouldCache || (Parent != null && Parent.IsRenderedFromPivotTable))
             {
                 cacheKey = $"{row.Uid}_{cell.Uid}";
             }
             var cellState = GetOrUpdateCellState(cacheKey, cell, row);
 
+            if ((Parent?.IsFindToolbarEnabled() == true || Parent?.FindHightLightModule?.IsFromMethodHighLight == true) && Parent.FindHightLightModule != null && !string.IsNullOrEmpty(Parent?.FindHightLightModule.SearchHighlightKey) && cell?.Column?.Visible != false && cell?.Column?.AllowSearchHighlight != false)
+            {
+                cellState.HighlightKey = Parent.FindHightLightModule.SearchHighlightKey;
+            }
+
             // Check if we should render this cell
-            if (Parent.ShouldRenderColumn(cell.Visible, cell?.Column?.Field!))
+            if (Parent != null && cell != null && Parent.ShouldRenderColumn(cell.Visible, cell?.Column?.Field!))
             {
                 string? classNames = string.Join(" ", cellState.ClassList);
                 string? txtClass = GridUtils.GetAlignmentClass(cell?.Column!);
@@ -118,7 +134,7 @@ namespace Syncfusion.Blazor.Grids.Internal
         {
             builder.OpenElement(0, "td");
             builder.AddAttribute(1, "class", $"{classNames} {txtClass}");
-            builder.AddAttribute(2, "tabindex", cell?.TabIndex);
+            builder.AddAttribute(2, "tabindex", cell?.TabIndex.ToString(CultureInfo.InvariantCulture));
             builder.AddAttribute(3, "role", "gridcell");
             builder.AddMultipleAttributes(4, GridUtils.GetAttributeValues(cellState.Attributes, cellState.StyleText));
             builder.AddAttribute(5, "data-uid", cell?.Uid);
@@ -151,13 +167,13 @@ namespace Syncfusion.Blazor.Grids.Internal
             builder.OpenElement(0, "td");
             builder.AddAttribute(1, "class", $"{classNames} {cellState.FocusClass} {txtClass}");
             builder.AddAttribute(2, "role", "gridcell");
-            builder.AddAttribute(3, "tabindex", EnsureTabIndexInternal(row, cell));
+            builder.AddAttribute(3, "tabindex", EnsureTabIndexInternal(row, cell).ToString(CultureInfo.InvariantCulture));
             builder.AddAttribute(4, "data-uid", cell?.Uid);
             builder.AddMultipleAttributes(5, GridUtils.GetAttributeValues(cellState.Attributes, cellState.StyleText));
             builder.AddAttribute(6, "onclick", EventCallback.Factory.Create<MouseEventArgs>(
                 this, async (e) =>
                 {
-                    if(await Parent.EditModule.InvokeSingleClickHandler(row,cell))
+                    if (await Parent!.EditModule!.InvokeSingleClickHandler(row, cell!).ConfigureAwait(true))
                     {
                         return;
                     }
@@ -203,7 +219,7 @@ namespace Syncfusion.Blazor.Grids.Internal
 
             builder.OpenElement(0, "td");
             builder.AddAttribute(1, "class", $"{classNames} {cellState.FocusClass} {txtClass}");
-            builder.AddAttribute(2, "tabindex", EnsureTabIndexInternal(row, cell));
+            builder.AddAttribute(2, "tabindex", EnsureTabIndexInternal(row, cell).ToString(CultureInfo.InvariantCulture));
             builder.AddAttribute(3, "role", "gridcell");
             builder.AddMultipleAttributes(4, GridUtils.GetAttributeValues(cellState.Attributes, cellState.StyleText));
             builder.AddAttribute(5, "onclick", EventCallback.Factory.Create<MouseEventArgs>(this,
@@ -221,7 +237,7 @@ namespace Syncfusion.Blazor.Grids.Internal
             }
             else if (cell?.Column?.DisplayAsCheckBox != true)
             {
-                GridRowBase<TRow>.RenderCellContentInternal(builder, 10, cell!, cellState.CellValue!);
+                RenderCellContentInternal(builder, 10, cell!, cellState.CellValue!, cellState);
             }
             else
             {
@@ -284,15 +300,73 @@ namespace Syncfusion.Blazor.Grids.Internal
         }
 
         /// <summary>
-        /// Renders cell text content with proper HTML encoding
+        /// Renders cell text content with proper HTML encoding and optional highlighting for Find feature
         /// </summary>
-        private static void RenderCellContentInternal(RenderTreeBuilder builder, int sequence, Cell<object> cell, object cellValue)
+        private void RenderCellContentInternal(
+            RenderTreeBuilder builder, 
+            int sequence, 
+            Cell<object> cell, 
+            object cellValue,
+            CellStateInfo? cellState = null,
+            GridRowBase<object>? gridRow = null)
         {
+            // Check if highlighting should be applied
+            bool shouldHighlight = cellState?.HighlightKey != null &&
+                                  !string.IsNullOrEmpty(cellState.HighlightKey) &&
+                                  (Parent?.IsFindToolbarEnabled() == true || Parent?.FindHightLightModule?.IsFromMethodHighLight == true);
+            var findHighlightModule = Parent?.FindHightLightModule;
+            string cssClass = Parent?.FindSettings?.HighlightCssClass ?? "e-find-highlight";
+
+            bool isRowStateChangeRefresh = Parent!.FindHightLightModule!.IsStateChangeRefresh;
+
             if (cell?.Column?.DisableHtmlEncode == true)
             {
                 if (string.IsNullOrEmpty(cellValue?.ToString()))
                 {
                     builder.AddMarkupContent(sequence, "&nbsp;");
+                }
+                else if (shouldHighlight && findHighlightModule != null && cell.Column.Visible && Row?.IsDirty == false)
+                {
+                    bool isCaseSensitive = Parent?.FindSettings?.CaseSensitive ?? false;
+                    
+                    // During row state change, try to retrieve tracked active match
+                    if (findHighlightModule.TryGetTrackedActiveMatchHtml(Row, cell, cellValue, isRowStateChangeRefresh, out var activeMatchHtml))
+                    {
+                        builder.AddMarkupContent(sequence + 1, activeMatchHtml);
+                    }
+                    else if (Parent != null && findHighlightModule.CurrentMatchIndex > 0)
+                    {
+                        var (matchCount, highlightedHtml, updatedCounter, foundActive) = findHighlightModule.HighlightMatchesServerSideActive(
+                            cellValue,
+                            cellState!.HighlightKey!,
+                            cssClass,
+                            "e-find-highlight-active",
+                            findHighlightModule.CurrentMatchIndex,
+                            findHighlightModule.GlobalMatchCounter,
+                            out bool isActive,
+                            isCaseSensitive);
+                        cellState!.MatchCount = matchCount;
+                        findHighlightModule.GlobalMatchCounter = updatedCounter;
+                        
+                        if (foundActive && Row != null && cell != null)
+                        {
+                            string activeMatchOnly = FindHighlight<TRow>.ExtractActiveMatchHtml(highlightedHtml);
+                            if (!string.IsNullOrEmpty(activeMatchOnly) && Row.Uid != null && cell.Uid != null)
+                            {
+                                findHighlightModule.StoreActiveMatchLocation(Row.Uid, cell.Uid, activeMatchOnly);
+                            }
+                        }
+                        
+                        int globalMatchPosition = findHighlightModule.TotalMatchesBeforeViewport + findHighlightModule.GlobalMatchCounter;
+                        
+                        builder.AddMarkupContent(sequence + 1, highlightedHtml);
+                    }
+                    else
+                    {
+                        var (matchCount, highlightedHtml) = FindHighlight<TRow>.HighlightMatches(cellValue, cellState!.HighlightKey!, cssClass, isCaseSensitive);
+                        cellState!.MatchCount = matchCount;
+                        builder.AddMarkupContent(sequence + 1, highlightedHtml);
+                    }
                 }
                 else
                 {
@@ -301,13 +375,83 @@ namespace Syncfusion.Blazor.Grids.Internal
             }
             else
             {
-                if (cell?.Column?.EnableSanitization == false)
+                if (shouldHighlight && findHighlightModule != null)
                 {
-                    builder.AddContent(sequence + 2, (MarkupString)($"{cellValue}"));
+                    bool isCaseSensitive = Parent?.FindSettings?.CaseSensitive ?? false;
+
+                    if (findHighlightModule.TryGetTrackedActiveMatchHtml(Row, cell, cellValue, isRowStateChangeRefresh, out var activeMatchHtml))
+                    {
+                        if (cell?.Column?.EnableSanitization == false)
+                        {
+                            builder.AddMarkupContent(sequence + 2, activeMatchHtml);
+                        }
+                        else
+                        {
+                            string sanitizedHtml = GridUtils.GetRawContent(SanitizeHtmlHelper.Sanitize(activeMatchHtml))?.ToString() ?? string.Empty;
+                            builder.AddMarkupContent(sequence + 2, sanitizedHtml);
+                        }
+                    }
+                    else if (Parent != null && findHighlightModule.CurrentMatchIndex > 0)
+                    {
+                        var (matchCount, highlightedHtml, updatedCounter, foundActive) = findHighlightModule.HighlightMatchesServerSideActive(
+                            cellValue,
+                            cellState!.HighlightKey!,
+                            cssClass,
+                            "e-find-highlight-active",
+                            findHighlightModule.CurrentMatchIndex,
+                            findHighlightModule.GlobalMatchCounter,
+                            out bool isActive,
+                            isCaseSensitive);
+                        cellState!.MatchCount = matchCount;
+                        findHighlightModule.GlobalMatchCounter = updatedCounter;
+                        
+                        if (foundActive && Row != null && cell != null)
+                        {
+                            string activeMatchOnly = FindHighlight<TRow>.ExtractActiveMatchHtml(highlightedHtml);
+                            if (!string.IsNullOrEmpty(activeMatchOnly) && Row.Uid != null && cell.Uid != null)
+                            {
+                                findHighlightModule.StoreActiveMatchLocation(Row.Uid, cell.Uid, activeMatchOnly);
+                            }
+                        }
+
+                        int globalMatchPosition = findHighlightModule.TotalMatchesBeforeViewport + findHighlightModule.GlobalMatchCounter;
+
+                        if (cell?.Column?.EnableSanitization == false)
+                        {
+                            builder.AddMarkupContent(sequence + 2, highlightedHtml);
+                        }
+                        else
+                        {
+                            string sanitizedHighlightedHtml = GridUtils.GetRawContent(SanitizeHtmlHelper.Sanitize(highlightedHtml))?.ToString() ?? string.Empty;
+                            builder.AddMarkupContent(sequence + 2, sanitizedHighlightedHtml);
+                        }
+                    }
+                    else
+                    {
+                        var (matchCount, highlightedHtml) = FindHighlight<TRow>.HighlightMatches(cellValue, cellState!.HighlightKey!, cssClass, isCaseSensitive);
+                        cellState!.MatchCount = matchCount;
+                        
+                        if (cell?.Column?.EnableSanitization == false)
+                        {
+                            builder.AddMarkupContent(sequence + 2, highlightedHtml);
+                        }
+                        else
+                        {
+                            string sanitizedHighlightedHtml = GridUtils.GetRawContent(SanitizeHtmlHelper.Sanitize(highlightedHtml))?.ToString() ?? string.Empty;
+                            builder.AddMarkupContent(sequence + 2, sanitizedHighlightedHtml);
+                        }
+                    }
                 }
                 else
                 {
-                    builder.AddContent(sequence + 2, GridUtils.GetRawContent(SanitizeHtmlHelper.Sanitize($"{cellValue}")));
+                    if (cell?.Column?.EnableSanitization == false)
+                    {
+                        builder.AddContent(sequence + 2, (MarkupString)($"{cellValue}"));
+                    }
+                    else
+                    {
+                        builder.AddContent(sequence + 2, GridUtils.GetRawContent(SanitizeHtmlHelper.Sanitize($"{cellValue}")));
+                    }
                 }
             }
         }
@@ -455,7 +599,6 @@ namespace Syncfusion.Blazor.Grids.Internal
             {
                 cellState.ClassList.AddOrSkip("e-gridchkbox");
                 cellState.ClassList.AddOrSkip("e-rowcell");
-                cellState.Attributes.AddOrUpdateItem("aria-label", "checkbox");
             }
 
             ApplyClipMode(cell!, cellState);
@@ -1158,8 +1301,16 @@ namespace Syncfusion.Blazor.Grids.Internal
             {
                 string cacheKey = $"{row.Uid}_{cell.Uid}";
                 var cellState = _cellCache.TryGetValue(cacheKey, out CellStateInfo? value) ? value : new CellStateInfo();
+                var customClasses = cellState.ClassList != null ? new List<string>(cellState.ClassList) : new List<string>();
                 cellState = UpdateCellState(cell, row, cellState);
                 cellState.PreviousCell = cell;
+                foreach (var customClass in customClasses)
+                {
+                    if (!cellState.ClassList.Contains(customClass))
+                    {
+                        cellState.ClassList.AddOrSkip(customClass);
+                    }
+                }
                 var cellDom = new CellDOM(cellState.ClassList, cellState.StyleList, cellState.Attributes);
                 var args = new RecordClickEventArgs<TRow>()
                 {
@@ -1231,6 +1382,10 @@ namespace Syncfusion.Blazor.Grids.Internal
         /// </summary>
         internal async Task KeyDownHandlerInternal(KeyboardEventArgs e, Row<object> row, Cell<object> cell)
         {
+            if(Parent?.EditSettings != null && Parent.EditSettings.EnableUndoRedo == true && (GridKeyUtilExtension.IsCtrlZ(e) || GridKeyUtilExtension.IsCtrlY(e) || GridKeyUtilExtension.IsCtrlShiftZ(e)))
+            {
+                return;
+            }
             if (!Parent!.IsRenderedFromTreeGrid || (Parent.IsRenderedFromTreeGrid && !Parent.EnableVirtualization))
             {
                 Parent.EventAggregator.Trigger("OnKeyDown", e);
@@ -1411,7 +1566,7 @@ namespace Syncfusion.Blazor.Grids.Internal
 
         private async Task ClickHandlerInternal(MouseEventArgs e, Row<object> row, Cell<object> cell)
         {
-            if (await Parent!.EditModule!.InvokeSingleClickHandler(row, cell))
+            if (await Parent!.EditModule!.InvokeSingleClickHandler(row, cell).ConfigureAwait(true))
             {
                 return;
             }

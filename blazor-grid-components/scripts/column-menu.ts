@@ -29,7 +29,8 @@ export class ColumnMenu {
         const e: HTMLElement = this.parent.getColumnHeaderByUid(uid).querySelector('.e-columnmenu');
         const columnMenuElement: Element = document.getElementsByClassName(`e-${this.parent.element.id}-column-menu`)[0];
         (columnMenuElement as HTMLElement).style.position = 'absolute';
-        const element: HTMLElement = columnMenuElement.getElementsByTagName('ul')[0];
+        const elementList: HTMLCollection = columnMenuElement.getElementsByTagName('ul');
+        const element: HTMLElement = elementList.length > 0 ? elementList[0] as HTMLElement : null;
         if (!isNullOrUndefined(element)) {
             let pos: { left: number; top: number; } = { top: 0, left: 0 };
             element.style.visibility = 'hidden';
@@ -60,7 +61,11 @@ export class ColumnMenu {
 
     public setPosition(): void {
         const columnMenuElement: Element = document.getElementsByClassName(`e-${this.parent.element.id}-column-menu`)[0];
-        const element: HTMLElement = !isNullOrUndefined(columnMenuElement) ? columnMenuElement.getElementsByTagName('ul')[0] : null;
+        let element: HTMLElement = null;
+        if (!isNullOrUndefined(columnMenuElement)) {
+            const elementList: HTMLCollection = columnMenuElement.getElementsByTagName('ul');
+            element = elementList.length > 0 ? elementList[0] as HTMLElement : null;
+        }
         if (!isNullOrUndefined(element) && !isNullOrUndefined(this.uid) && !isNullOrUndefined(this.parent.getColumnHeaderByUid(this.uid))
             && !Browser.isDevice) {
             const e: HTMLElement = this.parent.getColumnHeaderByUid(this.uid).querySelector('.e-columnmenu');

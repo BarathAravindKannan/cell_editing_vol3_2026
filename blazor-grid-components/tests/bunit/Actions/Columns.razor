@@ -1,5 +1,5 @@
 ﻿@inherits GridTestBase
-
+@using Syncfusion.Blazor.Grids.Internal
 <SfFixture @ref="fixture" Test="GridBasicRendering" Description="Testing the Columns in Grid">
     <ComponentUnderTest>
         <SfGrid @ref="Grid" DataSource="GenerateOrderData()">
@@ -346,7 +346,7 @@
         await cut.Instance._jsAdaptor.UpdateAutofillPositions("{\"Right\":\"\",\"Width\":\"350.5px\",\"BorderWidth\":\"2px\",\"Left\":\"279.6000061035156px\",\"Height\":\"74.60000228881836px\",\"Top\":\"36px\"}", "UpdateAutofillBorder");
         await cut.Instance._jsAdaptor.UpdateAutofillPositions("{\"Left\":\"625.1000061035156px\",\"Right\":\"\",\"Top\":\"104.60000228881836px\"}", "UpdateAutofillBox");
         await cut.Instance._jsAdaptor.InvokeCopyPasteAction("{\"clipboardText\":\"ANTON\"}", "Copy");
-        await cut.Instance._jsAdaptor.InvokePasteAction("{\"cellValue\":\"ANTON\"}", 3, 1, "CustomerID");
+        await cut.Instance._jsAdaptor.InvokeBatchPasteAction([new PasteCell { RowIndex = 3, ColumnIndex = 1, ColumnField = "CustomerID", Value = "ANTON" }]);
         await cut.Instance._jsAdaptor.UpdateAutofillCell(1, "CustomerID", "CustomerID", 0, "ALFKI");
         await cut.Instance._jsAdaptor.SelectCellByRow(1, 2);
         await cut.Instance._jsAdaptor.ClearSelection();
@@ -856,7 +856,7 @@
                             @{
                                 var tooltip = context as TooltipTemplateContext;
                             }
-                            </ToolTipTemplate>
+                            </TooltipTemplate>
                     </GridTemplates>
                 </GridColumn>
                 <GridColumn Field="@nameof(Order.CustomerID)" Width="120" HeaderText="Customer ID"></GridColumn>

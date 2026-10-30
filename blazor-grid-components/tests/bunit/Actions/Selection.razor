@@ -433,7 +433,7 @@
     <ComponentUnderTest>
         <SfGrid @ref="DefaultGrid7" DataSource="GenerateOrderData()" AllowPaging="true" AllowSelection="true">
             <GridEvents CellDeselected="CellDeselectHandler" CellDeselecting="CellDeselectingHandler1" TValue="Order"></GridEvents>
-            <GridSelectionSettings Mode="SelectionMode.Cell" Type="Blazor.Grids.SelectionType.Multiple" EnableToggle="true" CellSelectionMode="CellSelectionMode.Flow"></GridSelectionSettings>
+            <GridSelectionSettings Mode="SelectionMode.Cell" Type="Syncfusion.Blazor.Grids.SelectionType.Multiple" EnableToggle="true" CellSelectionMode="CellSelectionMode.Flow"></GridSelectionSettings>
             <GridColumns>
                 <GridColumn Field="@nameof(Order.OrderID)" HeaderText="Order ID" Width="150"></GridColumn>
                 <GridColumn Field="@nameof(Order.CustomerID)" HeaderText="Customer ID" Width="150"></GridColumn>
@@ -470,7 +470,7 @@
 <SfFixture @ref="fixture8" Test="GridBasicRendering8" Description="KeyHandler return call">
     <ComponentUnderTest>
         <SfGrid @ref="DefaultGrid8" DataSource="GenerateOrderData()" AllowPaging="true" AllowSelection="true">
-            <GridSelectionSettings Mode="SelectionMode.Cell" Type="Blazor.Grids.SelectionType.Single"></GridSelectionSettings>
+            <GridSelectionSettings Mode="SelectionMode.Cell" Type="Syncfusion.Blazor.Grids.SelectionType.Single"></GridSelectionSettings>
             <GridColumns>
                 <GridColumn Type="ColumnType.CheckBox" Width="50"></GridColumn>
                 <GridColumn Field="@nameof(Order.OrderID)" HeaderText="Order ID" Width="150"></GridColumn>
@@ -498,7 +498,7 @@
 <SfFixture @ref="fixture9" Test="GridBasicRendering9" Description="KeyHandler RowCellSelectionClickHandler call">
     <ComponentUnderTest>
         <SfGrid @ref="DefaultGrid9" DataSource="GenerateOrderData()" AllowPaging="true" AllowSelection="true">
-            <GridSelectionSettings Mode="SelectionMode.Both" Type="Blazor.Grids.SelectionType.Single"></GridSelectionSettings>
+            <GridSelectionSettings Mode="SelectionMode.Both" Type="Syncfusion.Blazor.Grids.SelectionType.Single"></GridSelectionSettings>
             <GridColumns>
                 <GridColumn Type="ColumnType.CheckBox" Width="50"></GridColumn>
                 <GridColumn Field="@nameof(Order.OrderID)" HeaderText="Order ID" Width="150"></GridColumn>
@@ -527,7 +527,7 @@
     <ComponentUnderTest>
         <SfGrid @ref="DefaultGrid10" DataSource="GenerateOrderData()" AllowPaging="true" AllowSelection="true">
             <GridEditSettings AllowAdding="true" AllowEditing="true" AllowDeleting="true" Mode="EditMode.Batch"></GridEditSettings>
-            <GridSelectionSettings Mode="SelectionMode.Cell" Type="Blazor.Grids.SelectionType.Multiple"></GridSelectionSettings>
+            <GridSelectionSettings Mode="SelectionMode.Cell" Type="Syncfusion.Blazor.Grids.SelectionType.Multiple"></GridSelectionSettings>
             <GridColumns>
                 <GridColumn Field="@nameof(Order.OrderID)" HeaderText="Order ID" Width="150"></GridColumn>
                 <GridColumn Field="@nameof(Order.CustomerID)" HeaderText="Customer ID" Width="150"></GridColumn>
@@ -555,7 +555,7 @@
 <SfFixture @ref="fixture11" Test="GridBasicRendering11" Description="HeaderClickHandler covered with events.">
     <ComponentUnderTest>
         <SfGrid @ref="DefaultGrid11" DataSource="GetVirtualData()" Height="400" Width="400" RowHeight="38" AllowSelection="true" AllowGrouping="true" EnableVirtualization="true">
-            <GridSelectionSettings Type="Blazor.Grids.SelectionType.Single"></GridSelectionSettings>
+            <GridSelectionSettings Type="Syncfusion.Blazor.Grids.SelectionType.Single"></GridSelectionSettings>
             <GridEvents RowSelected="RowSelectHandler" RowSelecting="RowSelectingHandler2" RowDeselected="RowDeselectHandler" RowDeselecting="RowDeselectingHandler" TValue="Order"></GridEvents>
             <GridColumns>
                 <GridColumn Type="ColumnType.CheckBox" Width="50"></GridColumn>

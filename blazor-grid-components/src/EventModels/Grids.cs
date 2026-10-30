@@ -11,6 +11,7 @@ using Microsoft.JSInterop;
 using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Components.Web;
 using Microsoft.AspNetCore.Components.Forms;
+using Syncfusion.Blazor.Grids.Actions;
 
 #region Syncfusion
 using Syncfusion.Blazor.Navigations;
@@ -1295,157 +1296,6 @@ public class EmptyRecordTemplateContext
     }
 
     /// <summary>
-    /// Provides information for the <see cref="Syncfusion.Blazor.Grids.GridEvents{TValue}.CellEditing"/> event in <see cref="EditMode.Cell"/>.
-    /// </summary>
-    /// <remarks>
-    /// Inherits every property from <see cref="CellEditArgs{T}"/> and adds the
-    /// <see cref="RowIndex"/> property that is specific to <see cref="Syncfusion.Blazor.Grids.GridEvents{TValue}.CellEditing"/> event.
-    /// </remarks>
-    /// <typeparam name="T">TValue of the grid component.</typeparam>
-    public class CellEditingEventArgs<T> : CellEditArgs<T>
-    {
-        /// <summary>
-        /// Gets the index of the row that contains the cell about to be edited.
-        /// </summary>
-        /// <value>
-        /// The zero-based row index of the cell about to be edited.
-        /// </value>
-        public int RowIndex { get; internal set; }
-    }
-
-    /// <summary>
-    /// Provides information for the <see cref="Syncfusion.Blazor.Grids.GridEvents{TValue}.CellEditCanceled"/> event
-    /// in <see cref="EditMode.Cell"/>.
-    /// </summary>
-    /// <typeparam name="T">TValue of the grid component.</typeparam>
-    public class CellEditCanceledEventArgs<T> : GridEventBaseArgs
-    {
-        /// <summary>
-        /// Gets the <see cref="Syncfusion.Blazor.Grids.GridColumn.Field"/> of the
-        /// cell whose edit was cancelled.
-        /// </summary>
-        /// <value>
-        /// A string representing the field name of the cancelled cell.
-        /// </value>
-        public string? ColumnName { get; internal set; }
-
-        /// <summary>
-        /// Gets the <see cref="Syncfusion.Blazor.Grids.GridColumn"/> associated
-        /// with the cancelled cell.
-        /// </summary>
-        /// <value>
-        /// A <see cref="Syncfusion.Blazor.Grids.GridColumn"/> representing the
-        /// column of the cancelled cell.
-        /// </value>
-        public GridColumn? Column { get; internal set; }
-
-        /// <summary>
-        /// Gets the data of the row that contains the cancelled cell after the
-        /// cell value has been reverted to its original state.
-        /// </summary>
-        /// <value>
-        /// An object of type <typeparamref name="T"/> representing the row data
-        /// after cancellation.
-        /// </value>
-        public T? RowData { get; internal set; }
-
-        /// <summary>
-        /// Gets the index of the row that contains the cancelled cell.
-        /// </summary>
-        /// <value>
-        /// The zero-based row index of the cancelled cell.
-        /// </value>
-        public int RowIndex { get; internal set; }
-
-        /// <summary>
-        /// Gets the value that was discarded when the cell edit was cancelled.
-        /// </summary>
-        /// <value>
-        /// An object representing the value typed by the user but not saved.
-        /// </value>
-        public object? DiscardedValue { get; internal set; }
-
-        /// <summary>
-        /// Gets the list of primary key field names of the grid.
-        /// </summary>
-        /// <value>
-        /// A string array containing the field names marked as primary key.
-        /// </value>
-        public string[]? PrimaryKeys { get; internal set; }
-    }
-
-    /// <summary>
-    /// Provides information for the <see cref="Syncfusion.Blazor.Grids.GridEvents{TValue}.CellEditCanceling"/> event
-    /// in <see cref="EditMode.Cell"/>.
-    /// </summary>
-    /// <typeparam name="T">TValue of the grid component.</typeparam>
-    public class CellEditCancelingEventArgs<T> : CellEditCanceledEventArgs<T>
-    {
-        /// <summary>
-        /// Gets or sets a value indicating whether to cancel the cell edit
-        /// cancellation action.
-        /// </summary>
-        /// <value>
-        /// The default value is <c>false</c>. If set to <c>true</c>, the editor
-        /// remains open and the discarded value is preserved.
-        /// </value>
-        public bool Cancel { get; set; }
-    }
-
-    /// <summary>
-    /// Represents the current editing state of a cell in <see cref="EditMode.Cell"/>.
-    /// Returned by <see cref="SfGrid{TValue}.GetCurrentCellEditStateAsync"/>.
-    /// </summary>
-    public class CellEditStateResult
-    {
-        /// <summary>
-        /// Gets a value indicating whether a cell editor is currently open.
-        /// </summary>
-        /// <value>
-        /// <c>true</c> when a cell is being edited; otherwise <c>false</c>.
-        /// </value>
-        public bool IsEditing { get; internal set; }
-
-        /// <summary>
-        /// Gets the <see cref="Syncfusion.Blazor.Grids.GridColumn.Field"/> of the
-        /// cell being edited.
-        /// </summary>
-        /// <value>
-        /// A string representing the field name of the open cell editor. Returns
-        /// <c>null</c> when <see cref="IsEditing"/> is <c>false</c>.
-        /// </value>
-        public string? ColumnName { get; internal set; }
-
-        /// <summary>
-        /// Gets the index of the row that contains the open cell editor.
-        /// </summary>
-        /// <value>
-        /// The zero-based row index of the open cell editor. Returns
-        /// <c>-1</c> when <see cref="IsEditing"/> is <c>false</c>.
-        /// </value>
-        public int RowIndex { get; internal set; } = -1;
-
-        /// <summary>
-        /// Gets the current draft value inside the open cell editor.
-        /// </summary>
-        /// <value>
-        /// An object representing the unsaved value currently in the editor.
-        /// Returns <c>null</c> when <see cref="IsEditing"/> is <c>false</c>.
-        /// </value>
-        public object? CurrentValue { get; internal set; }
-
-        /// <summary>
-        /// Gets the original data of the row that is being edited, captured
-        /// before the editor opened.
-        /// </summary>
-        /// <value>
-        /// An object representing the row data before editing started. Returns
-        /// <c>null</c> when <see cref="IsEditing"/> is <c>false</c>.
-        /// </value>
-        public object? OriginalRowData { get; internal set; }
-    }
-
-    /// <summary>
     /// Provides information about the <see cref="Syncfusion.Blazor.Grids.GridEvents{TValue}.CellSelected"/> event.
     /// </summary>
     /// <typeparam name="T">TValue of the grid component.</typeparam>
@@ -2229,56 +2079,133 @@ public class EmptyRecordTemplateContext
     }
 
     /// <summary>
-    /// Provides information about the <see cref="Syncfusion.Blazor.Grids.GridEvents{TValue}.BeforeAutoFillCell"/> event.
+    /// Provides event arguments for the <see cref="Syncfusion.Blazor.Grids.GridEvents{TValue}.BeforeAutoFillCell"/> event, which occurs before a cell value is autofilled.
     /// </summary>
-    /// <typeparam name="T">TValue of grid component.</typeparam>
-    public class BeforeAutoFillCellEventArgs<T>
+    /// <remarks>
+    /// This event arguments class supports cell-level control over autofill operations through cancellation and value modification capabilities.
+    /// Enables implementation of validation rules, conditional value transformations, and selective cell population to enforce business logic constraints.
+    /// </remarks>
+    /// <typeparam name="T">The data type of the grid's row data.</typeparam>
+    /// <example>
+    /// The following example shows how to cancel and modify autofill operations based on custom business rules:
+    /// <code><![CDATA[
+    /// <SfGrid DataSource="@Orders" EnableAutoFill="true" @ref="DefaultGrid" >
+    ///     <GridSelectionSettings CellSelectionMode="CellSelectionMode.Box" Mode="SelectionMode.Cell" Type="SelectionType.Multiple"></GridSelectionSettings>
+    ///     <GridEditSettings AllowAdding="true" AllowDeleting="true" AllowEditing="true" Mode="EditMode.Batch"></GridEditSettings>
+    ///     <GridEvents TValue="Order" BeforeAutoFillCell="OnBeforeAutoFillCell"></GridEvents>
+    /// ...
+    /// </SfGrid>
+    /// ...
+    /// private void OnBeforeAutoFillCell(BeforeAutoFillCellEventArgs<Order> args)
+    /// {
+    ///     // Cancel autofill for invalid quantities
+    ///     if (args.ColumnName == "Quantity" && (int)args.Value <= 0)
+    ///     {
+    ///         args.Cancel = true;
+    ///     }
+    ///     
+    ///     // Apply 15% markup to UnitPrice
+    ///     if (args.ColumnName == "UnitPrice")
+    ///     {
+    ///          args.Value = Convert.ToDecimal(args.Value) * 1.15m;
+    ///     }
+    /// }
+    /// ]]></code>
+    /// </example>
+    public class BeforeAutoFillCellEventArgs<T> : AfterAutoFillCellEventArgs<T>
     {
         /// <summary>
-        /// Gets or sets a value indicating whether to cancel the autofill action for a particular cell. You can cancel and handle auto filling. 
+        /// Gets or sets a value indicating whether to cancel the autofill action for the current cell.
         /// </summary>
         /// <value>
-        /// The default value is <c>false</c>, If the Cancel property is set to <c>true</c>, then the autofill action in a particular cell. will be cancelled.
+        /// <c>true</c> to cancel the autofill operation for this cell; otherwise, <c>false</c>. The default value is <c>false</c>.
         /// </value>
+        /// <remarks>
+        /// Set this property to <c>true</c> in the event handler to prevent the autofill value from being applied to the current cell. This allows for custom validation or conditional cell population logic.
+        /// </remarks>
         public bool Cancel { get; set; }
 
-        /// <summary>    
-        /// Gets the row index of the cell associated with autofill action.
+        /// <summary>
+        /// Gets or sets the value to be autofilled into the current cell.
         /// </summary>
         /// <value>
-        /// An integer representing the row index associated with the autofill action.
+        /// The autofill value, which is determined by the autofill operation mode and the source cell value. You can modify this property to customize the value being populated into the cell before it is applied. The default is <c>null</c>.
+        /// </value>
+        /// <remarks>
+        /// Enables modification of the autofill value before it is committed to the cell. Supports use cases such as value transformations, applying business rule-based defaults, and enforcing conditional constraints on cell values.
+        /// </remarks>
+        public new object? Value { get; set; }
+    }
+
+    /// <summary>
+    /// Provides event arguments for autofill operations on individual cells, containing detailed information about the cell and its associated data.
+    /// </summary>
+    /// <remarks>
+    /// Provides access to cell-level details and row data after autofill completion. Facilitates post-autofill processing tasks including validation, logging, auditing, and triggering dependent operations or business logic updates.
+    /// </remarks>
+    /// <typeparam name="T">The data type of the grid's row data.</typeparam>
+    /// <example>
+    /// The following example demonstrates how to handle the AfterAutoFillCell event.
+    /// <code><![CDATA[
+    /// <SfGrid DataSource="@Orders" EnableAutoFill="true" @ref="DefaultGrid" >
+    ///     <GridSelectionSettings CellSelectionMode="CellSelectionMode.Box" Mode="SelectionMode.Cell" Type="SelectionType.Multiple"></GridSelectionSettings>
+    ///     <GridEditSettings AllowAdding="true" AllowDeleting="true" AllowEditing="true" Mode="EditMode.Batch"></GridEditSettings>
+    ///     <GridEvents TValue="Order" AfterAutoFillCell="OnAfterAutoFillCell"></GridEvents>
+    /// </SfGrid>
+    /// 
+    /// @code{
+    ///     private async Task OnAfterAutoFillCell(AfterAutoFillCellEventArgs<Order> args)
+    ///     {
+    ///         // access the autofilled value and row data
+    ///         var autofilledValue = args.Value;
+    ///         var rowData = args.Data;
+    ///         ...
+    ///     }
+    /// }
+    /// ]]></code>
+    /// </example>
+    public class AfterAutoFillCellEventArgs<T> : GridEventBaseArgs
+    {
+        /// <summary>
+        /// Gets the zero-based row index of the cell being autofilled.
+        /// </summary>
+        /// <value>
+        /// An integer representing the zero-based row index within the grid's current view.
         /// </value>
         public int RowIndex { get; internal set; }
 
         /// <summary>
-        /// Gets the column index of the cell associated with autofill action.
+        /// Gets the zero-based column index of the cell being autofilled.
         /// </summary>
         /// <value>
-        /// An integer representing the column index associated with the autofill action.
+        /// An integer representing the zero-based column index within the grid's column collection.
         /// </value>
         public int ColumnIndex { get; internal set; }
 
         /// <summary>
-        /// Gets the column field name of the cell associated with autofill action.
+        /// Gets the field name of the column associated with the cell being autofilled.
         /// </summary>
         /// <value>
-        /// A string representing the column field name associated with the autofill action.
+        /// A string representing the field name (column binding property) associated with the autofill operation. Returns <c>null</c> for unbound columns.
         /// </value>
         public string? ColumnName { get; internal set; }
 
         /// <summary>
-        /// Gets or sets the value getting filled in the cell. You can change value using <see cref="Syncfusion.Blazor.Grids.GridEvents{TValue}.BeforeAutoFillCell"/> event.
+        /// Gets the value that was autofilled into the current cell.
         /// </summary>
         /// <value>
-        /// Returns the cell value based on column value type. The default value is null. 
-        /// </value>    
-        public object? Value { get; set; }
+        /// The autofill value, which is determined by the autofill operation mode and the source cell value. The value type corresponds to the column's data type. Defaults to <c>null</c>.
+        /// </value>
+        /// <remarks>
+        /// This property is read-only and provides access to the autofilled value for post-autofill operations.
+        /// </remarks>
+        public object? Value { get; internal set; }
 
         /// <summary>
-        /// Gets the row data of the cell associated with autofill action.
+        /// Gets the complete row data object associated with the cell being autofilled.
         /// </summary>
         /// <value>
-        /// Row data associated with autofill action.
+        /// An object of type <typeparamref name="T"/> representing the entire row's data. Returns <c>null</c> if row data is not available.
         /// </value>
         public T? Data { get; internal set; }
     }
@@ -5377,6 +5304,88 @@ public class EmptyRecordTemplateContext
     }
 
     /// <summary>
+    /// Provides information about the
+    /// <see cref="Syncfusion.Blazor.Grids.GridEvents{TValue}.Printing"/>
+    /// event.
+    /// </summary>
+    /// <remarks>
+    /// This class contains settings used to customize the Grid print operation.
+    /// You can cancel printing, specify an alternative data source for the
+    /// printed output, and define custom header and footer content.
+    /// </remarks>
+    public class PrintingEventArgs : GridEventBaseArgs
+    {
+        /// <summary>
+        /// Gets or sets a value indicating whether the print operation should be cancelled.
+        /// </summary>
+        /// <value>
+        /// A <see cref="bool"/> indicating whether printing is cancelled.
+        /// Set to <see langword="true"/> to cancel the print operation; otherwise,
+        /// <see langword="false"/>. The default value is <see langword="false"/>.
+        /// </value>
+        public bool Cancel { get; set; }
+
+        /// <summary>
+        /// Gets or sets the data source used to generate the printed output.
+        /// </summary>
+        /// <value>
+        /// An <see cref="IEnumerable{T}"/> containing the records to include in the
+        /// printed document. The default value is <see langword="null"/>.
+        /// </value>
+        /// <remarks>
+        /// <para>
+        /// When a value is assigned, the Grid prints the specified records instead
+        /// of using its current data source.
+        /// </para>
+        /// <para>
+        /// When the value is <see langword="null"/>, the Grid uses its current data
+        /// source and state to generate the printed output.
+        /// </para>
+        /// </remarks>
+        public IEnumerable<object>? PrintDataSource { get; set; }
+
+        /// <summary>
+        /// Gets or sets the template that defines the header content displayed
+        /// in the printed document.
+        /// </summary>
+        /// <value>
+        /// A <see cref="RenderFragment"/> that represents the header content of the
+        /// printed document. The default value is <see langword="null"/>.
+        /// </value>
+        /// <remarks>
+        /// <para>
+        /// Use this property to display custom content such as report titles,
+        /// images, company information, or other introductory content.
+        /// </para>
+        /// <para>
+        /// The template is rendered only in the printed output and does not affect
+        /// the Grid displayed in the application.
+        /// </para>
+        /// </remarks>
+        public RenderFragment? HeaderTemplate { get; set; }
+
+        /// <summary>
+        /// Gets or sets the template that defines the footer content displayed
+        /// in the printed document.
+        /// </summary>
+        /// <value>
+        /// A <see cref="RenderFragment"/> that represents the footer content of the
+        /// printed document. The default value is <see langword="null"/>.
+        /// </value>
+        /// <remarks>
+        /// <para>
+        /// Use this property to display custom content such as page information,
+        /// disclaimers, images, or summary details.
+        /// </para>
+        /// <para>
+        /// The template is rendered only in the printed output and does not affect
+        /// the Grid displayed in the application.
+        /// </para>
+        /// </remarks>
+        public RenderFragment? FooterTemplate { get; set; }
+    }
+
+    /// <summary>
     /// Provides information about the <see cref="Syncfusion.Blazor.Grids.GridEvents{TValue}.Sorting"/> event.
     /// </summary>
     public class SortingEventArgs : SortedEventArgs
@@ -7599,23 +7608,1215 @@ public class EmptyRecordTemplateContext
     }
 
     /// <summary>
-    /// Represents a single cell update operation for multiple cell-to-datasource saving.
+    /// Represents a cell value update operation for a grid row.
     /// </summary>
+    /// <remarks>
+    /// This class contains the information required to identify a specific cell
+    /// and assign a new value to it. A cell is uniquely identified by the
+    /// combination of the row's primary key value and the column field name.
+    /// Instances of this class are used with
+    /// <see cref="SfGrid{TValue}.SetCellValueAsync(IReadOnlyList{CellUpdate})"/> to update
+    /// one or more cell values programmatically.
+    /// </remarks>
+    /// <example>
+    /// <code><![CDATA[
+    /// var update = new CellUpdate
+    /// {
+    ///     PrimaryKeyValue = 1001,
+    ///     ColumnField = "CustomerName",
+    ///     NewValue = "John Doe"
+    /// };
+    /// ]]></code>
+    /// </example>
     public class CellUpdate
     {
         /// <summary>
-        /// Gets or sets the primary key value of the row containing the cell to update.
+        /// Gets or sets the primary key value of the row that contains the target cell.
         /// </summary>
-        public object PrimaryKeyValue { get; set; } = null!;
+        /// <value>
+        /// An <see cref="object"/> representing the unique identifier of the target row.
+        /// No default value is specified.
+        /// </value>
+        /// <remarks>
+        /// This value must correspond to the primary key field of a record in the
+        /// grid data source. Together with <see cref="ColumnField"/>, it is used
+        /// to identify the cell to update.
+        /// </remarks>
+        public object? PrimaryKeyValue { get; set; }
 
         /// <summary>
-        /// Gets or sets the field name of the column to update.
+        /// Gets or sets the field name of the column that contains the target cell.
         /// </summary>
+        /// <value>
+        /// A <see cref="string"/> representing the field name of the target column.
+        /// The default value is <see cref="string.Empty"/>.
+        /// </value>
+        /// <remarks>
+        /// The value must match the field name of a column defined in the grid.
+        /// Together with <see cref="PrimaryKeyValue"/>, it uniquely identifies the
+        /// cell to update.
+        /// </remarks>
         public string ColumnField { get; set; } = string.Empty;
 
         /// <summary>
-        /// Gets or sets the new value for the cell.
+        /// Gets or sets the new value to assign to the target cell.
         /// </summary>
+        /// <value>
+        /// An <see cref="object"/> containing the value to be applied to the cell.
+        /// The default value is <see langword="null"/>.
+        /// </value>
+        /// <remarks>
+        /// The value is assigned directly to the underlying data object and must match the target property's type.
+        /// This property supports nullable values. Assign
+        /// <see langword="null"/> to clear the cell value when the underlying
+        /// data source allows null assignments.
+        /// </remarks>
         public object? NewValue { get; set; }
+
+        /// <summary>
+        /// Gets or sets the primary key values of the row that contains the target cell.
+        /// </summary>
+        /// <value>
+        /// An <see cref="IReadOnlyDictionary{TKey, TValue}"/> that maps primary key column
+        /// field names to their corresponding values, or <see langword="null"/> when not specified.
+        /// No default value is specified.
+        /// </value>
+        /// <remarks>
+        /// Use this property to identify rows in grids that use single or composite primary keys.
+        /// <para>
+        /// For grids with a single primary key column, the dictionary can contain a single entry.
+        /// For grids with composite primary keys, all primary key field names and their corresponding
+        /// values must be provided to uniquely identify the row.
+        /// </para>
+        /// <para>
+        /// The dictionary keys must match the field names of the grid's primary key columns defined
+        /// using <see cref="GridColumn.IsPrimaryKey"/>. Field-name matching is case-sensitive, and
+        /// the order of entries in the dictionary is not significant.
+        /// </para>
+        /// <para>
+        /// Together with <see cref="ColumnField"/>, this property identifies the cell to update.
+        /// </para>
+        /// </remarks>
+        public IReadOnlyDictionary<string, object>? PrimaryKeyValues { get; set; }
+    }
+
+    /// <summary>
+    /// Provides common information for undo and redo event callbacks in the grid.
+    /// </summary>
+    /// <typeparam name="TValue">The type of data bound to the grid rows.</typeparam>
+    /// <remarks>
+    /// <para>
+    /// This base class contains shared properties used by all undo/redo event callbacks (<see cref="OnUndoEventArgs{TValue}"/>,
+    /// <see cref="OnUndoCompletedEventArgs{TValue}"/>, <see cref="OnRedoEventArgs{TValue}"/>, and <see cref="OnRedoCompletedEventArgs{TValue}"/>).
+    /// </para>
+    /// <para>
+    /// The properties provide information about the action being undone or redone, including the action type, affected row
+    /// and column indices, the cell field name (for cell edits), and the old/new values involved in the action.
+    /// </para>
+    /// <para>
+    /// <see cref="UndoRedoActionType.CellEdit"/> actions provide cell coordinates and old/new values through <see cref="OldValue"/>, 
+    /// <see cref="NewValue"/>, <see cref="FieldName"/>, and <see cref="ColumnIndex"/>. 
+    /// <see cref="UndoRedoActionType.RowAdd"/> and <see cref="UndoRedoActionType.RowDelete"/> actions provide the row index
+    /// and row data through <see cref="RowData"/>, <see cref="RowIndex"/>, <see cref="OldValue"/>, and <see cref="NewValue"/>. 
+    /// <see cref="UndoRedoActionType.Paste"/> and <see cref="UndoRedoActionType.AutoFill"/> actions cover multiple cells at once;
+    /// for these action types, <see cref="RowIndex"/>, <see cref="ColumnIndex"/>, <see cref="FieldName"/>, <see cref="OldValue"/>, 
+    /// and <see cref="NewValue"/> are all default values (<c>-1</c> or <c>null</c>) and should not be examined.
+    /// </para>
+    /// </remarks>
+    public class UndoRedoEventArgs<TValue> : GridEventBaseArgs
+    {
+        /// <summary>
+        /// Gets the type of action that is being undone or redone.
+        /// </summary>
+        /// <value>
+        /// One of the <see cref="UndoRedoActionType"/> values: <c>None</c>, <c>CellEdit</c>, <c>RowAdd</c>, <c>RowDelete</c>,
+        /// <c>Paste</c>, or <c>AutoFill</c>. The default value is <see cref="UndoRedoActionType.None"/>.
+        /// </value>
+        public UndoRedoActionType ActionType { get; internal set; }
+
+        /// <summary>
+        /// Gets the index of the row affected by the undo or redo action.
+        /// </summary>
+        /// <value>
+        /// The zero-based affected row index. For Paste and AutoFill, the value is <c>-1</c>; otherwise it identifies
+        /// the edited or added/deleted row. The default value is <c>-1</c>.
+        /// </value>
+        public int RowIndex { get; internal set; } = -1;
+
+        /// <summary>
+        /// Gets the field name of the column that identifies the affected cell for
+        /// <see cref="UndoRedoActionType.CellEdit"/> actions.
+        /// </summary>
+        /// <value>
+        /// The field name of the edited column for a <see cref="UndoRedoActionType.CellEdit"/> action.
+        /// Returns <c>null</c> for <see cref="UndoRedoActionType.RowAdd"/>, <see cref="UndoRedoActionType.RowDelete"/>,
+        /// <see cref="UndoRedoActionType.Paste"/>, and <see cref="UndoRedoActionType.AutoFill"/> actions.
+        /// The default value is <c>null</c>.
+        /// </value>
+        public string? FieldName { get; internal set; }
+
+        /// <summary>
+        /// Gets the value that was in effect before the original action.
+        /// </summary>
+        /// <value>
+        /// For <see cref="UndoRedoActionType.CellEdit"/>, the value before the edit, exposed as <see cref="object"/> because
+        /// a cell edit may target any column type. For <see cref="UndoRedoActionType.RowAdd"/> and
+        /// <see cref="UndoRedoActionType.RowDelete"/>, contains the affected row data typed as <typeparamref name="TValue"/>
+        /// and references the same row instance as <see cref="NewValue"/>. For <see cref="UndoRedoActionType.Paste"/> and
+        /// <see cref="UndoRedoActionType.AutoFill"/>, the value is <c>null</c>. The default value is <c>null</c>.
+        /// </value>
+        /// <remarks>
+        /// Row add and row delete actions have no distinct "previous" and "applied" cell values, so this property and
+        /// <see cref="NewValue"/> reference the same row instance and always compare as equal for those action types.
+        /// Consumers that need the affected row should read the strongly-typed <see cref="RowData"/> property, and any
+        /// logic that distinguishes action types must branch on <see cref="ActionType"/> rather than rely on a difference
+        /// between <c>OldValue</c> and <c>NewValue</c>.
+        /// </remarks>
+        public object? OldValue { get; internal set; }
+
+        /// <summary>
+        /// Gets the value that was applied by the original action.
+        /// </summary>
+        /// <value>
+        /// For <see cref="UndoRedoActionType.CellEdit"/>, the value after the edit, exposed as <see cref="object"/> because
+        /// a cell edit may target any column type. For <see cref="UndoRedoActionType.RowAdd"/> and
+        /// <see cref="UndoRedoActionType.RowDelete"/>, contains the affected row data typed as <typeparamref name="TValue"/>
+        /// and references the same row instance as <see cref="OldValue"/>. For <see cref="UndoRedoActionType.Paste"/> and
+        /// <see cref="UndoRedoActionType.AutoFill"/>, the value is <c>null</c>. The default value is <c>null</c>.
+        /// </value>
+        /// <remarks>
+        /// When <see cref="ActionType"/> is <see cref="UndoRedoActionType.RowAdd"/> or <see cref="UndoRedoActionType.RowDelete"/>,
+        /// the returned value is the row itself typed as <typeparamref name="TValue"/>; consumers no longer need to cast
+        /// from <see cref="object"/>. Because row actions have no distinct "previous" and "applied" cell values, this
+        /// property and <see cref="OldValue"/> reference the same row instance and always compare as equal for those
+        /// action types. Use the strongly-typed <see cref="RowData"/> property as the recommended accessor for the
+        /// affected row, and branch on <see cref="ActionType"/> rather than relying on a difference between
+        /// <c>OldValue</c> and <c>NewValue</c>.
+        /// </remarks>
+        public object? NewValue { get; internal set; }
+
+        /// <summary>
+        /// Gets the row data associated with <see cref="UndoRedoActionType.RowAdd"/> or <see cref="UndoRedoActionType.RowDelete"/>
+        /// actions, typed as <typeparamref name="TValue"/>.
+        /// </summary>
+        /// <value>
+        /// A <typeparamref name="TValue"/> representing the row that was added or deleted. Returns <c>null</c> for
+        /// <see cref="UndoRedoActionType.CellEdit"/>, <see cref="UndoRedoActionType.Paste"/>, and
+        /// <see cref="UndoRedoActionType.AutoFill"/> actions, as these action types carry per-cell changes rather than complete row data.
+        /// The default value is <c>null</c>.
+        /// </value>
+        /// <remarks>
+        /// This property is a typed accessor for the row data carried by <see cref="UndoRedoActionType.RowAdd"/> and 
+        /// <see cref="UndoRedoActionType.RowDelete"/> actions. For <see cref="UndoRedoActionType.CellEdit"/>, 
+        /// <see cref="UndoRedoActionType.Paste"/>, and <see cref="UndoRedoActionType.AutoFill"/> actions, 
+        /// examine the <see cref="OldValue"/>, <see cref="NewValue"/>, <see cref="FieldName"/>, and <see cref="ColumnIndex"/> 
+        /// properties instead to access the per-cell change information.
+        /// </remarks>
+        public TValue? RowData { get; internal set; }
+
+        /// <summary>
+        /// Gets the index of the column that contains the affected cell for
+        /// <see cref="UndoRedoActionType.CellEdit"/> actions.
+        /// </summary>
+        /// <value>
+        /// The zero-based index of the edited cell within the visible leaf columns for a
+        /// <see cref="UndoRedoActionType.CellEdit"/> action. The value is <c>-1</c> for row, Paste, and AutoFill
+        /// actions because no single cell is identified. The default value is <c>-1</c>.
+        /// </value>
+        public int ColumnIndex { get; internal set; } = -1;
+    }
+
+    /// <summary>
+    /// Provides information about the <see cref="Syncfusion.Blazor.Grids.GridEvents{TValue}.OnUndo"/> event callback.
+    /// </summary>
+    /// <typeparam name="TValue">The type of data bound to the grid rows.</typeparam>
+    /// <remarks>
+    /// The event fires <b>before</b> an Undo operation is executed and is informational only.
+    /// Event argument properties are read-only at runtime and cannot be used to modify, cancel, or interrupt the undo operation.
+    /// Use this event for pre-undo logging, state preparation, or audit trails.
+    /// For bulk calls such as <c>UndoAllAsync</c>, this event fires <b>once per action</b> consumed by the loop, not once
+    /// for the bulk operation; audit code should expect N invocations when draining an N-action stack.
+    /// See <see cref="UndoRedoEventArgs{TValue}"/> for the per-action-kind payload rules
+    /// (CellEdit / RowAdd / RowDelete / Paste / AutoFill).
+    /// </remarks>
+    public class OnUndoEventArgs<TValue> : UndoRedoEventArgs<TValue>
+    {
+    }
+
+    /// <summary>
+    /// Provides information about the <see cref="Syncfusion.Blazor.Grids.GridEvents{TValue}.OnUndoCompleted"/> event callback.
+    /// </summary>
+    /// <typeparam name="TValue">The type of data bound to the grid rows.</typeparam>
+    /// <remarks>
+    /// The event fires <b>after</b> an Undo operation has been executed and the Grid UI has been updated.
+    /// Event argument properties are read-only at runtime and cannot be used to modify, cancel, or interrupt the undo operation.
+    /// Use this event for audit logging, state validation, UI synchronization, or triggering side effects.
+    /// For bulk calls such as <c>UndoAllAsync</c>, this event fires <b>once per action</b> consumed by the loop, not once
+    /// for the bulk operation; audit code should expect N invocations when draining an N-action stack.
+    /// See <see cref="UndoRedoEventArgs{TValue}"/> for the per-action-kind payload rules
+    /// (CellEdit / RowAdd / RowDelete / Paste / AutoFill).
+    /// </remarks>
+    public class OnUndoCompletedEventArgs<TValue> : UndoRedoEventArgs<TValue>
+    {
+    }
+
+    /// <summary>
+    /// Provides information about the <see cref="Syncfusion.Blazor.Grids.GridEvents{TValue}.OnRedo"/> event callback.
+    /// </summary>
+    /// <typeparam name="TValue">The type of data bound to the grid rows.</typeparam>
+    /// <remarks>
+    /// The event fires <b>before</b> a Redo operation is executed and is informational only.
+    /// Event argument properties are read-only at runtime and cannot be used to modify, cancel, or interrupt the redo operation.
+    /// Use this event for pre-redo logging, state preparation, or audit trails.
+    /// For bulk calls such as <c>RedoAllAsync</c>, this event fires <b>once per action</b> consumed by the loop, not once
+    /// for the bulk operation; audit code should expect N invocations when draining an N-action stack.
+    /// See <see cref="UndoRedoEventArgs{TValue}"/> for the per-action-kind payload rules
+    /// (CellEdit / RowAdd / RowDelete / Paste / AutoFill).
+    /// </remarks>
+    public class OnRedoEventArgs<TValue> : UndoRedoEventArgs<TValue>
+    {
+    }
+
+    /// <summary>
+    /// Provides information about the <see cref="Syncfusion.Blazor.Grids.GridEvents{TValue}.OnRedoCompleted"/> event callback.
+    /// </summary>
+    /// <typeparam name="TValue">The type of data bound to the grid rows.</typeparam>
+    /// <remarks>
+    /// The event fires <b>after</b> a Redo operation has been executed and the Grid UI has been updated.
+    /// Event argument properties are read-only at runtime and cannot be used to modify, cancel, or interrupt the redo operation.
+    /// Use this event for audit logging, state validation, UI synchronization, or triggering side effects.
+    /// For bulk calls such as <c>RedoAllAsync</c>, this event fires <b>once per action</b> consumed by the loop, not once
+    /// for the bulk operation; audit code should expect N invocations when draining an N-action stack.
+    /// See <see cref="UndoRedoEventArgs{TValue}"/> for the per-action-kind payload rules
+    /// (CellEdit / RowAdd / RowDelete / Paste / AutoFill).
+    /// </remarks>
+    public class OnRedoCompletedEventArgs<TValue> : UndoRedoEventArgs<TValue>
+    {
+    }
+
+    /// <summary>
+    /// Represents a sorting definition requested by the grid.
+    /// </summary>
+    /// <remarks>
+    /// Instances of this class are provided through
+    /// <see cref="DataRequest.Sort"/> and describe how the returned
+    /// records should be ordered.
+    /// </remarks>
+    public class SortRequest
+    {
+        /// <summary>
+        /// Gets or sets the name of the field to sort.
+        /// </summary>
+        /// <value>
+        /// A <see cref="string"/> representing the field name,
+        /// or <see langword="null"/> if no field is specified.
+        /// </value>
+        [JsonPropertyName("name")]
+        public string? Name { get; set; }
+
+        /// <summary>
+        /// Gets or sets the sort direction.
+        /// </summary>
+        /// <value>
+        /// A <see cref="string"/> representing the requested sort direction,
+        /// such as <c>"ascending"</c> or <c>"descending"</c>,
+        /// or <see langword="null"/> if no direction is specified.
+        /// </value>
+        [JsonPropertyName("direction")]
+        public string? Direction { get; set; }
+
+        /// <summary>
+        /// Gets or sets the comparer associated with the sort operation.
+        /// </summary>
+        /// <value>
+        /// An <see cref="object"/> representing a custom comparer,
+        /// or <see langword="null"/> when no comparer is specified.
+        /// </value>
+        /// <remarks>
+        /// This property can be used to carry comparer information when a
+        /// custom sorting implementation is required.
+        /// </remarks>
+        [JsonPropertyName("comparer")]
+        public object? Comparer { get; set; }
+    }
+
+    /// <summary>
+    /// Represents a search definition requested by the grid.
+    /// </summary>
+    /// <remarks>
+    /// Instances of this class are provided through
+    /// <see cref="DataRequest.Search"/> and describe the search criteria
+    /// that should be applied before returning records to the grid.
+    /// </remarks>
+    public class SearchRequest
+    {
+        /// <summary>
+        /// Gets or sets the fields included in the search operation.
+        /// </summary>
+        /// <value>
+        /// A <see cref="List{T}"/> containing field names to search,
+        /// or <see langword="null"/> when no fields are specified.
+        /// </value>
+        [JsonPropertyName("fields")]
+        public List<string>? Fields { get; set; }
+
+        /// <summary>
+        /// Gets or sets the search text.
+        /// </summary>
+        /// <value>
+        /// A <see cref="string"/> representing the value to search for,
+        /// or <see langword="null"/> when no search value is specified.
+        /// </value>
+        [JsonPropertyName("key")]
+        public string? Key { get; set; }
+
+        /// <summary>
+        /// Gets or sets the search operator.
+        /// </summary>
+        /// <value>
+        /// A <see cref="string"/> representing the search comparison operator,
+        /// or <see langword="null"/> when the default operator is used.
+        /// </value>
+        /// <remarks>
+        /// Common operators include <c>contains</c>, <c>startswith</c>,
+        /// and <c>endswith</c>.
+        /// </remarks>
+        [JsonPropertyName("operator")]
+        public string? Operator { get; set; }
+
+        /// <summary>
+        /// Gets or sets a value indicating whether the search ignores character casing.
+        /// </summary>
+        /// <value>
+        /// <see langword="true"/> to perform a case-insensitive search;
+        /// otherwise, <see langword="false"/>.
+        /// </value>
+        [JsonPropertyName("ignoreCase")]
+        public bool IgnoreCase { get; set; }
+
+        /// <summary>
+        /// Gets or sets a value indicating whether accent marks and diacritic
+        /// characters are ignored during search operations.
+        /// </summary>
+        /// <value>
+        /// <see langword="true"/> to treat accented and unaccented characters
+        /// as equivalent; otherwise, <see langword="false"/>.
+        /// </value>
+        /// <remarks>
+        /// Enable this option to improve search behavior for multilingual
+        /// datasets where users may omit accent marks.
+        /// </remarks>
+        [JsonPropertyName("ignoreAccent")]
+        public bool IgnoreAccent { get; set; }
+    }
+
+    /// <summary>
+    /// Represents an aggregate definition requested by the grid.
+    /// </summary>
+    /// <remarks>
+    /// Instances of this class are provided through
+    /// <see cref="DataRequest.Aggregates"/> and describe the aggregate
+    /// values that should be calculated for the current request.
+    /// </remarks>
+    public class AggregateRequest
+    {
+        /// <summary>
+        /// Gets or sets the field for which aggregates are requested.
+        /// </summary>
+        /// <value>
+        /// A <see cref="string"/> representing the field name,
+        /// or <see langword="null"/> if no field is specified.
+        /// </value>
+        [JsonPropertyName("field")]
+        public string? Field { get; set; }
+
+        /// <summary>
+        /// Gets or sets the aggregate operation to perform.
+        /// </summary>
+        /// <value>
+        /// A <see cref="string"/> representing the aggregate type,
+        /// or <see langword="null"/> if no aggregate operation is specified.
+        /// </value>
+        /// <remarks>
+        /// Common aggregate types include <c>Sum</c>, <c>Average</c>,
+        /// <c>Min</c>, <c>Max</c>, and <c>Count</c>.
+        /// </remarks>
+        [JsonPropertyName("type")]
+        public string? Type { get; set; }
+    }
+
+    /// <summary>
+    /// Represents a filter definition requested by the grid.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Instances of this class are provided through
+    /// <see cref="DataRequest.Filter"/> and describe the filtering
+    /// criteria that should be applied to the data source.
+    /// </para>
+    /// <para>
+    /// A filter can represent either a simple condition or a complex
+    /// condition composed of multiple predicates combined using logical
+    /// operators such as <c>and</c> and <c>or</c>.
+    /// </para>
+    /// </remarks>
+    public class FilterRequest
+    {
+        /// <summary>
+        /// Gets or sets the field being filtered.
+        /// </summary>
+        /// <value>
+        /// A <see cref="string"/> representing the field name,
+        /// or <see langword="null"/> when not specified.
+        /// </value>
+        [JsonPropertyName("field")]
+        public string? Field { get; set; }
+
+        /// <summary>
+        /// Gets or sets a value indicating whether filtering ignores character casing.
+        /// </summary>
+        /// <value>
+        /// <see langword="true"/> to perform case-insensitive filtering;
+        /// otherwise, <see langword="false"/>.
+        /// </value>
+        [JsonPropertyName("ignoreCase")]
+        public bool IgnoreCase { get; set; }
+
+        /// <summary>
+        /// Gets or sets a value indicating whether accented and diacritic
+        /// characters are ignored during filtering.
+        /// </summary>
+        /// <value>
+        /// <see langword="true"/> to ignore accent marks; otherwise,
+        /// <see langword="false"/>.
+        /// </value>
+        [JsonPropertyName("ignoreAccent")]
+        public bool IgnoreAccent { get; set; }
+
+        /// <summary>
+        /// Gets or sets a value indicating whether this filter contains
+        /// nested predicates.
+        /// </summary>
+        /// <value>
+        /// <see langword="true"/> if the filter represents a complex
+        /// logical expression; otherwise, <see langword="false"/>.
+        /// </value>
+        [JsonPropertyName("isComplex")]
+        public bool IsComplex { get; set; }
+
+        /// <summary>
+        /// Gets or sets the filter operator.
+        /// </summary>
+        /// <value>
+        /// A <see cref="string"/> representing the comparison operator,
+        /// or <see langword="null"/> when not specified.
+        /// </value>
+        /// <remarks>
+        /// Common operators include <c>equal</c>, <c>notequal</c>,
+        /// <c>contains</c>, <c>startswith</c>, <c>endswith</c>,
+        /// <c>greaterthan</c>, and <c>lessthan</c>.
+        /// </remarks>
+        [JsonPropertyName("operator")]
+        public string? Operator { get; set; }
+
+        /// <summary>
+        /// Gets or sets the logical condition used to combine predicates.
+        /// </summary>
+        /// <value>
+        /// A <see cref="string"/> representing a logical operator such as
+        /// <c>and</c> or <c>or</c>, or <see langword="null"/> when the
+        /// filter is not a composite expression.
+        /// </value>
+        [JsonPropertyName("condition")]
+        public string? Condition { get; set; }
+
+        /// <summary>
+        /// Gets or sets the value used by the filter condition.
+        /// </summary>
+        /// <value>
+        /// An <see cref="object"/> containing the filter value,
+        /// or <see langword="null"/> when no value is specified.
+        /// </value>
+        [JsonPropertyName("value")]
+        public object? Value { get; set; }
+
+        /// <summary>
+        /// Gets or sets the child predicates that compose a complex filter.
+        /// </summary>
+        /// <value>
+        /// A <see cref="List{T}"/> containing nested
+        /// <see cref="FilterRequest"/> instances, or
+        /// <see langword="null"/> when no child predicates exist.
+        /// </value>
+        [JsonPropertyName("predicates")]
+        public List<FilterRequest>? Predicates { get; set; }
+
+        /// <summary>
+        /// Specifies the column type of the GridColumn, denoting the type of data it displays.
+        /// </summary>
+        internal string? ColumnType { get; set; }
+
+        /// <summary>
+        /// Creates a composite filter by combining the specified predicates
+        /// using an AND condition.
+        /// </summary>
+        /// <param name="predicates">
+        /// The collection of filter predicates to combine.
+        /// </param>
+        /// <returns>
+        /// A <see cref="FilterRequest"/> representing a complex filter
+        /// containing the specified predicates joined by an AND condition.
+        /// </returns>
+        /// <remarks>
+        /// The resulting filter has <see cref="IsComplex"/> set to
+        /// <see langword="true"/> and <see cref="Condition"/> set to <c>"and"</c>.
+        /// </remarks>
+        public static FilterRequest And(List<FilterRequest> predicates)
+        {
+            return new FilterRequest() { Condition = "and", IsComplex = true, Predicates = predicates };
+        }
+
+        /// <summary>
+        /// Creates a composite filter by combining the specified predicates
+        /// using an OR condition.
+        /// </summary>
+        /// <param name="predicates">
+        /// The collection of filter predicates to combine.
+        /// </param>
+        /// <returns>
+        /// A <see cref="FilterRequest"/> representing a complex filter
+        /// containing the specified predicates joined by an OR condition.
+        /// </returns>
+        /// <remarks>
+        /// The resulting filter has <see cref="IsComplex"/> set to
+        /// <see langword="true"/> and <see cref="Condition"/> set to <c>"or"</c>.
+        /// </remarks>
+        public static FilterRequest Or(List<FilterRequest> predicates)
+        {
+            return new FilterRequest() { Condition = "or", IsComplex = true, Predicates = predicates };
+        }
+
+        /// <summary>
+        /// Combines the current filter with a new filter condition using an AND condition.
+        /// </summary>
+        /// <param name="fieldName">
+        /// The name of the field to filter.
+        /// </param>
+        /// <param name="operator">
+        /// The comparison operator for the filter condition.
+        /// </param>
+        /// <param name="value">
+        /// The value to compare against.
+        /// </param>
+        /// <param name="ignoreCase">
+        /// <see langword="true"/> to perform case-insensitive filtering;
+        /// otherwise, <see langword="false"/>.
+        /// </param>
+        /// <param name="ignoreAccent">
+        /// <see langword="true"/> to ignore accent and diacritic characters;
+        /// otherwise, <see langword="false"/>.
+        /// </param>
+        /// <returns>
+        /// A <see cref="FilterRequest"/> representing a composite filter
+        /// that combines the current filter and the specified condition
+        /// using an AND operator.
+        /// </returns>
+        public FilterRequest And(string fieldName, string @operator = null!, object value = null!, bool ignoreCase = false, bool ignoreAccent = false)
+        {
+            FilterRequest predicate = new FilterRequest()
+            {
+                Field = fieldName,
+                Operator = @operator,
+                Value = value,
+                IgnoreCase = ignoreCase,
+                IgnoreAccent = ignoreAccent
+            };
+            FilterRequest combined = new FilterRequest()
+            {
+                Condition = "and",
+                IsComplex = true,
+                Predicates = new List<FilterRequest>()
+                {
+                    this,
+                    predicate
+                }
+            };
+            return combined;
+        }
+
+        internal FilterRequest And(string fieldName, string? @operator = null, object? value = null, bool ignoreCase = false, bool ignoreAccent = false, string? columnType = null)
+        {
+            FilterRequest predicate = new FilterRequest()
+            {
+                Field = fieldName,
+                Operator = @operator!,
+                Value = value!,
+                IgnoreCase = ignoreCase,
+                IgnoreAccent = ignoreAccent,
+                ColumnType = columnType
+            };
+            FilterRequest combined = new FilterRequest()
+            {
+                Condition = "and",
+                IsComplex = true,
+                Predicates = new List<FilterRequest>()
+                {
+                    this,
+                    predicate
+                }
+            };
+            return combined;
+        }
+
+        /// <summary>
+        /// Combines the current filter with the specified filter using an AND condition.
+        /// </summary>
+        /// <param name="predicate">
+        /// The filter to combine with the current filter.
+        /// </param>
+        /// <returns>
+        /// A <see cref="FilterRequest"/> representing a composite filter
+        /// that combines both filter expressions using an AND operator.
+        /// </returns>
+        /// <remarks>
+        /// The resulting filter has <see cref="IsComplex"/> set to
+        /// <see langword="true"/>.
+        /// </remarks>
+        public FilterRequest And(FilterRequest predicate)
+        {
+            FilterRequest combined = new FilterRequest()
+            {
+                Condition = "and",
+                IsComplex = true,
+                Predicates = new List<FilterRequest>()
+                {
+                    this,
+                    predicate
+                }
+            };
+            return combined;
+        }
+
+        /// <summary>
+        /// Combines the current filter with a new filter condition using an OR condition.
+        /// </summary>
+        /// <param name="fieldName">
+        /// The name of the field to filter.
+        /// </param>
+        /// <param name="operator">
+        /// The comparison operator for the filter condition.
+        /// </param>
+        /// <param name="value">
+        /// The value to compare against.
+        /// </param>
+        /// <param name="ignoreCase">
+        /// <see langword="true"/> to perform case-insensitive filtering;
+        /// otherwise, <see langword="false"/>.
+        /// </param>
+        /// <param name="ignoreAccent">
+        /// <see langword="true"/> to ignore accent and diacritic characters;
+        /// otherwise, <see langword="false"/>.
+        /// </param>
+        /// <returns>
+        /// A <see cref="FilterRequest"/> representing a composite filter
+        /// that combines the current filter and the specified condition
+        /// using an OR operator.
+        /// </returns>
+        public FilterRequest Or(string fieldName, string @operator = null!, object value = null!, bool ignoreCase = false, bool ignoreAccent = false)
+        {
+            FilterRequest predicate = new FilterRequest()
+            {
+                Field = fieldName,
+                Operator = @operator,
+                Value = value,
+                IgnoreCase = ignoreCase,
+                IgnoreAccent = ignoreAccent
+            };
+            FilterRequest combined = new FilterRequest()
+            {
+                Condition = "or",
+                IsComplex = true,
+                Predicates = new List<FilterRequest>()
+                {
+                    this,
+                    predicate
+                }
+            };
+            return combined;
+        }
+
+        internal FilterRequest Or(string fieldName, string? @operator = null, object? value = null, bool ignoreCase = false, bool ignoreAccent = false, string? columnType = null)
+        {
+            FilterRequest predicate = new FilterRequest()
+            {
+                Field = fieldName,
+                Operator = @operator!,
+                Value = value!,
+                IgnoreCase = ignoreCase,
+                IgnoreAccent = ignoreAccent,
+                ColumnType = columnType
+            };
+            FilterRequest combined = new FilterRequest()
+            {
+                Condition = "or",
+                IsComplex = true,
+                Predicates = new List<FilterRequest>()
+                {
+                    this,
+                    predicate
+                }
+            };
+            return combined;
+        }
+
+        /// <summary>
+        /// Combines the current filter with the specified filter using an OR condition.
+        /// </summary>
+        /// <param name="predicate">
+        /// The filter to combine with the current filter.
+        /// </param>
+        /// <returns>
+        /// A <see cref="FilterRequest"/> representing a composite filter
+        /// that combines both filter expressions using an OR operator.
+        /// </returns>
+        /// <remarks>
+        /// The resulting filter has <see cref="IsComplex"/> set to
+        /// <see langword="true"/>.
+        /// </remarks>
+        public FilterRequest Or(FilterRequest predicate)
+        {
+            FilterRequest combined = new FilterRequest()
+            {
+                Condition = "or",
+                IsComplex = true,
+                Predicates = new List<FilterRequest>()
+                {
+                    this,
+                    predicate
+                }
+            };
+            return combined;
+        }
+    }
+
+    /// <summary>
+    /// Provides information about an event-driven grid data request and enables the
+    /// event handler to return the requested data.
+    /// </summary>
+    /// <typeparam name="TValue">
+    /// The type of data displayed in the grid.
+    /// </typeparam>
+    /// <remarks>
+    /// <para>
+    /// Instances of this class are supplied to the <see cref="Syncfusion.Blazor.Grids.GridEvents{TValue}.OnDataLoad"/>
+    /// event whenever the grid requires data.
+    /// </para>
+    /// <para>
+    /// The <see cref="Request"/> property contains the paging, filtering, sorting,
+    /// searching, grouping, and aggregate metadata associated with the current operation.
+    /// </para>
+    /// <para>
+    /// Populate <see cref="Result"/> with the records to display. When total record
+    /// information is requested, populate <see cref="Count"/>. When aggregate values
+    /// are requested from the data source, populate
+    /// <see cref="AggregatesResult"/>.
+    /// </para>
+    /// </remarks>
+    public class GridLoadEventArgs<TValue> : GridEventBaseArgs
+    {
+        /// <summary>
+        /// Gets or sets the data request information associated with the current grid operation.
+        /// </summary>
+        /// <value>
+        /// A <see cref="DataRequest"/> instance containing the paging, filtering, sorting,
+        /// searching, grouping, selection, expansion, and aggregate metadata requested
+        /// by the grid.
+        /// </value>
+        /// <remarks>
+        /// Use this property to determine which records should be retrieved from the
+        /// underlying data source. The request reflects the current state of the grid
+        /// and should be used to construct queries against custom services, APIs,
+        /// repositories, or other external data sources.
+        /// </remarks>
+        public DataRequest Request { get; set; } = new DataRequest();
+
+        /// <summary>
+        /// Gets or sets the records returned for the current data request.
+        /// </summary>
+        /// <value>
+        /// An <see cref="IEnumerable"/> containing the records that satisfy the
+        /// current request, or <see langword="null"/> when no records are returned.
+        /// </value>
+        /// <remarks>
+        /// <para>
+        /// Populate this property in the <c>OnDataLoad</c> event handler with the
+        /// records that should be displayed by the grid.
+        /// </para>
+        /// <para>
+        /// The returned data should reflect the request metadata provided through
+        /// <see cref="Request"/>, including paging, filtering, sorting, searching,
+        /// and grouping operations.
+        /// </para>
+        /// </remarks>
+        [JsonIgnore]
+        public IEnumerable? Result { get; set; }
+
+        /// <summary>
+        /// Gets or sets the total number of records that match the current data request.
+        /// </summary>
+        /// <value>
+        /// An <see cref="int"/> representing the total number of matching records.
+        /// The default value is <c>0</c>.
+        /// </value>
+        /// <remarks>
+        /// <para>
+        /// Populate this property when the grid requires the total record count for
+        /// operations such as paging and virtual scrolling.
+        /// </para>
+        /// <para>
+        /// The value represents the total number of records that satisfy the current
+        /// request criteria and is not limited by the requested page size.
+        /// </para>
+        /// </remarks>
+        [JsonIgnore]
+        public int Count { get; set; }
+
+        /// <summary>
+        /// Gets or sets the aggregate values returned for the current data request.
+        /// </summary>
+        /// <value>
+        /// An <see cref="IDictionary{TKey,TValue}"/> containing aggregate results,
+        /// or <see langword="null"/> when no aggregate values are returned.
+        /// </value>
+        /// <remarks>
+        /// <para>
+        /// Populate this property when the grid requests aggregate values as part of
+        /// the event-driven data binding process.
+        /// </para>
+        /// <para>
+        /// The aggregate results should correspond to the aggregate definitions
+        /// provided in <see cref="DataRequest.Aggregates"/>.
+        /// </para>
+        /// </remarks>
+        [JsonIgnore]
+        public IDictionary<string, object>? AggregatesResult { get; set; }
+
+    }
+
+    /// <summary>
+    /// Represents the data operation information requested by the grid during
+    /// event-driven data binding.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// An instance of this class is provided through
+    /// <see cref="GridLoadEventArgs{TValue}.Request"/> whenever the grid raises
+    /// the <c>OnDataLoad</c> event.
+    /// </para>
+    /// <para>
+    /// The properties of this class describe the current state of the grid,
+    /// including paging, filtering, sorting, searching, grouping, and aggregate
+    /// operations. Use this information to retrieve the appropriate records
+    /// from a custom data source, service, or repository.
+    /// </para>
+    /// </remarks>
+    public class DataRequest
+    {
+        // ========== PAGINATION ==========
+
+        /// <summary>
+        /// Gets or sets the number of records to skip before returning data.
+        /// </summary>
+        /// <value>
+        /// An <see cref="int"/> representing the zero-based offset requested by
+        /// the grid. The default value is <c>0</c>.
+        /// </value>
+        /// <remarks>
+        /// Use this value together with <see cref="Take"/> to support paging
+        /// and virtual scrolling scenarios.
+        /// </remarks>
+        [JsonPropertyName("skip")]
+        public int Skip { get; set; }
+
+        /// <summary>
+        /// Gets or sets the maximum number of records to return.
+        /// </summary>
+        /// <value>
+        /// An <see cref="int"/> representing the requested page size or virtual
+        /// scroll block size. The default value is <c>0</c>.
+        /// </value>
+        /// <remarks>
+        /// Use this value together with <see cref="Skip"/> when retrieving
+        /// paged data from an external source.
+        /// </remarks>
+        [JsonPropertyName("take")]
+        public int Take { get; set; }
+
+        // ========== FILTER, SORT, GROUP, SEARCH ==========
+
+        /// <summary>
+        /// Gets or sets the filtering criteria requested by the grid.
+        /// </summary>
+        /// <value>
+        /// A <see cref="List{T}"/> of <see cref="FilterRequest"/> objects that
+        /// describe the active filters, or <see langword="null"/> when no
+        /// filtering is applied.
+        /// </value>
+        /// <remarks>
+        /// Apply these filter definitions to the underlying data source before
+        /// returning the requested records.
+        /// </remarks>
+        [JsonPropertyName("where")]
+        public List<FilterRequest>? Filter { get; set; }
+
+        /// <summary>
+        /// Gets or sets the sorting criteria requested by the grid.
+        /// </summary>
+        /// <value>
+        /// A <see cref="List{T}"/> of <see cref="SortRequest"/> objects that
+        /// describe the requested sort order, or <see langword="null"/> when
+        /// no sorting is applied.
+        /// </value>
+        /// <remarks>
+        /// Each item identifies a field and its sort direction.
+        /// </remarks>
+        [JsonPropertyName("sort")]
+        public List<SortRequest>? Sort { get; set; }
+
+        /// <summary>
+        /// Gets or sets the grouping configuration requested by the grid.
+        /// </summary>
+        /// <value>
+        /// A <see cref="List{T}"/> containing the grouped field names, or
+        /// <see langword="null"/> when grouping is not applied.
+        /// </value>
+        [JsonPropertyName("group")]
+        public List<string>? Group { get; set; }
+
+        /// <summary>
+        /// Gets or sets the fields selected for the current request.
+        /// </summary>
+        /// <value>
+        /// A <see cref="List{T}"/> containing the selected field names, or
+        /// <see langword="null"/> when no field projection is requested.
+        /// </value>
+        [JsonPropertyName("select")]
+        public List<string>? Select { get; set; }
+
+        /// <summary>
+        /// Gets or sets the navigation properties or related entities requested
+        /// for expansion.
+        /// </summary>
+        /// <value>
+        /// A <see cref="List{T}"/> containing expand definitions, or
+        /// <see langword="null"/> when no expansions are requested.
+        /// </value>
+        [JsonPropertyName("expand")]
+        public List<string>? Expand { get; set; }
+
+        /// <summary>
+        /// Gets or sets the search criteria requested by the grid.
+        /// </summary>
+        /// <value>
+        /// A <see cref="List{T}"/> of <see cref="SearchRequest"/> objects that
+        /// describe the active search operations, or <see langword="null"/>
+        /// when no search is applied.
+        /// </value>
+        /// <remarks>
+        /// Apply the specified search criteria before returning the requested
+        /// records.
+        /// </remarks>
+        [JsonPropertyName("search")]
+        public List<SearchRequest>? Search { get; set; }
+
+        // ========== AGGREGATES ==========
+
+        /// <summary>
+        /// Gets or sets the aggregate definitions requested by the grid.
+        /// </summary>
+        /// <value>
+        /// A <see cref="List{T}"/> of <see cref="AggregateRequest"/> objects
+        /// describing the aggregate operations to perform, or
+        /// <see langword="null"/> when no aggregates are requested.
+        /// </value>
+        /// <remarks>
+        /// Use these definitions to compute aggregate values and populate
+        /// <see cref="GridLoadEventArgs{TValue}.AggregatesResult"/>.
+        /// </remarks>
+        [JsonPropertyName("aggregates")]
+        public List<AggregateRequest>? Aggregates { get; set; }
+    }
+
+    /// <summary>
+    /// Provides information about a WebMCP tool execution request.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// An instance of this class is provided to the
+    /// <see cref="GridEvents{TValue}.OnWebMcpExecute"/> event whenever
+    /// a WebMCP tool is invoked through a <see cref="SfGrid{TValue}"/> instance.
+    /// </para>
+    /// <para>
+    /// The properties of this class describe the requested tool and its input
+    /// arguments. Use this information to inspect, audit, validate, modify, or
+    /// cancel tool execution before the corresponding handler runs.
+    /// </para>
+    /// <para>
+    /// For custom tools, the host application is responsible for handling the
+    /// invocation and returning a response by assigning a value to
+    /// <see cref="Result"/>.
+    /// </para>
+    /// <para>
+    /// For built-in tools, the grid executes the associated built-in handler
+    /// unless execution is cancelled or a custom response is provided.
+    /// </para>
+    /// <para>
+    /// Exceptions thrown during event handling are converted into structured
+    /// execution-failed responses and returned to the requesting agent.
+    /// </para>
+    /// </remarks>
+    public class WebMcpToolExecuteEventArgs : GridEventBaseArgs
+    {
+        /// <summary>
+        /// Gets the command associated with the tool execution request.
+        /// </summary>
+        /// <value>
+        /// A <see cref="GridWebMcpToolCommand"/> identifying the built-in
+        /// command or <see cref="GridWebMcpToolCommand.Custom"/> for a custom tool.
+        /// </value>
+        /// <remarks>
+        /// For built-in tools, this value is the exact enum member associated
+        /// with the command, such as <see cref="GridWebMcpToolCommand.GetSelectedRecords"/>.
+        /// Custom tools use <see cref="GridWebMcpToolCommand.Custom"/>.
+        /// This property is set by the grid and cannot be changed by application
+        /// code.
+        /// </remarks>
+        public GridWebMcpToolCommand Command { get; internal set; }
+
+        /// <summary>
+        /// Gets the name of the tool being executed.
+        /// </summary>
+        /// <value>
+        /// A <see cref="string"/> representing the tool associated with the current
+        /// WebMCP execution request, or <see langword="null"/> if no tool name is
+        /// available.
+        /// </value>
+        /// <remarks>
+        /// <para>
+        /// For custom tools, this value corresponds to the configured
+        /// <see cref="GridWebMcpTool.Name"/>.
+        /// </para>
+        /// <para>
+        /// For built-in tools, this value corresponds to the effective tool name
+        /// exposed to the agent after any customization applied through
+        /// <see cref="GridWebMcpTool"/>.
+        /// </para>
+        /// <para>
+        /// Applications can use this property within the
+        /// <see cref="GridEvents{TValue}.OnWebMcpExecute"/> event handler to identify
+        /// the requested tool and provide an appropriate response.
+        /// </para>
+        /// </remarks>
+        public string? ToolName { get; internal set; }
+
+        /// <summary>
+        /// Gets or sets the input arguments supplied with the tool execution request.
+        /// </summary>
+        /// <value>
+        /// An <see cref="IReadOnlyDictionary{TKey, TValue}"/> containing the argument
+        /// names and values provided for the current tool invocation, or
+        /// <see langword="null"/> if the tool does not define or receive any input
+        /// arguments.
+        /// </value>
+        /// <remarks>
+        /// <para>
+        /// The arguments exposed through this property correspond to the values
+        /// supplied by the requesting agent and are typically based on the tool's
+        /// registered input schema.
+        /// </para>
+        /// <para>
+        /// Applications can use this property within the
+        /// <see cref="GridEvents{TValue}.OnWebMcpExecute"/> event to inspect,
+        /// validate, and process the arguments associated with the current tool
+        /// request.
+        /// </para>
+        /// <para>
+        /// The collection is exposed as an
+        /// <see cref="IReadOnlyDictionary{TKey, TValue}"/> and is intended for
+        /// reading request data.
+        /// </para>
+        /// <para>
+        /// Assigning a new value to this property does not modify the arguments
+        /// used by the grid's built-in tool execution logic.
+        /// </para>
+        /// <para>
+        /// For custom tools, applications can use the supplied argument values
+        /// when generating a response through
+        /// <see cref="WebMcpToolExecuteEventArgs.Result"/>.
+        /// </para>
+        /// <para>
+        /// To override the default behavior of a built-in tool, assign a value to
+        /// <see cref="WebMcpToolExecuteEventArgs.Result"/> during the
+        /// <see cref="GridEvents{TValue}.OnWebMcpExecute"/> event.
+        /// </para>
+        /// </remarks>
+        public IReadOnlyDictionary<string, object>? Arguments { get; set; }
+
+
+        /// <summary>
+        /// Gets or sets a value indicating whether the tool execution should be
+        /// cancelled.
+        /// </summary>
+        /// <value>
+        /// A <see cref="bool"/> indicating whether execution is cancelled.
+        /// <see langword="true"/> cancels the operation; otherwise,
+        /// <see langword="false"/>. The default value is
+        /// <see langword="false"/>.
+        /// </value>
+        /// <remarks>
+        /// <para>
+        /// Set this property to <see langword="true"/> within the
+        /// <c>OnWebMcpExecute</c> event to prevent the requested tool from
+        /// executing.
+        /// </para>
+        /// <para>
+        /// When execution is cancelled, the dispatcher returns a cancellation
+        /// response to the requesting agent instead of invoking the associated tool
+        /// handler.
+        /// </para>
+        /// </remarks>
+        public bool Cancel { get; set; }
+
+        /// <summary>
+        /// Gets or sets the custom response payload produced by the host's
+        /// <c>OnWebMcpExecute</c> event handler, returned to the AI
+        /// agent in place of the built-in handler's output.
+        /// </summary>
+        /// <value>
+        /// An <see cref="object"/> representing the custom result data, or
+        /// <see langword="null"/> when no custom response is supplied by
+        /// the host. The default value is <see langword="null"/>.
+        /// </value>
+        /// <remarks>
+        /// <para>
+        /// Assigning a value to this property suppresses the normal tool
+        /// execution pipeline and returns the supplied value directly to the
+        /// requesting agent.
+        /// </para>
+        /// <para>
+        /// This property is commonly used when implementing custom WebMCP tools
+        /// through the <c>OnWebMcpExecute</c> event.
+        /// </para>
+        /// <para>
+        /// For built-in tools, setting this property overrides the result that
+        /// would otherwise be produced by the grid's built-in tool handler.
+        /// </para>
+        /// <para>
+        /// If both <see cref="Cancel"/> and <see cref="Result"/> are set,
+        /// <see cref="Cancel"/> takes precedence. The supplied result is ignored,
+        /// and a cancellation response is returned to the requesting agent.
+        /// </para>
+        /// </remarks>
+        public object? Result { get; set; }
     }
 }

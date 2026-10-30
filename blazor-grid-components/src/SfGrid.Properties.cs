@@ -71,7 +71,7 @@ namespace Syncfusion.Blazor.Grids
         /// The default value is <c>false</c>
         /// </value>
         /// <remarks>
-	/// Filter bar is disabled for template and command column, which means the columns is not having Field property.
+        /// Filter bar is disabled for template and command column, which means the columns is not having Field property.
         /// Filter type can be changed from <c>Filterbar</c> using the <see cref="Syncfusion.Blazor.Grids.GridFilterSettings.Type"/> property.
         /// Filter can be disabled for a particular column by using the <see cref="Syncfusion.Blazor.Grids.GridColumn.AllowFiltering"/> property.
         /// See <see cref="Syncfusion.Blazor.Grids.FilterType"/> for more details.
@@ -269,7 +269,7 @@ namespace Syncfusion.Blazor.Grids
         /// </value>
         /// <remarks>
         /// The <c>ClipMode</c> property can be set to one of the following values:
-	/// <list type="bullet">
+        /// <list type="bullet">
         /// <item>
         /// <term>Clip</term>
         /// <description>Truncates the cell content when it overflows the cell area.</description>
@@ -330,7 +330,7 @@ namespace Syncfusion.Blazor.Grids
         /// </summary>
         /// <value>
         /// The available built-in items are:
-	/// <list type="bullet">
+        /// <list type="bullet">
         /// <item>
         /// <term>AutoFitAll</term>
         /// <description>Auto fit the size of all columns.</description>
@@ -343,19 +343,19 @@ namespace Syncfusion.Blazor.Grids
         /// <term>Group</term>
         /// <description>Group by current column.</description>
         /// </item>
-	/// <item>
+        /// <item>
         /// <term>Ungroup</term>
         /// <description>Ungroup by current column.</description>
         /// </item>
-	/// <item>
+        /// <item>
         /// <term>SortAscending</term>
         /// <description>Sort the current column in ascending order.</description>
         /// </item>
-	/// <item>
+        /// <item>
         /// <term>SortDescending</term>
         /// <description>Sort the current column in descending order.</description>
         /// </item>
-	/// <item>
+        /// <item>
         /// <term>Filter</term>
         /// <description>Filter options will show based on <c>FilterSettings</c> property like checkbox filter, excel filter, menu filter.</description>
         /// </item>
@@ -557,7 +557,7 @@ namespace Syncfusion.Blazor.Grids
         /// <remarks>
         /// For rendering the adaptive UI layout in grid only for mobile devices then need to set the <see cref="AdaptiveUIMode"/> property value as "Mobile".
         /// Also to view the the rows vertically with headers positioned in the same row instead of at the top then need to set the <see cref="RowRenderingMode"/> property value as "Vertical".
-	/// </remarks>
+        /// </remarks>
         [Parameter]
         [JsonIgnore]
         public bool EnableAdaptiveUI { get; set; }
@@ -570,21 +570,21 @@ namespace Syncfusion.Blazor.Grids
         /// </value>
         /// <remarks>
         /// The <c>AdaptiveMode</c> property can be set to one of the following values:
-	/// <list type="bullet">
+        /// <list type="bullet">
         /// <item>
         /// <term>Both</term>
         /// <description>Renders adaptive layout for both mobile and desktop devices.</description>
         /// </item>
-	/// <item>
+        /// <item>
         /// <term>Mobile</term>
         /// <description>Renders adaptive layout only for smaller devices.</description>
         /// </item>
-	/// <item>
+        /// <item>
         /// <term>Desktop</term>
         /// <description>Renders adaptive layout only for desktop devices.</description>
         /// </item>
-	/// </list>
-	/// When set to <c>true</c> the Grid is rendered with a full-screen adaptive UI layout for some grid actions, such as filtering, sorting, and CRUD operations.
+        /// </list>
+        /// When set to <c>true</c> the Grid is rendered with a full-screen adaptive UI layout for some grid actions, such as filtering, sorting, and CRUD operations.
         /// </remarks>
         [Parameter]
         [DefaultValue(AdaptiveMode.Both)]
@@ -617,7 +617,7 @@ namespace Syncfusion.Blazor.Grids
         /// <remarks>
         /// When set to <c>true</c>, the grid will apply the <c>e-altrow</c> CSS class to alternative tr element of grid rows. This can be useful for styling alternating rows differently for improved readability.
         /// The alternative row styling is customized by simply overriding the <c>e-altrow</c> class in application end.
-	/// </remarks>
+        /// </remarks>
         [Parameter]
         [DefaultValue(true)]
         [JsonPropertyName("enableAltRow")]
@@ -670,7 +670,7 @@ namespace Syncfusion.Blazor.Grids
         /// </value>
         /// <remarks>
         /// It is must to set <c>EnableVirtualization</c> or <c>EnableColumnVirtualization</c> property value as true to use this mask row feature.
-	/// The Virtual mask row is supported for column virtualization too.
+        /// The Virtual mask row is supported for column virtualization too.
         /// </remarks>
         [Parameter]
         [JsonPropertyName("enableVirtualMaskRow")]
@@ -785,6 +785,71 @@ namespace Syncfusion.Blazor.Grids
         private bool _enableVirtualization { get; set; }
 
         /// <summary>
+        /// Gets or sets a value indicating whether DOM virtualization is enabled.
+        /// DOM virtualization maintains a fixed pool of row elements and reuses them during scrolling,
+        /// reducing DOM size and improving scrolling performance for large datasets.
+        /// </summary>
+        /// <value>
+        /// <c>true</c> to enable DOM virtualization; <c>false</c> to disable. The default value is <c>false</c>.
+        /// </value>
+        /// <remarks>
+        /// <para>
+        /// DOM virtualization is DISTINCT from row/column virtual scrolling (<see cref="EnableVirtualization"/>).
+        /// Virtual scrolling governs which records are fetched from the data source (fetch window).
+        /// DOM virtualization governs how many row elements are rendered in the DOM (element ceiling).
+        /// </para>
+        /// <para>
+        /// The two can be toggled independently and composed together:
+        /// <list type="bullet">
+        /// <item><description>DOM virt ON, virtual scroll OFF: All records available locally; element ceiling bounds DOM size.</description></item>
+        /// <item><description>DOM virt OFF, virtual scroll ON: Standard virtual scrolling behavior; no DOM pooling.</description></item>
+        /// <item><description>Both ON: Fetch window (OverscanCount) + element ceiling (MaxPoolSize) work independently.</description></item>
+        /// </list>
+        /// </para>
+        /// <para>
+        /// When <c>true</c>, you can configure DOM virtualization behavior via <see cref="DomVirtualizationSettings"/>.
+        /// When <c>false</c>, <see cref="DomVirtualizationSettings"/> is ignored and baseline defaults apply.
+        /// </para>
+        /// <para>
+        /// Specification: GRID-VIRT-024, BLZ-VIRT-007
+        /// </para>
+        /// </remarks>
+        [Parameter]
+        [DefaultValue(false)]
+        [JsonPropertyName("enableDomVirtualization")]
+        public bool EnableDomVirtualization { get; set; }
+
+        private bool _enableDomVirtualization { get; set; }
+
+        /// <summary>
+        /// Gets or sets the DOM virtualization settings component.
+        /// </summary>
+        /// <value>
+        /// An instance of <see cref="GridDomVirtualizationSettings{TValue}"/>.
+        /// </value>
+        /// <remarks>
+        /// <para>
+        /// This component configures DOM virtualization parameters:
+        /// <list type="bullet">
+        /// <item><description><see cref="GridDomVirtualizationSettings{TValue}.RowBuffer"/>: Render-side overscan rows.</description></item>
+        /// <item><description><see cref="GridDomVirtualizationSettings{TValue}.ColumnBuffer"/>: Render-side overscan columns.</description></item>
+        /// <item><description><see cref="GridDomVirtualizationSettings{TValue}.MaxPoolSize"/>: Maximum row elements in DOM (default 500).</description></item>
+        /// <item><description><see cref="GridDomVirtualizationSettings{TValue}.ScrollThrottle"/>: Rate-limit scroll events (ms).</description></item>
+        /// <item><description><see cref="GridDomVirtualizationSettings{TValue}.AutoRowHeight"/>: Measure rows with templates/wrapped text.</description></item>
+        /// </list>
+        /// </para>
+        /// <para>
+        /// This setting has effect only when <see cref="EnableDomVirtualization"/> is <c>true</c>.
+        /// When <c>false</c> or null, baseline defaults apply.
+        /// </para>
+        /// <para>
+        /// Specification: BLZ-VIRT-007a
+        /// </para>
+        /// </remarks>
+        [CascadingParameter]
+        public GridDomVirtualizationSettings<TValue>? DomVirtualizationSettings { get; set; }
+
+        /// <summary>
         /// Gets or sets instance of <see cref="Syncfusion.Blazor.Grids.GridFilterSettings"/> which configures the filtering behavior of grid.
         /// </summary>
         /// <value>
@@ -861,28 +926,28 @@ namespace Syncfusion.Blazor.Grids
         /// </value>
         /// <remarks>
         /// The available modes are,
-	/// <list type="bullet">
+        /// <list type="bullet">
         /// <item>
         /// <term>Both</term>
         /// <description>Displays both the horizontal and vertical grid lines.</description>
         /// </item>
-	/// <item>
+        /// <item>
         /// <term>None</term>
         /// <description>No grid lines are displayed.</description>
         /// </item>
-	/// <item>
+        /// <item>
         /// <term>Horizontal</term>
         /// <description>Displays the horizontal grid lines only.</description>
         /// </item>
-	/// <item>
+        /// <item>
         /// <term>Vertical</term>
         /// <description>Displays the vertical grid lines only.</description>
         /// </item>
-	/// <item>
+        /// <item>
         /// <term>Default</term>
         /// <description>Displays DataGrid lines based on the theme.</description>
         /// </item>
-	/// </list>    
+        /// </list>    
         /// </remarks>
         [Parameter]
         [DefaultValue(GridLine.Default)]
@@ -933,20 +998,20 @@ namespace Syncfusion.Blazor.Grids
         /// </value>
         /// <remarks>
         /// The available modes are:
-	/// <list type="bullet">
+        /// <list type="bullet">
         /// <item>
         /// <term>Expanded</term>
         /// <description>Prints the master grid with expanded child grids.</description>
         /// </item>
-	/// <item>
+        /// <item>
         /// <term>All</term>
         /// <description>Prints the master grid with all the child grids.</description>
         /// </item>
-	/// <item>
+        /// <item>
         /// <term>None</term>
         /// <description>Prints the master grid alone without any child grids.</description>
         /// </item>
-	/// </list>
+        /// </list>
         /// </remarks>
         [Parameter]
         [DefaultValue(HierarchyGridPrintMode.Expanded)]
@@ -1026,6 +1091,22 @@ namespace Syncfusion.Blazor.Grids
         private GridRowDropSettings? _rowDropSettings { get; set; }
 
         /// <summary>
+        /// Gets or sets instance of <see cref="Syncfusion.Blazor.Grids.GridFindSettings"/> which configures find and highlight behavior of grid.
+        /// </summary>
+        /// <value>
+        /// An instance of <see cref="Syncfusion.Blazor.Grids.GridFindSettings"/>.
+        /// </value>
+        /// <remarks> 
+        /// <see cref="Syncfusion.Blazor.Grids.GridFindSettings"/> class provides various properties to customize find and highlight operations. 
+        /// </remarks>
+        [Parameter]
+        [DefaultValue(null)]
+        [JsonPropertyName("findSettings")]
+        public GridFindSettings? FindSettings { get; set; }
+
+        private GridFindSettings? _findSettings { get; set; }
+
+        /// <summary>
         /// Gets or sets the height of grid rows.
         /// </summary>
         /// <value>
@@ -1051,16 +1132,16 @@ namespace Syncfusion.Blazor.Grids
         /// </value>
         /// <remarks>
         /// The available modes are:
-	/// <list type="bullet">
+        /// <list type="bullet">
         /// <item>
         /// <term>Horizontal</term>
         /// <description>Displays the data rows in horizontal direction.</description>
         /// </item>
-	/// <item>
+        /// <item>
         /// <term>Vertical</term>
         /// <description>Displays the data rows in vertical direction.</description>
         /// </item>
-	/// </list>
+        /// </list>
         /// The <see cref="Syncfusion.Blazor.Grids.SfGrid{TValue}.RowRenderingMode"/> property is rendered on the adaptive layout based on the <see cref="Syncfusion.Blazor.Grids.SfGrid{TValue}.AdaptiveUIMode"/> property.
         /// Setting this property value as "Vertical" rows are rendered vertically with headers in the same row which suits better to view grid in small screens.
         /// In vertical row rendering mode, limited features are supported like filtering, sorting, dialog editing, selection, searching and row virtualization.
@@ -1084,6 +1165,12 @@ namespace Syncfusion.Blazor.Grids
         public GridSearchSettings? SearchSettings { get; set; }
 
         private GridSearchSettings? _searchSettings { get; set; }
+
+        /// <summary>
+        /// Note: the Find and Highlight feature is no longer toggled via a dedicated public
+        /// property. To enable it, include the string <c>"Find"</c> in the
+        /// <see cref="Toolbar"/> list — same pattern as the built-in <c>"Search"</c> toolbar item.
+        /// </summary>
 
         /// <summary>
         /// Gets or sets the index of the row that is selected initially while rendering the grid component.
@@ -1194,19 +1281,15 @@ namespace Syncfusion.Blazor.Grids
         /// <term>Add</term>
         /// <description>Adds a new record.</description>
         /// </item>
-	/// <item>
-        /// <term>Add</term>
-        /// <description>Adds a new record.</description>
-        /// </item> 
-	/// <item>
+        /// <item>
         /// <term>Edit</term>
         /// <description>Edits the selected record.</description>
         /// </item> 
-	/// <item>
+        /// <item>
         /// <term>Update</term>
         /// <description>Updates the edited record.</description>
         /// </item> 
-	/// <item>
+        /// <item>
         /// <term>Delete</term>
         /// <description>Deletes the selected record.</description>
         /// </item> 
@@ -1214,31 +1297,58 @@ namespace Syncfusion.Blazor.Grids
         /// <term>Cancel</term>
         /// <description>Cancels the edit state.</description>
         /// </item> 
-	/// <item>
+        /// <item>
         /// <term>Search</term>
         /// <description>Searches the records by the given key.</description>
-        /// </item> 
-	/// <item>
+        /// </item>
+        /// <item>
+        /// <term>Find</term>
+        /// <description>Searches cell content within the Grid and highlights matching text.</description>
+        /// </item>
+        /// <item>
         /// <term>Print</term>
         /// <description>Prints the datagrid.</description>
         /// </item> 
-	/// <item>
+        /// <item>
         /// <term>ExcelExport</term>
         /// <description>Exports the datagrid to Excel file format.</description>
         /// </item> 
-	/// <item>
+        /// <item>
         /// <term>PdfExport</term>
         /// <description>Exports the datagrid to PDF file format.</description>
         /// </item> 
-	/// <item>
+        /// <item>
         /// <term>CsvExport</term>
         /// <description>Exports the datagrid to CSV file format.</description>
-        /// </item>       
+        /// </item>
+        /// <item>
+        /// <term>Undo</term>
+        /// <description>Reverses the most recent batch edit operation (cell edit, row add, row delete, paste or auto-fill) recorded in the Undo/Redo history.</description>
+        /// </item>
+        /// <item>
+        /// <term>Redo</term>
+        /// <description>Reapplies the most recently undone batch edit operation from the Undo/Redo history.</description>
+        /// </item>
         /// </list>
         /// </value>
         /// <remarks>
         /// In some cases, you may want to use a custom toolbar instead of the default one. In such cases, you can use the
-        /// <see cref="Syncfusion.Blazor.Grids.GridTemplates.ToolbarTemplate"/> property to provide a custom toolbar template
+        /// <see cref="Syncfusion.Blazor.Grids.GridTemplates.ToolbarTemplate"/> property to provide a custom toolbar template.
+        /// <para>
+        /// Include the <c>Find</c> toolbar item to enable the Find and Highlight
+        /// feature
+        /// </para>
+        /// <para>
+        /// Use <see cref="GridColumn.AllowSearchHighlight"/> to specify whether
+        /// a particular column participates in Find and Highlight operations.
+        /// </para>
+        /// <para>
+        /// The <c>Undo</c> and <c>Redo</c> toolbar items are only enabled when
+        /// <see cref="Syncfusion.Blazor.Grids.GridEditSettings.Mode"/> is set to
+        /// <see cref="Syncfusion.Blazor.Grids.EditMode.Batch"/> and
+        /// <see cref="Syncfusion.Blazor.Grids.GridEditSettings.EnableUndoRedo"/> is <c>true</c>.
+        /// The buttons are disabled when their respective stack is empty.
+        /// </para>
         /// </remarks>
         [Parameter]
         [DefaultValue(null)]
@@ -1484,5 +1594,87 @@ namespace Syncfusion.Blazor.Grids
         /// </summary>
         [JsonIgnore]
         internal bool SuppressAutoSpanning { get; set; }
+
+        /// <summary>
+        /// Gets or sets a value indicating whether WebMCP tool support is enabled for the grid.
+        /// When enabled, the grid can register tools with the browser's <c>document.modelContext</c>
+        /// API, allowing compatible AI agents to interact with the grid through
+        /// JSON Schema-defined tools.
+        /// </summary>
+        /// <value>
+        /// A <see cref="bool"/> indicating whether WebMCP tool integration is enabled.
+        /// The default value is <see langword="false"/>.
+        /// </value>
+        /// <remarks>
+        /// <para>
+        /// WebMCP tool registration is supported only in environments that expose the
+        /// browser's <c>document.modelContext</c> API. Because this browser API is
+        /// experimental, its behavior and availability may change in future browser
+        /// releases.
+        /// </para>
+        /// <para>
+        /// Tool registration requires an interactive browser context. WebMCP tools are
+        /// not registered during Static Server-Side Rendering (SSR) or prerendering.
+        /// Registration occurs only after the component becomes interactive.
+        /// </para>
+        /// <para>
+        /// The behavior of enabling or disabling WebMCP support after the grid has
+        /// already rendered is undefined. Configure this property during component
+        /// initialization and avoid changing it at runtime.
+        /// </para>
+        /// </remarks>
+        /// <example>
+        /// <![CDATA[
+        /// <SfGrid DataSource="@Orders" 
+        ///       EnableWebMcp="true">
+        /// </SfGrid>
+        /// ]]>
+        /// </example>
+        [Parameter]
+        [DefaultValue(false)]
+        public bool EnableWebMcp { get; set; }
+        private bool _enableWebMcp { get; set; }
+
+        /// <summary>
+        /// Gets or sets the per-instance WebMCP tool configuration for the grid.
+        /// </summary>
+        /// <value>
+        /// A <see cref="GridWebMcpSettings"/> instance that defines the WebMCP tools
+        /// exposed by the grid, or <see langword="null"/> to use the default built-in
+        /// tool configuration. The default value is <see langword="null"/>.
+        /// </value>
+        /// <remarks>
+        /// <para>
+        /// Use <see cref="GridWebMcpSettings"/> to customize the WebMCP tool registry,
+        /// including disabling built-in tools, overriding tool metadata, or
+        /// registering custom tools that can be invoked by compatible AI agents.
+        /// </para>
+        /// <para>
+        /// Custom tools are executed through the
+        /// <c>OnWebMcpExecute</c> event exposed by
+        /// <see cref="GridEvents{TValue}"/>, allowing applications to provide custom
+        /// tool execution logic.
+        /// </para>
+        /// <para>
+        /// This property is effective only when <see cref="EnableWebMcp"/> is set to
+        /// <see langword="true"/> and the hosting environment supports the browser's
+        /// <c>document.modelContext</c> API.
+        /// </para>
+        /// </remarks>
+        /// <example>
+        /// <![CDATA[
+        /// <SfGrid DataSource="@Orders" EnableWebMcp="true">
+        /// <GridWebMcpSettings Name="SalesGrid">
+        ///     <GridWebMcpTools>
+        ///         <GridWebMcpTool Command="GridWebMcpToolCommand.FilterByColumn" Name="filterOrders" />
+        ///     </GridWebMcpTools>
+        /// </GridWebMcpSettings>
+        /// </SfGrid>
+        /// ]]>
+        /// </example>
+        [Parameter]
+        [DefaultValue(null)]
+        public GridWebMcpSettings? WebMcpSettings { get; set; }
+        private GridWebMcpSettings? _webMcpSettings { get; set; }
     }
 }

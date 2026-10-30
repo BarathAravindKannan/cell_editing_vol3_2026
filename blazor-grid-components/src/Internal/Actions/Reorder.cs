@@ -226,6 +226,10 @@ namespace Syncfusion.Blazor.Grids.Internal
         #region Internal methods such as JS Interop
         public async ValueTask ColumnReordered(object? args)
         {
+            if(Parent.IsEdit && Parent.EditModule != null && Parent.EditModule.IsCellEditMode())
+            {
+                await Parent.EditModule!.CloseEdit().ConfigureAwait(true);
+            }
             ActionArgs? action = JsonSerializer.Deserialize<ActionArgs>(args?.ToString()!);
 
             if (action?.RequestType == "reorder")
@@ -276,14 +280,14 @@ namespace Syncfusion.Blazor.Grids.Internal
                     await Parent.HideSpinnerAsync().ConfigureAwait(true);
                     return;
                 }
-                await SfBaseUtils.InvokeEvent<ActionEventArgs<T>>(Parent.GridEvents?.OnActionComplete, ar).ConfigureAwait(true);
+                await SfBaseUtils.InvokeEvent<ActionEventArgs<T>>(Parent.GridEvents?.OnActionComplete!, ar).ConfigureAwait(true);
                 await Parent.EventAggregator.NotifyAsync("ActionComplete", ar).ConfigureAwait(true);
                 var reoderedArgs = new ColumnReorderedEventArgs()
                 {
                     ReorderingColumns = reorderEventArgs.ReorderingColumns,
                     ToColumn = reorderEventArgs.ToColumn!
                 };
-                await SfBaseUtils.InvokeEvent<ColumnReorderedEventArgs>(Parent.GridEvents?.ColumnReordered, reoderedArgs).ConfigureAwait(true);
+                await SfBaseUtils.InvokeEvent<ColumnReorderedEventArgs>(Parent.GridEvents?.ColumnReordered!, reoderedArgs).ConfigureAwait(true);
                 await Parent.EventAggregator.NotifyAsync("ColumnReordered", reorderEventArgs).ConfigureAwait(true);
                 await Parent.InvokeSuccessAsync(ar, requestType: "Reorder").ConfigureAwait(true);
             }

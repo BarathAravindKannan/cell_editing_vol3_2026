@@ -35,7 +35,7 @@ export class ColumnWidthService {
                 tmWidth += !isNullOrUndefined(cols.minWidth) ?
                     ((typeof cols.minWidth === 'string' ? parseInt(cols.minWidth, 10) : cols.minWidth)) : 0;
             }
-            const minWidthValues: {} = {};
+            const minWidthValues: Record<string, string> = {};
             for (let i: number = 0; i < collection.length; i++) {
                 if (tWidth === 0 && this.parent.options.allowResizing && this.isWidthUndefined() && (i !== collection.length - 1)) {
                     this.setUndefinedColumnWidth(collection);
@@ -255,7 +255,11 @@ export class ColumnWidthService {
 
     private setWidthToFrozenLeftTable(width?: string): void {
         let freezeWidth: string = isNullOrUndefined(width) ? this.calcMovableOrFreezeColWidth('freeze-left') : width;
-        freezeWidth = this.parent.getContent().querySelector('.e-frozen-left-content').classList.contains('e-frozenborderdisabled') ? '0' : freezeWidth;
+        const gridContent = this.parent.getContent();
+        if (!isNullOrUndefined(gridContent)) {
+            const frozenLeftContent = gridContent.querySelector('.e-frozen-left-content');
+            freezeWidth = frozenLeftContent && frozenLeftContent.classList.contains('e-frozenborderdisabled') ? '0' : freezeWidth;
+        }
         (this.parent.getHeaderTable() as HTMLTableElement).style.width = freezeWidth;
         (this.parent.getContentTable() as HTMLTableElement).style.width = freezeWidth;
         this.parent.resizeModule.leftFrozenTableWidth = freezeWidth;
@@ -266,10 +270,25 @@ export class ColumnWidthService {
 
     private setWidthToFrozenRightTable(width?: string): void {
         let freezeWidth: string = isNullOrUndefined(width) ? this.calcMovableOrFreezeColWidth('freeze-right') : width;
-        freezeWidth = this.parent.getContent().querySelector('.e-frozen-right-content').classList.contains('e-frozenborderdisabled') ? '0' : freezeWidth;
+        const gridContent = this.parent.getContent();
+        const headerContent = this.parent.getHeaderContent();
+        if (!isNullOrUndefined(gridContent)) {
+            const frozenRightContent = gridContent.querySelector('.e-frozen-right-content');
+            freezeWidth = frozenRightContent && frozenRightContent.classList.contains('e-frozenborderdisabled') ? '0' : freezeWidth;
+        }
         if (!this.parent.options.enableColumnVirtualization) {
-            (this.parent.getHeaderContent().querySelector('.e-frozen-right-header').querySelector('.e-table') as HTMLTableElement).style.width = freezeWidth;
-            (this.parent.getContent().querySelector('.e-frozen-right-content').querySelector('.e-table') as HTMLTableElement).style.width = freezeWidth;
+            if (!isNullOrUndefined(headerContent)) {
+                const frozenRightHeader = headerContent.querySelector('.e-frozen-right-header');
+                if (!isNullOrUndefined(frozenRightHeader)) {
+                    (frozenRightHeader.querySelector('.e-table') as HTMLTableElement).style.width = freezeWidth;
+                }
+            }
+            if (!isNullOrUndefined(gridContent)) {
+                const frozenRightContentDiv = gridContent.querySelector('.e-frozen-right-content');
+                if (!isNullOrUndefined(frozenRightContentDiv)) {
+                    (frozenRightContentDiv.querySelector('.e-table') as HTMLTableElement).style.width = freezeWidth;
+                }
+            }
             this.parent.resizeModule.rightFrozenTableWidth = freezeWidth;
             if (this.parent.getFooterContent() && !isNullOrUndefined(this.parent.getFooterContent().querySelector('.e-frozen-right-footercontent'))) {
                 (this.parent.getFooterContent().querySelector('.e-frozen-right-footercontent') as HTMLElement).style.width = freezeWidth;
@@ -279,6 +298,9 @@ export class ColumnWidthService {
 
     private setWidthToMovableTable(width?: string): void {
         let movableWidth: string = '';
+        const headerContent = this.parent.getHeaderContent();
+        const footerContent = this.parent.getFooterContent();
+        const gridContent = this.parent.getContent();
         if (isNullOrUndefined(width)) {
             const isColUndefined: boolean = this.parent.getColumns().filter((a: Column) => 
                 { return isNullOrUndefined(a.width); }).length >= 1;
@@ -291,17 +313,28 @@ export class ColumnWidthService {
         } else {
             movableWidth = width;
         }
-        if (this.parent.getHeaderContent().querySelector('.e-movableheader').firstElementChild && !this.parent.options.enableColumnVirtualization) {
-            (this.parent.getHeaderContent().querySelector('.e-movableheader').firstElementChild as HTMLTableElement).style.width
-                = movableWidth;
+        
+        if (headerContent && !this.parent.options.enableColumnVirtualization) {
+            const movableHeader = headerContent.querySelector('.e-movableheader');
+            if (!isNullOrUndefined(movableHeader) && !isNullOrUndefined(movableHeader.firstElementChild)) {
+                (movableHeader.firstElementChild as HTMLTableElement).style.width = movableWidth;
+            }
         }
 
-        if (this.parent.getFooterContent() && this.parent.getFooterContent().querySelector('.e-movablefootercontent').firstElementChild && !this.parent.options.enableColumnVirtualization) {
-            (<HTMLElement>this.parent.getFooterContent().querySelector('.e-movablefootercontent').firstElementChild).style.width = movableWidth;
+        if (footerContent && !this.parent.options.enableColumnVirtualization) {
+            const movableFooter = footerContent.querySelector('.e-movablefootercontent');
+            if (!isNullOrUndefined(movableFooter) && !isNullOrUndefined(movableFooter.firstElementChild)) {
+                (<HTMLElement>movableFooter.firstElementChild).style.width = movableWidth;
+            }
         }
+        
         if (!this.parent.options.enableColumnVirtualization) {
-            (this.parent.getContent().querySelector('.e-movablecontent').firstElementChild as HTMLTableElement).style.width =
-                movableWidth;
+            if (!isNullOrUndefined(gridContent)) {
+                const movableContent = gridContent.querySelector('.e-movablecontent');
+                if (!isNullOrUndefined(movableContent) && !isNullOrUndefined(movableContent.firstElementChild)) {
+                    (movableContent.firstElementChild as HTMLTableElement).style.width = movableWidth;
+                }
+            }
             this.parent.resizeModule.tableWidth = movableWidth;
         }
     }

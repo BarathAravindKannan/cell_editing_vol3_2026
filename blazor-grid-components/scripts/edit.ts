@@ -98,9 +98,14 @@ export class Edit {
                 rows.pop();
             }
             if (this.parent.options.editMode === 'Batch') {
-                if (viewPortRowCount > 1 && rows.length >= viewPortRowCount
-                    && parseInt(rows[rows.length - 1].getAttribute('aria-rowindex'), 10) - 1 === parseInt(row.getAttribute('aria-rowindex'), 10) - 1) {
-                    isBatchModeLastRow = true;
+                if (viewPortRowCount > 1 && rows.length >= viewPortRowCount) {
+                    const lastRowAttr: string | null = rows[rows.length - 1].getAttribute('aria-rowindex');
+                    const currentRowAttr: string | null = row.getAttribute('aria-rowindex');
+                    if (lastRowAttr !== null && currentRowAttr !== null) {
+                        if (parseInt(lastRowAttr, 10) - 1 === parseInt(currentRowAttr, 10) - 1) {
+                            isBatchModeLastRow = true;
+                        }
+                    }
                 }
             }
             if (isInline) {
@@ -130,8 +135,17 @@ export class Edit {
                     }
                 }
             }
-            const table: Element = isInline ?
-                ((isFHdr || isHeader) ? this.parent.getHeaderTable() : this.parent.getContentTable()) : document.querySelector('#' + this.parent.element.id + dialogWrapperText).querySelector('.e-dlg-content');
+            let table: Element;
+            if (isInline) {
+                table = (isFHdr || isHeader) ? this.parent.getHeaderTable() : this.parent.getContentTable();
+            } else {
+                const dialogWrapper: Element = document.querySelector('#' + this.parent.element.id + dialogWrapperText);
+                if (!isNullOrUndefined(dialogWrapper)) {
+                    table = dialogWrapper.querySelector('.e-dlg-content');
+                } else {
+                    return;
+                }
+            }
             const client: ClientRect = table.getBoundingClientRect();
             const left: number = isInline ?
                 this.parent.element.getBoundingClientRect().left : client.left;

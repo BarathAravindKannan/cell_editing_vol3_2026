@@ -168,9 +168,9 @@
         Assert.True(isNotNullIndex >= 0, "NumberDropDown must contain 'isnotnull'.");
         Assert.True(numEqualIndex >= 0, "NumberDropDown must contain 'equal'.");
         var getClassMethod = rendererType.GetMethod("GetClass",
-            System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
+            System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.Static);
         var getNumberClassMethod = rendererType.GetMethod("GetNumberClass",
-            System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
+            System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.Static);
         Assert.NotNull(getClassMethod);
         Assert.NotNull(getNumberClassMethod);
         var resultNullIndex = (bool)getClassMethod!.Invoke(rendererInstance, new object?[] { (int?)null, stringDropObj })!;
@@ -190,7 +190,7 @@
         var numberResultEqual = (bool)getNumberClassMethod.Invoke(rendererInstance, new object?[] { (int?)numEqualIndex, numberDropObj })!;
         Assert.True(numberResultEqual, "GetNumberClass should return true for normal operator like 'equal'.");
         var isNullOrEmptyMethod = rendererType.GetMethod("IsNullOrEmptyOperator",
-            System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
+            System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.Static);
         Assert.NotNull(isNullOrEmptyMethod);
         bool CheckIsNullOrEmpty(string op)
         {
@@ -296,10 +296,10 @@
         Assert.True(numEqualIndex >= 0, "NumberDropDown must contain 'equal'.");
         var getClassMethod = rendererType.GetMethod(
             "GetClass",
-            System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
+            System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.Static);
         var getNumberClassMethod = rendererType.GetMethod(
             "GetNumberClass",
-            System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
+            System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.Static);
         Assert.NotNull(getClassMethod);
         Assert.NotNull(getNumberClassMethod);
         var resultNullIndex = (bool)getClassMethod!.Invoke(rendererInstance, new object?[] { (int?)null, stringDropObj })!;
@@ -320,7 +320,7 @@
         Assert.True(numberResultEqual, "GetNumberClass should return true for normal operator like 'equal'.");
         var isNullOrEmptyMethod = rendererType.GetMethod(
             "IsNullOrEmptyOperator",
-            System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
+            System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.Static);
         Assert.NotNull(isNullOrEmptyMethod);
         bool CheckIsNullOrEmpty(string op)
         {

@@ -42,6 +42,8 @@ namespace Syncfusion.Blazor.Grids.Internal
 
         public bool enableColumnVirtualization { get; set; }
 
+        public bool enableDomVirtualization { get; set; }
+
         public bool enableVirtualMaskRow { get; set; }
 
         public bool allowReordering { get; set; }
@@ -100,6 +102,8 @@ namespace Syncfusion.Blazor.Grids.Internal
         public bool isAdd { get; set; }
 
         public bool isEdit { get; set; }
+
+        public bool enableUndoRedo { get; set; }
 
         public bool allowEditing { get; set; }
 
@@ -708,6 +712,13 @@ namespace Syncfusion.Blazor.Grids.Internal
         public static string FilterBar => GridLocaleKeys.Prefix + nameof(GridLocaleKeys.FilterBar);
 
         public static string SelectRowARIA => GridLocaleKeys.Prefix + nameof(GridLocaleKeys.SelectRowARIA);
+        public static string NextMatch => GridLocaleKeys.Prefix + nameof(GridLocaleKeys.NextMatch);
+        public static string PreviousMatch => GridLocaleKeys.Prefix + nameof(GridLocaleKeys.PreviousMatch);
+        public static string FindHighLightARIA => GridLocaleKeys.Prefix + nameof(GridLocaleKeys.FindHighLightARIA);
+
+        public static string Undo => GridLocaleKeys.Prefix + nameof(GridLocaleKeys.Undo);
+
+        public static string Redo => GridLocaleKeys.Prefix + nameof(GridLocaleKeys.Redo);
 
     }
 
@@ -925,5 +936,57 @@ namespace Syncfusion.Blazor.Grids.Internal
             if (col) return AutoSpanMode.Row;
             return AutoSpanMode.None;
         }
+    }
+
+    /// <summary>
+    /// Represents a cell involved in a clipboard paste operation.
+    /// </summary>
+    internal interface IPasteCell
+    {
+        /// <summary>
+        /// Gets or sets the zero-based row index of the target cell.
+        /// </summary>
+        public int RowIndex { get; set; }
+
+        /// <summary>
+        /// Gets or sets the zero-based column index of the target cell.
+        /// </summary>
+        public int ColumnIndex { get; set; }
+
+        /// <summary>
+        /// Gets or sets the field name of the target column.
+        /// </summary>
+        public string ColumnField { get; set; }
+
+        /// <summary>
+        /// Gets or sets the clipboard value that will be pasted into the target cell.
+        /// </summary>
+        public string Value { get; set; }
+    }
+
+    /// <summary>
+    /// Represents information about a cell being updated during a clipboard paste operation.
+    /// </summary>
+    internal sealed class PasteCell : IPasteCell
+    {
+        /// <summary>
+        /// Gets or sets the zero-based row index of the target cell.
+        /// </summary>
+        public int RowIndex { get; set; }
+
+        /// <summary>
+        /// Gets or sets the zero-based column index of the target cell.
+        /// </summary>
+        public int ColumnIndex { get; set; }
+
+        /// <summary>
+        /// Gets or sets the field name of the target column.
+        /// </summary>
+        public string ColumnField { get; set; } = string.Empty;
+
+        /// <summary>
+        /// Gets or sets the clipboard value that will be pasted into the target cell.
+        /// </summary>
+        public string Value { get; set; } = string.Empty;
     }
 }

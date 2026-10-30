@@ -57,7 +57,7 @@ export class InterSectionObserver {
         this.options = options;
     }
 
-    public observe(callback: Function, onEnterCallback: Function): void {
+    public observe(callback: (...args: unknown[]) => unknown, onEnterCallback: (...args: unknown[]) => unknown): void {
         this.options.virtualScrollHandler = this.virtualScrollHandler(callback, onEnterCallback);
         this.containerRect = this.options.container.getBoundingClientRect();
         EventHandler.add(this.options.container, 'wheel', () => {
@@ -122,18 +122,17 @@ export class InterSectionObserver {
      * @param {Function} callback - Original callback to debounce
      * @returns {{standard: Function, horizontal: Function}} Object containing debounced callbacks
      */
-    private createDebouncedCallbacks(callback: Function): {
-        standard: Function;
-        horizontal: Function;
+    private createDebouncedCallbacks(callback: (...args: unknown[]) => unknown): {
+        standard: (...args: unknown[]) => unknown;
+        horizontal: (...args: unknown[]) => unknown;
     } {
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const delay: any = Browser.info.name === 'chrome'
+        const delay: number = Browser.info.name === 'chrome'
             ? this.SCROLL_CONSTANTS.DEBOUNCE_DELAY_CHROME
             : this.SCROLL_CONSTANTS.DEBOUNCE_DELAY_DEFAULT;
 
         return {
-            standard: debounce(callback, delay),
-            horizontal: debounce(callback, this.SCROLL_CONSTANTS.DEBOUNCE_DELAY_HORIZONTAL)
+            standard: debounce(callback, delay) as unknown as (...args: unknown[]) => unknown,
+            horizontal: debounce(callback, this.SCROLL_CONSTANTS.DEBOUNCE_DELAY_HORIZONTAL) as unknown as (...args: unknown[]) => unknown
         };
     }
 
@@ -390,7 +389,6 @@ export class InterSectionObserver {
         const config: ScrollThresholdConfig = this.getScrollThresholdConfig();
         const viewInfo: VirtualInfo = this.getViewInfo();
         const exactTopIndex: number = scrollTop / config.rowHeight;
-        let inViewIndexCount: number = config.height / config.rowHeight;
         const pageSizeTotal: number = config.pageSize + (config.overscanCount * 2);
         const pageSizeBy2: number = pageSizeTotal / 2;
         const pageSizeBy4: number = pageSizeTotal / 4;
@@ -401,7 +399,6 @@ export class InterSectionObserver {
 
         // Check if scroll is above threshold requiring full re-render
         if (exactTopIndex < threshold) {
-            inViewIndexCount = Math.ceil(inViewIndexCount) - 1;
             const loadAtIndex: number = Math.round(
                 ((viewInfo.startIndex * config.rowHeight) +
                     (pageSizeBy4 * config.rowHeight)) / config.rowHeight
@@ -433,10 +430,9 @@ export class InterSectionObserver {
         return scrollDelta < this.SCROLL_CONSTANTS.LIGHT_SCROLL_THRESHOLD;
     }
 
-    private virtualScrollHandler(callback: Function, onEnterCallback: Function): Function {
-        // prepare debounced callbacks once per handler creation
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const callbacks: any = this.createDebouncedCallbacks(callback);
+    private virtualScrollHandler(callback: (...args: unknown[]) => unknown, onEnterCallback: (...args: unknown[]) => unknown): (e: Event) => void {
+    // prepare debounced callbacks once per handler creation
+        const callbacks = this.createDebouncedCallbacks(callback);
 
         return (e: Event) => {
 
@@ -476,7 +472,7 @@ export class InterSectionObserver {
             }
             const { top, left } = scrollOffset;
             if (check || hasMaskRows || hasOverscan) {
-                const fn: Function = currentSentinel.axis === 'X' ? callbacks.horizontal : callbacks.standard;
+                const fn: (...args: unknown[]) => unknown = currentSentinel.axis === 'X' ? callbacks.horizontal : callbacks.standard;
                 fn({
                     scrollDirection, sentinel: currentSentinel, offset: { top, left },
                     focusElement: document.activeElement, isWheelScroll: this.fromWheel

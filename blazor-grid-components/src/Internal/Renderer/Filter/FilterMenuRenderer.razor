@@ -36,7 +36,7 @@
                         @if (GFilterColumn != null)
                         {
                             bool isJsonElement = GFilterColumn.Value?.GetType().Name == "JsonElement";
-                            Fvalue = isJsonElement ? SfBaseUtils.ChangeType(GFilterColumn.Value, Column?.ValueType)! : GFilterColumn.Value!;
+                            Fvalue = isJsonElement ? SfBaseUtils.ChangeType(GFilterColumn.Value!, Column?.ValueType!) : GFilterColumn.Value!;
                             Foperator = GFilterColumn.Operator.ToString().ToLower(CultureInfo.InvariantCulture);   
                         }
                     }
@@ -92,7 +92,7 @@
                                 else if (Column?.ValueType != null && !Parent.FilterModule.ShouldTemplateDispose)
                                 {
                                     
-                                    Fvalue = IsNullOrEmptyOperator(GetColumnFilterOperator()!) ? null! : (Fvalue?.GetType().Name == "JsonElement" ? SfBaseUtils.ChangeType(Fvalue, Column?.ValueType) : Fvalue)!;
+                                    Fvalue = IsNullOrEmptyOperator(GetColumnFilterOperator()!) ? null! : (Fvalue?.GetType().Name == "JsonElement" ? SfBaseUtils.ChangeType(Fvalue, Column?.ValueType!) : Fvalue)!;
                                     _isInteger = Parent.FilterModule.IntConvertedList.ContainsKey(Column?.ValueType!);
                                     _isLong = Parent.FilterModule.LongConvertedList.ContainsKey(Column?.ValueType!);
                                     @if (Column?.Type == ColumnType.Integer || Column?.Type == ColumnType.Double || Column?.Type == ColumnType.Long || Column?.Type == ColumnType.Decimal)
@@ -138,8 +138,8 @@
 
                                     @if (Column?.Type == ColumnType.String)
                                     {
-                                        DataManager filterDataManager = (Column?.IsForeignColumn() == true) ? Column.DataManager : Parent.DataManager;
-                                        IEnumerable<object> Json = filterDataManager?.Json != null ? (Column?.IsForeignColumn() == true) ? DataUtil.GetDistinct(filterDataManager.Json, Column?.ForeignKeyValue) : (IEnumerable<object>)DataUtil.GetDistinct<TContent>(filterDataManager.Json?.Cast<TContent>(), Column?.Field) : null!;
+                                        DataManager filterDataManager = ((Column?.IsForeignColumn() == true) ? Column.DataManager : Parent.DataManager) ?? new DataManager();
+                                        IEnumerable<object> Json = filterDataManager?.Json != null ? (Column?.IsForeignColumn() == true) ? DataUtil.GetDistinct(filterDataManager.Json, Column?.ForeignKeyValue ?? "") : (IEnumerable<object>)DataUtil.GetDistinct<TContent>(filterDataManager.Json.Cast<TContent>(), Column?.Field ?? "") : null!;
 
                                         if ((Column?.IsForeignColumn() == true) && (Column?.IsGridForeignColumn == true))
                                         {
@@ -220,7 +220,7 @@ else if (Parent.EnableAdaptiveUI && ( Parent.AdaptiveUIMode.Equals(AdaptiveMode.
                             @if (GFilterColumn != null)
                             {
                                 bool isJsonElement = GFilterColumn.Value?.GetType().Name == "JsonElement";
-                                Fvalue = isJsonElement ? SfBaseUtils.ChangeType(GFilterColumn.Value, Column?.ValueType) : GFilterColumn.Value!;
+                                Fvalue = isJsonElement ? SfBaseUtils.ChangeType(GFilterColumn.Value!, Column?.ValueType!) : GFilterColumn.Value!;
                                 Foperator = GFilterColumn.Operator.ToString().ToLower(CultureInfo.InvariantCulture);
                             }
                         }
@@ -275,9 +275,9 @@ else if (Parent.EnableAdaptiveUI && ( Parent.AdaptiveUIMode.Equals(AdaptiveMode.
                             }
                             else
                             {
-                                Fvalue = Fvalue?.GetType().Name == "JsonElement" ? SfBaseUtils.ChangeType(Fvalue, Column?.ValueType) : Fvalue!;
+                                Fvalue = Fvalue?.GetType().Name == "JsonElement" ? SfBaseUtils.ChangeType(Fvalue, Column?.ValueType!) : Fvalue!;
                                 _isInteger = Parent.FilterModule!.IntConvertedList.ContainsKey(Column!.ValueType!);
-                                _isLong = Parent.FilterModule.LongConvertedList.ContainsKey(Column.ValueType!);
+                                _isLong = Parent.FilterModule.LongConvertedList.ContainsKey(Column!.ValueType!);
                                 @if (Column?.Type == ColumnType.Integer || Column?.Type == ColumnType.Double || Column?.Type == ColumnType.Long || Column?.Type == ColumnType.Decimal)
                                 {
                                     var ConvertedValue = Filter<TContent>.TryParseNullable(Fvalue?.ToString()!, Parent.FilterModule.IntConvertedList.ContainsKey(Column?.ValueType!), Parent.FilterModule.LongConvertedList.ContainsKey(Column?.ValueType!));
@@ -322,7 +322,7 @@ else if (Parent.EnableAdaptiveUI && ( Parent.AdaptiveUIMode.Equals(AdaptiveMode.
                                 @if (Column?.Type == ColumnType.String)
                                 {
                                     DataManager filterDataManager = (Column?.IsForeignColumn() == true) ? Column?.DataManager! : Parent.DataManager!;
-                                    IEnumerable<object> Json = filterDataManager?.Json != null ? (Column?.IsForeignColumn() == true) ? DataUtil.GetDistinct(filterDataManager.Json, Column?.ForeignKeyValue) : (IEnumerable<object>)DataUtil.GetDistinct<TContent>((IEnumerable<TContent>)filterDataManager.Json, Column?.Field) : null!;
+                                    IEnumerable<object> Json = filterDataManager?.Json != null ? (Column?.IsForeignColumn() == true) ? DataUtil.GetDistinct(filterDataManager.Json, Column?.ForeignKeyValue ?? "") : (IEnumerable<object>)DataUtil.GetDistinct<TContent>((IEnumerable<TContent>)filterDataManager.Json, Column?.Field ?? "") : null!;
 
                                     if ((Column?.IsForeignColumn() == true) && (Column?.IsGridForeignColumn == true))
                                     {

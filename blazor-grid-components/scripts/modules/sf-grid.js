@@ -481,7 +481,9 @@ window.sfBlazor.Grid = (function () {
             var cssProps = this.getCssProperties(rtl);
             var hDiv = this.parent.getHeaderContent();
             hDiv.style[cssProps.border] = '';
-            hDiv.parentElement.style[cssProps.padding] = '';
+            if (!sf.base.isNullOrUndefined(hDiv.parentElement)) {
+                hDiv.parentElement.style[cssProps.padding] = '';
+            }
             //const footerDiv: HTMLDivElement = (<HTMLDivElement>this.parent.getFooterContent());
         };
         /**
@@ -531,40 +533,40 @@ window.sfBlazor.Grid = (function () {
         //     }
         // }
         Scroll.prototype.onContentScroll = function (scrollTarget) {
-            var _this = this;
+            var _this_1 = this;
             var element = scrollTarget;
             var isHeader = element.classList.contains('e-headercontent');
             return function (e) {
-                if (_this.content.querySelector('tbody') === null || _this.parent.options.isPreventScrollEvent) {
+                if (_this_1.content.querySelector('tbody') === null || _this_1.parent.options.isPreventScrollEvent) {
                     return;
                 }
                 var target = e.target;
                 var left = target.scrollLeft;
                 var gridElement = parentsUntil(target, 'e-grid');
-                if (!sf.base.isNullOrUndefined(gridElement) && gridElement.querySelectorAll('.e-filter-popup.e-popup-open').length > 0 && _this.previousValues.left !== left) {
-                    _this.parent.dotNetRef.invokeMethodAsync('FilterPopupClose');
+                if (!sf.base.isNullOrUndefined(gridElement) && gridElement.querySelectorAll('.e-filter-popup.e-popup-open').length > 0 && _this_1.previousValues.left !== left) {
+                    _this_1.parent.dotNetRef.invokeMethodAsync('FilterPopupClose');
                 }
                 // Close enhanced operator dropdowns on scroll
                 // Enhanced operator dropdowns are rendered outside the grid element in the DOM
-                if (!sf.base.isNullOrUndefined(gridElement) && _this.previousValues.left !== left) {
-                    _this.parent.closeOperatorDropdownIfOpen();
+                if (!sf.base.isNullOrUndefined(gridElement) && _this_1.previousValues.left !== left) {
+                    _this_1.parent.closeOperatorDropdownIfOpen();
                 }
                 //const sLimit: number = target.scrollWidth;
-                _this.updateFrozenShadow(target);
-                var frozenRightColumns = _this.parent.getColumns().filter(function (a) {
+                _this_1.updateFrozenShadow(target);
+                var frozenRightColumns = _this_1.parent.getColumns().filter(function (a) {
                     return a.isFrozen && a.freeze === 'Right';
                 });
-                if (_this.content.scrollTop > 0 && _this.parent.options.frozenRows) {
-                    _this.parent.element.classList.add('e-top-shadow');
+                if (_this_1.content.scrollTop > 0 && _this_1.parent.options.frozenRows) {
+                    _this_1.parent.element.classList.add('e-top-shadow');
                 }
                 else {
-                    _this.parent.element.classList.remove('e-top-shadow');
+                    _this_1.parent.element.classList.remove('e-top-shadow');
                 }
                 var widthVal = Math.round((target.scrollWidth - target.scrollLeft));
-                var gridcontent = _this.parent.getContent();
+                var gridcontent = _this_1.parent.getContent();
                 //The small margin (e.g., 1) accounts for floating-point precision.
                 var scrollReachRightEnd = gridcontent.scrollLeft >= gridcontent.scrollWidth - gridcontent.clientWidth - 1;
-                var parentElement = _this.parent.element;
+                var parentElement = _this_1.parent.element;
                 if (frozenRightColumns.length > 0 && (widthVal === target.offsetWidth || scrollReachRightEnd)) {
                     parentElement.classList.remove('e-right-shadow');
                 }
@@ -572,46 +574,46 @@ window.sfBlazor.Grid = (function () {
                     parentElement.classList.add('e-right-shadow');
                 }
                 var isFooter = target.classList.contains('e-summarycontent');
-                if (_this.parent.options.enableInfiniteScrolling && !_this.parent.options.isEdit) {
-                    if (!_this.parent.infiniteScrollModule.isLazyChildLoad) {
-                        _this.parent.infiniteScrollModule.infiniteScrollHandler(target, _this.previousValues.left, false);
+                if (_this_1.parent.options.enableInfiniteScrolling && !_this_1.parent.options.isEdit) {
+                    if (!_this_1.parent.infiniteScrollModule.isLazyChildLoad) {
+                        _this_1.parent.infiniteScrollModule.infiniteScrollHandler(target, _this_1.previousValues.left, false);
                     }
                 }
-                if (_this.parent.options.groupCount > 0 && _this.parent.options.enableLazyLoading) {
-                    var isDown = _this.previousValues.top < target.scrollTop;
+                if (_this_1.parent.options.groupCount > 0 && _this_1.parent.options.enableLazyLoading) {
+                    var isDown = _this_1.previousValues.top < target.scrollTop;
                     if (isDown) {
-                        _this.parent.infiniteScrollModule.lazyLoadInfiniteScrollHandler(isDown);
+                        _this_1.parent.infiniteScrollModule.lazyLoadInfiniteScrollHandler(isDown);
                     }
                 }
-                if (_this.previousValues.left === left) {
-                    _this.previousValues.top = !isHeader ? _this.previousValues.top : target.scrollTop;
+                if (_this_1.previousValues.left === left) {
+                    _this_1.previousValues.top = !isHeader ? _this_1.previousValues.top : target.scrollTop;
                     return;
                 }
                 element.scrollLeft = left;
-                var footer = _this.parent.element.querySelector('.e-summarycontent');
+                var footer = _this_1.parent.element.querySelector('.e-summarycontent');
                 if (footer) {
                     footer.scrollLeft = left;
                 }
                 if (isFooter) {
-                    _this.header.scrollLeft = left;
+                    _this_1.header.scrollLeft = left;
                 }
-                _this.previousValues.left = left;
+                _this_1.previousValues.left = left;
             };
         };
         Scroll.prototype.onFreezeContentScroll = function (scrollTarget) {
-            var _this = this;
+            var _this_1 = this;
             var element = scrollTarget;
             return function (e) {
-                if (_this.content.querySelector('tbody') === null) {
+                if (_this_1.content.querySelector('tbody') === null) {
                     return;
                 }
                 var target = e.target;
                 var top = target.scrollTop;
-                if (_this.previousValues.top === top) {
+                if (_this_1.previousValues.top === top) {
                     return;
                 }
                 element.scrollTop = top;
-                _this.previousValues.top = top;
+                _this_1.previousValues.top = top;
             };
         };
         Scroll.prototype.updateFrozenShadow = function (target) {
@@ -630,65 +632,65 @@ window.sfBlazor.Grid = (function () {
             }
         };
         Scroll.prototype.onCustomScrollbar = function (mCont, mHdr) {
-            var _this = this;
+            var _this_1 = this;
             var content = mCont;
             var header = mHdr;
             var mfooter;
             return function (e) {
-                if (_this.content.querySelector('tbody') === null) {
+                if (_this_1.content.querySelector('tbody') === null) {
                     return;
                 }
                 var target = e.target;
                 var left = target.scrollLeft;
-                if (_this.previousValues.left === left) {
+                if (_this_1.previousValues.left === left) {
                     return;
                 }
-                _this.updateFrozenShadow(target);
-                if (_this.parent.options.aggregatesCount) {
-                    mfooter = _this.parent.element.querySelector('.e-movablefootercontent');
+                _this_1.updateFrozenShadow(target);
+                if (_this_1.parent.options.aggregatesCount) {
+                    mfooter = _this_1.parent.element.querySelector('.e-movablefootercontent');
                 }
                 content.scrollLeft = left;
                 header.scrollLeft = left;
                 if (mfooter) {
                     mfooter.scrollLeft = left;
                 }
-                _this.previousValues.left = left;
+                _this_1.previousValues.left = left;
             };
         };
         Scroll.prototype.onWheelScroll = function (scrollTarget) {
-            var _this = this;
+            var _this_1 = this;
             var element = scrollTarget;
             return function (e) {
-                if (_this.content.querySelector('tbody') === null) {
+                if (_this_1.content.querySelector('tbody') === null) {
                     return;
                 }
                 var top = element.scrollTop + (e.deltaMode === 1 ? e.deltaY * 30 : e.deltaY);
-                if (_this.previousValues.top === top) {
+                if (_this_1.previousValues.top === top) {
                     return;
                 }
                 e.preventDefault();
-                _this.parent.getContent().querySelector('.e-frozencontent').scrollTop = top;
+                _this_1.parent.getContent().querySelector('.e-frozencontent').scrollTop = top;
                 element.scrollTop = top;
-                _this.previousValues.top = top;
+                _this_1.previousValues.top = top;
             };
         };
         Scroll.prototype.onTouchScroll = function (scrollTarget) {
-            var _this = this;
+            var _this_1 = this;
             var element = scrollTarget;
             return function (e) {
                 if (e.pointerType === 'mouse') {
                     return;
                 }
-                var isFrozen = _this.parent.options.frozenColumns > 0;
-                var pageXY = _this.getPointXY(e);
-                var left = element.scrollLeft + (_this.pageXY.x - pageXY.x);
+                var isFrozen = _this_1.parent.options.frozenColumns > 0;
+                var pageXY = _this_1.getPointXY(e);
+                var left = element.scrollLeft + (_this_1.pageXY.x - pageXY.x);
                 var mHdr = isFrozen ?
-                    _this.parent.getHeaderContent() :
-                    _this.parent.getHeaderContent().querySelector('.e-headercontent');
+                    _this_1.parent.getHeaderContent() :
+                    _this_1.parent.getHeaderContent().querySelector('.e-headercontent');
                 var mCont = isFrozen ?
-                    _this.parent.getContent() :
-                    _this.parent.getContent().querySelector('.e-content');
-                if (_this.previousValues.left === left || (left < 0 || (mHdr.scrollWidth - mHdr.clientWidth) < left)) {
+                    _this_1.parent.getContent() :
+                    _this_1.parent.getContent().querySelector('.e-content');
+                if (_this_1.previousValues.left === left || (left < 0 || (mHdr.scrollWidth - mHdr.clientWidth) < left)) {
                     return;
                 }
                 if (e.cancelable) {
@@ -697,11 +699,11 @@ window.sfBlazor.Grid = (function () {
                 mHdr.scrollLeft = left;
                 mCont.scrollLeft = left;
                 if (isFrozen) {
-                    var scrollBar = _this.parent.element.querySelector('.e-movablescrollbar');
+                    var scrollBar = _this_1.parent.element.querySelector('.e-movablescrollbar');
                     scrollBar.scrollLeft = left;
                 }
-                _this.pageXY.x = pageXY.x;
-                _this.previousValues.left = left;
+                _this_1.pageXY.x = pageXY.x;
+                _this_1.previousValues.left = left;
                 // let cont: Element;
                 // let mHdr: Element;
                 // let pageXY: { x: number, y: number } = this.getPointXY(e);
@@ -734,12 +736,12 @@ window.sfBlazor.Grid = (function () {
             };
         };
         Scroll.prototype.setPageXY = function () {
-            var _this = this;
+            var _this_1 = this;
             return function (e) {
                 if (e.pointerType === 'mouse') {
                     return;
                 }
-                _this.pageXY = _this.getPointXY(e);
+                _this_1.pageXY = _this_1.getPointXY(e);
             };
         };
         Scroll.prototype.getPointXY = function (e) {
@@ -755,7 +757,7 @@ window.sfBlazor.Grid = (function () {
             return pageXY;
         };
         Scroll.prototype.wireEvents = function () {
-            var _this = this;
+            var _this_1 = this;
             if (this.oneTimeReady) {
                 this.content = this.parent.getContent();
                 this.header = this.parent.getHeaderContent();
@@ -797,23 +799,23 @@ window.sfBlazor.Grid = (function () {
             var sHeight;
             var clientHeight;
             getUpdateUsingRaf(function () {
-                sLeft = _this.header.scrollLeft;
+                sLeft = _this_1.header.scrollLeft;
                 sHeight = table.scrollHeight;
-                clientHeight = _this.parent.getContent().clientHeight;
+                clientHeight = _this_1.parent.getContent().clientHeight;
             }, function () {
-                if (!_this.parent.options.enableVirtualization) {
+                if (!_this_1.parent.options.enableVirtualization) {
                     if (sHeight < clientHeight) {
                         sf.base.addClass(table.querySelectorAll('tr:last-child td'), 'e-lastrowcell');
                     }
-                    _this.header.scrollLeft = _this.previousValues.left;
-                    _this.content.scrollLeft = _this.previousValues.left;
-                    _this.content.scrollTop = _this.previousValues.top;
+                    _this_1.header.scrollLeft = _this_1.previousValues.left;
+                    _this_1.content.scrollLeft = _this_1.previousValues.left;
+                    _this_1.content.scrollTop = _this_1.previousValues.top;
                 }
-                if (!_this.parent.options.enableColumnVirtualization) {
-                    _this.content.scrollLeft = sLeft;
+                if (!_this_1.parent.options.enableColumnVirtualization) {
+                    _this_1.content.scrollLeft = sLeft;
                 }
-                if (_this.parent.options.frozenColumns && _this.parent.getHeaderContent()) {
-                    _this.parent.getHeaderContent().scrollLeft = _this.parent.getContent().scrollLeft;
+                if (_this_1.parent.options.frozenColumns && _this_1.parent.getHeaderContent()) {
+                    _this_1.parent.getHeaderContent().scrollLeft = _this_1.parent.getContent().scrollLeft;
                 }
             });
         };
@@ -932,6 +934,64 @@ window.sfBlazor.Grid = (function () {
             element.style.width = width != null ? width + 'px' : '';
             element.style.top = top != null ? top - 2 + 'px' : '';
             element.style.left = left !== null ? parseInt(element.style.left, 10) !== left ? left + 'px' : element.style.left : '';
+        };
+        /**
+         * Function to scroll the grid to it's active match cell
+         *
+         * @returns {number} The width of the scrollbar in pixels.
+         * @hidden
+         */
+        Scroll.prototype.scrollActiveCellHorizontally = function (activeCell, content) {
+            // eslint-disable-next-line @typescript-eslint/no-this-alias
+            var _this = this;
+            if (sf.base.isNullOrUndefined(activeCell) || sf.base.isNullOrUndefined(content))
+                return;
+            setTimeout(function () {
+                var cell = activeCell.isConnected
+                    ? activeCell
+                    : content.querySelector('.e-find-highlight-active');
+                if (sf.base.isNullOrUndefined(cell)) {
+                    return;
+                }
+                // The active element may be the inner <mark> wrapper (.e-find-highlight-active)
+                // rather than the <td> cell itself, because the C# FindHighlight renderer
+                // wraps matched text in a <mark> inside the cell. The freeze classes
+                // (e-leftfreeze / e-rightfreeze / e-fixedfreeze / e-freeze) live on the
+                // parent <td>, so resolve the owning cell before checking the freeze flags
+                // - otherwise matches inside frozen panes would still trigger horizontal scroll
+                // and the active text would scroll out of view.
+                var owningCell = cell.classList.contains('e-rowcell')
+                    ? cell
+                    : cell.closest('.e-rowcell') || cell;
+                if (owningCell.classList.contains('e-leftfreeze') || owningCell.classList.contains('e-rightfreeze') ||
+                    owningCell.classList.contains('e-fixedfreeze') || owningCell.classList.contains('e-freeze')) {
+                    return;
+                }
+                var cellRect = cell.getBoundingClientRect();
+                var contentRect = content.getBoundingClientRect();
+                var contentLeft = contentRect.left + content.clientLeft;
+                var contentRight = contentLeft + content.clientWidth;
+                var visibleLeft = contentLeft;
+                var visibleRight = contentRight;
+                if (_this.parent.options.enableRtl) {
+                    if (cellRect.left < visibleLeft) {
+                        _this.scrollActiveToCenter(cellRect.left, cellRect.right, visibleLeft, visibleRight);
+                    }
+                    else if (cellRect.right > visibleRight) {
+                        _this.scrollActiveToCenter(cellRect.left, cellRect.right, visibleLeft, visibleRight);
+                    }
+                }
+                else {
+                    _this.scrollActiveToCenter(cellRect.left, cellRect.right, visibleLeft, visibleRight);
+                }
+            }, 0);
+        };
+        Scroll.prototype.scrollActiveToCenter = function (cellRectLeft, cellRectRight, visibleLeft, visibleRight) {
+            var content = this.parent.getContent();
+            var cellCenter = (cellRectLeft + cellRectRight) / 2;
+            var viewportCenter = (visibleLeft + visibleRight) / 2;
+            var delta = cellCenter - viewportCenter;
+            content.scrollLeft += delta;
         };
         Scroll.prototype.destroy = function () {
             var gridElement = this.parent.element;
@@ -1205,8 +1265,10 @@ window.sfBlazor.Grid = (function () {
         Freeze.prototype.updateStackedHdrRowHgt = function (idx, maxRowSpan, row, rows) {
             var height = 0;
             for (var i = 0; i < maxRowSpan; i++) {
-                height += rows[idx + i].style.height ?
-                    parseInt(rows[idx + i].style.height, 10) : rows[idx + i].offsetHeight;
+                if (idx + i < rows.length) {
+                    height += rows[idx + i].style.height ?
+                        parseInt(rows[idx + i].style.height, 10) : rows[idx + i].offsetHeight;
+                }
             }
             row.style.height = height + 'px';
         };
@@ -1264,14 +1326,15 @@ window.sfBlazor.Grid = (function () {
         };
         Freeze.prototype.calculatedLeftValue = function (index) {
             var columns = this.parent.columnModel;
-            if (columns === null || columns.length === 0 || index < 0) {
+            if (sf.base.isNullOrUndefined(columns) || columns.length === 0 || index < 0) {
                 return 0;
             }
             var width = 0;
             var maxIndex = Math.min(index, columns.length - 1);
             for (var i = 0; i <= maxIndex; i++) {
-                if (columns[parseInt(i.toString(), 10)] != null) {
-                    var columnWidth = columns[parseInt(i.toString(), 10)].width;
+                var column = columns[parseInt(i.toString(), 10)];
+                if (!sf.base.isNullOrUndefined(column)) {
+                    var columnWidth = column.width;
                     width += parseInt(columnWidth.toString(), 10);
                 }
             }
@@ -1526,7 +1589,11 @@ window.sfBlazor.Grid = (function () {
         };
         ColumnWidthService.prototype.setWidthToFrozenLeftTable = function (width) {
             var freezeWidth = sf.base.isNullOrUndefined(width) ? this.calcMovableOrFreezeColWidth('freeze-left') : width;
-            freezeWidth = this.parent.getContent().querySelector('.e-frozen-left-content').classList.contains('e-frozenborderdisabled') ? '0' : freezeWidth;
+            var gridContent = this.parent.getContent();
+            if (!sf.base.isNullOrUndefined(gridContent)) {
+                var frozenLeftContent = gridContent.querySelector('.e-frozen-left-content');
+                freezeWidth = frozenLeftContent && frozenLeftContent.classList.contains('e-frozenborderdisabled') ? '0' : freezeWidth;
+            }
             this.parent.getHeaderTable().style.width = freezeWidth;
             this.parent.getContentTable().style.width = freezeWidth;
             this.parent.resizeModule.leftFrozenTableWidth = freezeWidth;
@@ -1536,10 +1603,25 @@ window.sfBlazor.Grid = (function () {
         };
         ColumnWidthService.prototype.setWidthToFrozenRightTable = function (width) {
             var freezeWidth = sf.base.isNullOrUndefined(width) ? this.calcMovableOrFreezeColWidth('freeze-right') : width;
-            freezeWidth = this.parent.getContent().querySelector('.e-frozen-right-content').classList.contains('e-frozenborderdisabled') ? '0' : freezeWidth;
+            var gridContent = this.parent.getContent();
+            var headerContent = this.parent.getHeaderContent();
+            if (!sf.base.isNullOrUndefined(gridContent)) {
+                var frozenRightContent = gridContent.querySelector('.e-frozen-right-content');
+                freezeWidth = frozenRightContent && frozenRightContent.classList.contains('e-frozenborderdisabled') ? '0' : freezeWidth;
+            }
             if (!this.parent.options.enableColumnVirtualization) {
-                this.parent.getHeaderContent().querySelector('.e-frozen-right-header').querySelector('.e-table').style.width = freezeWidth;
-                this.parent.getContent().querySelector('.e-frozen-right-content').querySelector('.e-table').style.width = freezeWidth;
+                if (!sf.base.isNullOrUndefined(headerContent)) {
+                    var frozenRightHeader = headerContent.querySelector('.e-frozen-right-header');
+                    if (!sf.base.isNullOrUndefined(frozenRightHeader)) {
+                        frozenRightHeader.querySelector('.e-table').style.width = freezeWidth;
+                    }
+                }
+                if (!sf.base.isNullOrUndefined(gridContent)) {
+                    var frozenRightContentDiv = gridContent.querySelector('.e-frozen-right-content');
+                    if (!sf.base.isNullOrUndefined(frozenRightContentDiv)) {
+                        frozenRightContentDiv.querySelector('.e-table').style.width = freezeWidth;
+                    }
+                }
                 this.parent.resizeModule.rightFrozenTableWidth = freezeWidth;
                 if (this.parent.getFooterContent() && !sf.base.isNullOrUndefined(this.parent.getFooterContent().querySelector('.e-frozen-right-footercontent'))) {
                     this.parent.getFooterContent().querySelector('.e-frozen-right-footercontent').style.width = freezeWidth;
@@ -1548,6 +1630,9 @@ window.sfBlazor.Grid = (function () {
         };
         ColumnWidthService.prototype.setWidthToMovableTable = function (width) {
             var movableWidth = '';
+            var headerContent = this.parent.getHeaderContent();
+            var footerContent = this.parent.getFooterContent();
+            var gridContent = this.parent.getContent();
             if (sf.base.isNullOrUndefined(width)) {
                 var isColUndefined = this.parent.getColumns().filter(function (a) { return sf.base.isNullOrUndefined(a.width); }).length >= 1;
                 var isWidthAuto = this.parent.getColumns().filter(function (a) { return (a.width === 'auto'); }).length >= 1;
@@ -1561,16 +1646,25 @@ window.sfBlazor.Grid = (function () {
             else {
                 movableWidth = width;
             }
-            if (this.parent.getHeaderContent().querySelector('.e-movableheader').firstElementChild && !this.parent.options.enableColumnVirtualization) {
-                this.parent.getHeaderContent().querySelector('.e-movableheader').firstElementChild.style.width
-                    = movableWidth;
+            if (headerContent && !this.parent.options.enableColumnVirtualization) {
+                var movableHeader = headerContent.querySelector('.e-movableheader');
+                if (!sf.base.isNullOrUndefined(movableHeader) && !sf.base.isNullOrUndefined(movableHeader.firstElementChild)) {
+                    movableHeader.firstElementChild.style.width = movableWidth;
+                }
             }
-            if (this.parent.getFooterContent() && this.parent.getFooterContent().querySelector('.e-movablefootercontent').firstElementChild && !this.parent.options.enableColumnVirtualization) {
-                this.parent.getFooterContent().querySelector('.e-movablefootercontent').firstElementChild.style.width = movableWidth;
+            if (footerContent && !this.parent.options.enableColumnVirtualization) {
+                var movableFooter = footerContent.querySelector('.e-movablefootercontent');
+                if (!sf.base.isNullOrUndefined(movableFooter) && !sf.base.isNullOrUndefined(movableFooter.firstElementChild)) {
+                    movableFooter.firstElementChild.style.width = movableWidth;
+                }
             }
             if (!this.parent.options.enableColumnVirtualization) {
-                this.parent.getContent().querySelector('.e-movablecontent').firstElementChild.style.width =
-                    movableWidth;
+                if (!sf.base.isNullOrUndefined(gridContent)) {
+                    var movableContent = gridContent.querySelector('.e-movablecontent');
+                    if (!sf.base.isNullOrUndefined(movableContent) && !sf.base.isNullOrUndefined(movableContent.firstElementChild)) {
+                        movableContent.firstElementChild.style.width = movableWidth;
+                    }
+                }
                 this.parent.resizeModule.tableWidth = movableWidth;
             }
         };
@@ -1646,7 +1740,6 @@ window.sfBlazor.Grid = (function () {
         return ColumnWidthService;
     }());
 
-    // eslint-disable-next-line valid-jsdoc, jsdoc/require-param, jsdoc/require-returns
     /**
      * Constructor for the HeaderDragDrop class.
      *
@@ -1659,7 +1752,6 @@ window.sfBlazor.Grid = (function () {
          */
         function HeaderDragDrop(parent) {
             var _this = this;
-            // eslint-disable-next-line valid-jsdoc, jsdoc/require-param
             /**
              * Function handler for drag start event.
              *
@@ -1669,7 +1761,7 @@ window.sfBlazor.Grid = (function () {
                 var gObj = _this.parent;
                 document.body.classList.add('e-prevent-select');
                 var popup = gObj.element.querySelector('.e-gridpopup');
-                if (popup) {
+                if (!sf.base.isNullOrUndefined(popup)) {
                     popup.style.display = 'none';
                 }
                 _this.parent.reorderModule.dragStart({ target: e.target, column: _this.column, event: e.event });
@@ -1684,8 +1776,10 @@ window.sfBlazor.Grid = (function () {
                     var contentElement = sf.base.closest(target, '.e-gridcontent');
                     var pagerElement = sf.base.closest(target, '.e-gridpager');
                     var cloneElement = _this.parent.element.querySelector('.e-cloneproperties');
-                    if (!closest || closest.getAttribute('id') !== gObj.element.getAttribute('id') || (contentElement && closest.getAttribute('id') === sf.base.closest(contentElement, '.e-grid').getAttribute('id')) || pagerElement) {
-                        sf.base.classList(cloneElement, ['e-notallowedcur'], ['e-defaultcur']);
+                    if (!sf.base.isNullOrUndefined(cloneElement)) {
+                        if (!closest || closest.getAttribute('id') !== gObj.element.getAttribute('id') || (contentElement && closest.getAttribute('id') === sf.base.closest(contentElement, '.e-grid').getAttribute('id')) || pagerElement) {
+                            sf.base.classList(cloneElement, ['e-notallowedcur'], ['e-defaultcur']);
+                        }
                         if (gObj.options.allowReordering) {
                             var upArrowElement = gObj.options.enableColumnVirtualization ? gObj.element.querySelector('.e-reorderuparrow-virtual') : gObj.element.querySelector('.e-reorderuparrow');
                             var downArrowElement = gObj.options.enableColumnVirtualization ? gObj.element.querySelector('.e-reorderdownarrow-virtual') : gObj.element.querySelector('.e-reorderdownarrow');
@@ -1699,12 +1793,12 @@ window.sfBlazor.Grid = (function () {
                         if (!gObj.options.groupReordering) {
                             return;
                         }
-                    }
-                    if (gObj.options.allowReordering) {
-                        _this.parent.reorderModule.drag({ target: e.target, column: _this.column, event: e.event });
-                    }
-                    if (gObj.options.allowGrouping) {
-                        _this.parent.groupModule.columnDrag({ target: e.target });
+                        if (gObj.options.allowReordering) {
+                            _this.parent.reorderModule.drag({ target: e.target, column: _this.column, event: e.event });
+                        }
+                        if (gObj.options.allowGrouping) {
+                            _this.parent.groupModule.columnDrag({ target: e.target });
+                        }
                     }
                 }
             };
@@ -1713,7 +1807,7 @@ window.sfBlazor.Grid = (function () {
                 document.body.classList.remove('e-prevent-select');
                 var cancel;
                 var popup = gObj.element.querySelector('.e-gridpopup');
-                if (popup) {
+                if (!sf.base.isNullOrUndefined(popup)) {
                     popup.style.display = 'none';
                 }
                 if ((!parentsUntil(e.target, 'e-headercell') && !parentsUntil(e.target, 'e-groupdroparea')) ||
@@ -1722,6 +1816,7 @@ window.sfBlazor.Grid = (function () {
                     sf.base.remove(e.helper);
                     cancel = true;
                     if (gObj.options.allowGrouping && _this.parent.groupModule) {
+                        // eslint-disable-next-line @typescript-eslint/no-explicit-any
                         sf.base.EventHandler.remove(window, 'touchmove', _this.parent.groupModule.preventTouchOnWindow);
                     }
                 }
@@ -1760,10 +1855,12 @@ window.sfBlazor.Grid = (function () {
                 var closest = sf.base.closest(target, '.e-headercell:not(.e-stackedHeaderCell)');
                 if (closest) {
                     var dropElement = closest.querySelector('.e-headercelldiv') || closest.querySelector('.e-stackedheadercelldiv');
-                    var uID = dropElement.getAttribute('e-mappinguid');
-                    var column = gObj.getColumnByUid(uID);
-                    if (!sf.base.isNullOrUndefined(column) && !column.allowGrouping && !column.allowReordering) {
-                        return false;
+                    if (!sf.base.isNullOrUndefined(dropElement)) {
+                        var uID = dropElement.getAttribute('e-mappinguid');
+                        var column = gObj.getColumnByUid(uID);
+                        if (!sf.base.isNullOrUndefined(column) && !column.allowGrouping && !column.allowReordering) {
+                            return false;
+                        }
                     }
                 }
                 var parentEle = parentsUntil(target, 'e-headercell');
@@ -1779,25 +1876,27 @@ window.sfBlazor.Grid = (function () {
                 var height = element.offsetHeight;
                 var headercelldiv = element.querySelector('.e-headercelldiv') || element.querySelector('.e-stackedheadercelldiv');
                 var col;
-                if (headercelldiv) {
+                if (!sf.base.isNullOrUndefined(headercelldiv)) {
                     if (element.querySelector('.e-stackedheadercelldiv')) {
                         col = gObj.getStackedHeaderColumnByHeaderText(headercelldiv.innerText.trim(), gObj.options.columns);
                     }
                     else {
                         col = gObj.getColumnByUid(headercelldiv.getAttribute('e-mappinguid'));
                     }
-                    _this.column = col;
-                    var stackedColumns = _this.column.columns;
-                    var fixedColumnsOrder = _this.parent.reorderModule.processStackedColumns(_this.parent.options.columns);
-                    var indexOftheElement = parseInt(element.getAttribute('aria-colindex'), 10) - 1;
-                    var isStackedChildAllLocked = !sf.base.isNullOrUndefined(stackedColumns) && stackedColumns.length > 0 ?
-                        _this.parent.reorderModule.isAnyColumnFixed(fixedColumnsOrder[parseInt(indexOftheElement.toString(), 10)]) : false;
-                    if (_this.column.fixedColumn || isStackedChildAllLocked) {
-                        return false;
+                    if (!sf.base.isNullOrUndefined(col)) {
+                        _this.column = col;
+                        var stackedColumns = _this.column.columns;
+                        var fixedColumnsOrder = _this.parent.reorderModule.processStackedColumns(_this.parent.options.columns);
+                        var indexOftheElement = parseInt(element.getAttribute('aria-colindex'), 10) - 1;
+                        var isStackedChildAllLocked = !sf.base.isNullOrUndefined(stackedColumns) && stackedColumns.length > 0 ?
+                            _this.parent.reorderModule.isAnyColumnFixed(fixedColumnsOrder[parseInt(indexOftheElement.toString(), 10)]) : false;
+                        if (_this.column.fixedColumn || isStackedChildAllLocked) {
+                            return false;
+                        }
+                        visualElement.setAttribute('e-mappinguid', headercelldiv.getAttribute('e-mappinguid'));
                     }
-                    visualElement.setAttribute('e-mappinguid', headercelldiv.getAttribute('e-mappinguid'));
                 }
-                visualElement.innerText = headercelldiv ? sf.base.isNullOrUndefined(col.headerText) ?
+                visualElement.innerText = !sf.base.isNullOrUndefined(headercelldiv) && !sf.base.isNullOrUndefined(col) ? sf.base.isNullOrUndefined(col.headerText) ?
                     col.field : col.headerText : element.innerText;
                 visualElement.style.width = element.offsetWidth + 'px';
                 visualElement.style.height = element.offsetHeight + 'px';
@@ -1992,10 +2091,13 @@ window.sfBlazor.Grid = (function () {
                 var columnsOrder = (stackedHdrColumn.length > 0 && stackedCols.length > 0) ? columnsList :
                     this.parent.options.columns;
                 var flatColumns = this.getColumnsModel(columnsOrder);
-                if (!sf.base.isNullOrUndefined(dropElement.parentElement) &&
-                    !sf.base.isNullOrUndefined(dropElement.parentElement.parentElement)) {
-                    var thElement = dropElement.parentElement.parentElement;
-                    isStackedColumnLocked = this.stackedLockedColumn(flatColumns, thElement);
+                var parentElem = dropElement.parentElement;
+                if (!sf.base.isNullOrUndefined(parentElem)) {
+                    var grandparentElem = parentElem.parentElement;
+                    if (!sf.base.isNullOrUndefined(grandparentElem)) {
+                        var thElement = grandparentElem;
+                        isStackedColumnLocked = this.stackedLockedColumn(flatColumns, thElement);
+                    }
                 }
             }
             if (!sf.base.closest(e.target, 'th') || (!sf.base.isNullOrUndefined(column) && (!column.allowReordering || column.fixedColumn)) || isStackedColumnLocked) {
@@ -2624,7 +2726,11 @@ window.sfBlazor.Grid = (function () {
             }
             var headerTable = gObj.getHeaderTable();
             var contentTable = gObj.getContentTable();
-            var headerTextClone = (sf.base.closest(headerTable.querySelector('[e-mappinguid="' + uid + '"]'), 'th')).cloneNode(true);
+            var headerCell = headerTable.querySelector('[e-mappinguid="' + uid + '"]');
+            if (sf.base.isNullOrUndefined(headerCell)) {
+                return;
+            }
+            var headerTextClone = (sf.base.closest(headerCell, 'th')).cloneNode(true);
             if (frzCols) {
                 var ariaColIndex = headerTextClone.getAttribute('aria-colindex');
                 contentTextClone = contentTable.querySelectorAll('[aria-colindex="' + ariaColIndex + '"]');
@@ -2638,10 +2744,14 @@ window.sfBlazor.Grid = (function () {
                     footerTextClone = footerTable.querySelectorAll("td:nth-child(".concat(columnIndex + 1, "):not(.e-groupcaption)"));
                 }
             }
-            var indentWidthClone = headerTable.querySelector('tr').querySelectorAll('.e-grouptopleftcell');
-            if (indentWidthClone.length > 0) {
-                for (var i = 0; i < indentWidthClone.length; i++) {
-                    indentWidth += indentWidthClone[parseInt(i.toString(), 10)].offsetWidth;
+            var headerRow = headerTable.querySelector('tr');
+            var indentWidthClone;
+            if (!sf.base.isNullOrUndefined(headerRow)) {
+                indentWidthClone = headerRow.querySelectorAll('.e-grouptopleftcell');
+                if (indentWidthClone.length > 0) {
+                    for (var i = 0; i < indentWidthClone.length; i++) {
+                        indentWidth += indentWidthClone[parseInt(i.toString(), 10)].offsetWidth;
+                    }
                 }
             }
             var detailsElement = contentTable.querySelector('.e-detailrowcollapse') ||
@@ -3612,7 +3722,6 @@ window.sfBlazor.Grid = (function () {
         return Resize;
     }());
 
-    // eslint-disable-next-line valid-jsdoc, jsdoc/require-param
     /**
      *
      * The `Group` module is used to handle group action.
@@ -3756,17 +3865,32 @@ window.sfBlazor.Grid = (function () {
             this.drop = function (e) {
                 var gObj = _this.parent;
                 var column = gObj.getColumnByUid(e.droppedElement.getAttribute('e-mappinguid'));
-                gObj.element.querySelector('.e-groupdroparea').classList.remove('e-hover');
+                var groupDropArea = gObj.element.querySelector('.e-groupdroparea');
+                if (!sf.base.isNullOrUndefined(groupDropArea)) {
+                    groupDropArea.classList.remove('e-hover');
+                }
                 sf.base.remove(e.droppedElement);
                 if (gObj.options.allowGrouping) {
                     // eslint-disable-next-line @typescript-eslint/no-explicit-any
                     sf.base.EventHandler.remove(window, 'touchmove', _this.preventTouchOnWindow);
                 }
-                _this.parent.element.querySelector('.e-groupdroparea').removeAttribute('aria-dropeffect');
-                _this.parent.element.querySelector('[aria-grabbed=true]').setAttribute('aria-grabbed', 'false');
-                if (sf.base.isNullOrUndefined(column) || column.allowGrouping === false
-                    || parentsUntil(gObj.getColumnHeaderByUid(column.uid), 'e-grid').getAttribute('id') !==
-                        gObj.element.getAttribute('id')) {
+                var groupDropAreaDropEffect = _this.parent.element.querySelector('.e-groupdroparea');
+                if (!sf.base.isNullOrUndefined(groupDropAreaDropEffect)) {
+                    groupDropAreaDropEffect.removeAttribute('aria-dropeffect');
+                }
+                var ariaGrabbedElem = _this.parent.element.querySelector('[aria-grabbed=true]');
+                if (!sf.base.isNullOrUndefined(ariaGrabbedElem)) {
+                    ariaGrabbedElem.setAttribute('aria-grabbed', 'false');
+                }
+                if (sf.base.isNullOrUndefined(column) || column.allowGrouping === false) {
+                    return;
+                }
+                var columnHeaderElement = gObj.getColumnHeaderByUid(column.uid);
+                if (sf.base.isNullOrUndefined(columnHeaderElement)) {
+                    return;
+                }
+                var gridElement = parentsUntil(columnHeaderElement, 'e-grid');
+                if (sf.base.isNullOrUndefined(gridElement) || gridElement.getAttribute('id') !== gObj.element.getAttribute('id')) {
                     return;
                 }
                 gObj.dotNetRef.invokeMethodAsync('GroupColumn', column.field, 'Group');
@@ -3780,6 +3904,9 @@ window.sfBlazor.Grid = (function () {
             if (this.parent.options.groupReordering) ;
             var gObj = this.parent;
             var cloneElement = gObj.element.querySelector('.e-cloneproperties');
+            if (sf.base.isNullOrUndefined(cloneElement)) {
+                return;
+            }
             var column = gObj.getColumnByUid(cloneElement.getAttribute('e-mappinguid'));
             if (parentsUntil(e.target, 'e-groupdroparea')) {
                 sf.base.classList(cloneElement, ['e-defaultcur'], ['e-notallowedcur']);
@@ -3792,7 +3919,10 @@ window.sfBlazor.Grid = (function () {
             }
             if (gObj.options.showDropArea) {
                 if (e.target.classList.contains('e-groupdroparea')) {
-                    gObj.element.querySelector('.e-groupdroparea').classList.add('e-hover');
+                    var groupDropAreaHover = gObj.element.querySelector('.e-groupdroparea');
+                    if (!sf.base.isNullOrUndefined(groupDropAreaHover)) {
+                        groupDropAreaHover.classList.add('e-hover');
+                    }
                 }
                 else {
                     gObj.element.querySelector('.e-groupdroparea').classList.remove('e-hover');
@@ -4050,7 +4180,8 @@ window.sfBlazor.Grid = (function () {
             var e = this.parent.getColumnHeaderByUid(uid).querySelector('.e-columnmenu');
             var columnMenuElement = document.getElementsByClassName("e-".concat(this.parent.element.id, "-column-menu"))[0];
             columnMenuElement.style.position = 'absolute';
-            var element = columnMenuElement.getElementsByTagName('ul')[0];
+            var elementList = columnMenuElement.getElementsByTagName('ul');
+            var element = elementList.length > 0 ? elementList[0] : null;
             if (!sf.base.isNullOrUndefined(element)) {
                 var pos = { top: 0, left: 0 };
                 element.style.visibility = 'hidden';
@@ -4081,7 +4212,11 @@ window.sfBlazor.Grid = (function () {
         };
         ColumnMenu.prototype.setPosition = function () {
             var columnMenuElement = document.getElementsByClassName("e-".concat(this.parent.element.id, "-column-menu"))[0];
-            var element = !sf.base.isNullOrUndefined(columnMenuElement) ? columnMenuElement.getElementsByTagName('ul')[0] : null;
+            var element = null;
+            if (!sf.base.isNullOrUndefined(columnMenuElement)) {
+                var elementList = columnMenuElement.getElementsByTagName('ul');
+                element = elementList.length > 0 ? elementList[0] : null;
+            }
             if (!sf.base.isNullOrUndefined(element) && !sf.base.isNullOrUndefined(this.uid) && !sf.base.isNullOrUndefined(this.parent.getColumnHeaderByUid(this.uid))
                 && !sf.base.Browser.isDevice) {
                 var e = this.parent.getColumnHeaderByUid(this.uid).querySelector('.e-columnmenu');
@@ -4294,9 +4429,14 @@ window.sfBlazor.Grid = (function () {
                     rows.pop();
                 }
                 if (this_1.parent.options.editMode === 'Batch') {
-                    if (viewPortRowCount > 1 && rows.length >= viewPortRowCount
-                        && parseInt(rows[rows.length - 1].getAttribute('aria-rowindex'), 10) - 1 === parseInt(row.getAttribute('aria-rowindex'), 10) - 1) {
-                        isBatchModeLastRow = true;
+                    if (viewPortRowCount > 1 && rows.length >= viewPortRowCount) {
+                        var lastRowAttr = rows[rows.length - 1].getAttribute('aria-rowindex');
+                        var currentRowAttr = row.getAttribute('aria-rowindex');
+                        if (lastRowAttr !== null && currentRowAttr !== null) {
+                            if (parseInt(lastRowAttr, 10) - 1 === parseInt(currentRowAttr, 10) - 1) {
+                                isBatchModeLastRow = true;
+                            }
+                        }
                     }
                 }
                 if (isInline) {
@@ -4319,8 +4459,19 @@ window.sfBlazor.Grid = (function () {
                         }
                     }
                 }
-                var table = isInline ?
-                    ((isHeader) ? this_1.parent.getHeaderTable() : this_1.parent.getContentTable()) : document.querySelector('#' + this_1.parent.element.id + dialogWrapperText).querySelector('.e-dlg-content');
+                var table = void 0;
+                if (isInline) {
+                    table = (isHeader) ? this_1.parent.getHeaderTable() : this_1.parent.getContentTable();
+                }
+                else {
+                    var dialogWrapper = document.querySelector('#' + this_1.parent.element.id + dialogWrapperText);
+                    if (!sf.base.isNullOrUndefined(dialogWrapper)) {
+                        table = dialogWrapper.querySelector('.e-dlg-content');
+                    }
+                    else {
+                        return { value: void 0 };
+                    }
+                }
                 var client = table.getBoundingClientRect();
                 var left = isInline ?
                     this_1.parent.element.getBoundingClientRect().left : client.left;
@@ -4480,6 +4631,42 @@ window.sfBlazor.Grid = (function () {
         return Edit;
     }());
 
+    var __awaiter$3 = (undefined && undefined.__awaiter) || function (thisArg, _arguments, P, generator) {
+        function adopt(value) { return value instanceof P ? value : new P(function (resolve) { resolve(value); }); }
+        return new (P || (P = Promise))(function (resolve, reject) {
+            function fulfilled(value) { try { step(generator.next(value)); } catch (e) { reject(e); } }
+            function rejected(value) { try { step(generator["throw"](value)); } catch (e) { reject(e); } }
+            function step(result) { result.done ? resolve(result.value) : adopt(result.value).then(fulfilled, rejected); }
+            step((generator = generator.apply(thisArg, _arguments || [])).next());
+        });
+    };
+    var __generator$3 = (undefined && undefined.__generator) || function (thisArg, body) {
+        var _ = { label: 0, sent: function() { if (t[0] & 1) throw t[1]; return t[1]; }, trys: [], ops: [] }, f, y, t, g;
+        return g = { next: verb(0), "throw": verb(1), "return": verb(2) }, typeof Symbol === "function" && (g[Symbol.iterator] = function() { return this; }), g;
+        function verb(n) { return function (v) { return step([n, v]); }; }
+        function step(op) {
+            if (f) throw new TypeError("Generator is already executing.");
+            while (g && (g = 0, op[0] && (_ = 0)), _) try {
+                if (f = 1, y && (t = op[0] & 2 ? y["return"] : op[0] ? y["throw"] || ((t = y["return"]) && t.call(y), 0) : y.next) && !(t = t.call(y, op[1])).done) return t;
+                if (y = 0, t) op = [op[0] & 2, t.value];
+                switch (op[0]) {
+                    case 0: case 1: t = op; break;
+                    case 4: _.label++; return { value: op[1], done: false };
+                    case 5: _.label++; y = op[1]; op = [0]; continue;
+                    case 7: op = _.ops.pop(); _.trys.pop(); continue;
+                    default:
+                        if (!(t = _.trys, t = t.length > 0 && t[t.length - 1]) && (op[0] === 6 || op[0] === 2)) { _ = 0; continue; }
+                        if (op[0] === 3 && (!t || (op[1] > t[0] && op[1] < t[3]))) { _.label = op[1]; break; }
+                        if (op[0] === 6 && _.label < t[1]) { _.label = t[1]; t = op; break; }
+                        if (t && _.label < t[2]) { _.label = t[2]; _.ops.push(op); break; }
+                        if (t[2]) _.ops.pop();
+                        _.trys.pop(); continue;
+                }
+                op = body.call(thisArg, _);
+            } catch (e) { op = [6, e]; y = 0; } finally { f = t = 0; }
+            if (op[0] & 5) throw op[1]; return { value: op[0] ? op[1] : void 0, done: true };
+        }
+    };
     /**
      * The `Clipboard` module is used to handle clipboard copy action.
      */
@@ -4497,10 +4684,11 @@ window.sfBlazor.Grid = (function () {
         }
         Clipboard.prototype.pasteHandler = function () {
             var _this = this;
+            var _a, _b;
             var grid = this.parent;
-            var target = sf.base.closest(document.activeElement, '.e-rowcell');
-            if (!target || !grid.options.allowEditing || grid.options.editMode !== 'Batch' ||
-                grid.options.selectionMode !== 'Cell' || grid.options.cellSelectionMode === 'Flow' ||
+            var active = document.activeElement;
+            var target = (_b = (_a = (active && sf.base.closest(active, '.e-rowcell'))) !== null && _a !== void 0 ? _a : this.parent.element.querySelector('.e-rowcell.e-cellselectionbackground')) !== null && _b !== void 0 ? _b : this.parent.element.querySelector('.e-rowcell[tabindex="0"]');
+            if (!target || !this.isPasteAllowed() ||
                 (target.classList.contains('e-editedbatchcell') && grid.options.cellSelectionMode === 'Box')) {
                 return;
             }
@@ -4518,86 +4706,191 @@ window.sfBlazor.Grid = (function () {
                 }, name);
             }, 10);
         };
-        Clipboard.prototype.pasteAction = function (data, rowIndex, colIndex, cancel) {
-            if (!cancel && data !== '') {
-                this.paste(data, rowIndex, colIndex);
+        /**
+         * When a single cell value is copied and pasted, the value is applied
+         * to all selected target cells in Batch Edit mode. The method reuses
+         * that validation, BeforeCellPaste events, UpdateCell processing,
+         * and dirty tracking continue to work without modification.
+         *
+         * @param selection Collection of selected cell ranges.
+         * @param value Clipboard value to be applied to each selected cell.
+         */
+        Clipboard.prototype.getSelectionPasteCells = function (selection, value) {
+            var pasteCells = [];
+            if (!this.isPasteAllowed() || !selection || selection.length === 0) {
+                return pasteCells;
             }
+            for (var _i = 0, selection_1 = selection; _i < selection_1.length; _i++) {
+                var cellGroup = selection_1[_i];
+                var rowIndex = cellGroup.rowIndex;
+                for (var _a = 0, _b = cellGroup.cellIndexes; _a < _b.length; _a++) {
+                    var cellIndex = _b[_a];
+                    var column = this.parent.getColumnByIndex(cellIndex);
+                    if (!this.isValidPasteTarget(column)) {
+                        continue;
+                    }
+                    pasteCells.push({ rowIndex: rowIndex, columnIndex: cellIndex, columnField: column.field, value: value });
+                }
+            }
+            return pasteCells;
         };
-        Clipboard.prototype.paste = function (data, rowIndex, colIndex) {
+        Clipboard.prototype.isValidPasteTarget = function (column) {
+            return !!column &&
+                column.allowEditing &&
+                !column.isPrimaryKey &&
+                !column.template &&
+                !column.commands;
+        };
+        Clipboard.prototype.isValidCopyTarget = function (column) {
+            return !!column &&
+                !column.template &&
+                !column.commands;
+        };
+        Clipboard.prototype.isEditModeAllowed = function () {
+            return this.parent.options.editMode === 'Batch' || this.parent.options.editMode === 'Cell';
+        };
+        Clipboard.prototype.isPasteAllowed = function () {
+            return this.parent.options.allowEditing &&
+                this.isEditModeAllowed() &&
+                this.parent.options.selectionMode === 'Cell' &&
+                this.parent.options.cellSelectionMode !== 'Flow';
+        };
+        Clipboard.prototype.getMatrixPasteCells = function (data, rowIndex, colIndex) {
             var grid = this.parent;
-            var cIdx = colIndex;
-            var rIdx = rowIndex;
-            var col;
-            var value;
-            var isAvail;
-            if (!grid.options.allowEditing || grid.options.editMode !== 'Batch' ||
-                grid.options.selectionMode !== 'Cell' || grid.options.cellSelectionMode === 'Flow') {
-                return;
+            var pasteCells = [];
+            var currentRowIndex = rowIndex;
+            if (!this.isPasteAllowed()) {
+                return pasteCells;
             }
-            // Check if the data represents a single cell with multiline content
-            var isSingleCellMultiline = data.trim().startsWith('"') && data.trim().endsWith('"');
+            /*
+             * Preserve the existing single-cell multiline handling.
+             */
+            var trimmedData = data.trim();
+            var isSingleCellMultiline = trimmedData.startsWith('"') && trimmedData.endsWith('"');
             if (isSingleCellMultiline) {
-                // Handle single cell multiline paste
-                var pasteData = data.trim().slice(1, -1).replace(/\\n/g, '\n'); // Remove quotes and decode newlines
-                var column = grid.getColumnByIndex(cIdx);
-                this.invokePasteAction(rIdx, cIdx, pasteData, column);
-                return;
+                var value = trimmedData.slice(1, -1).replace(/\\n/g, '\n');
+                var column = grid.getColumnByIndex(colIndex);
+                if (!sf.base.isNullOrUndefined(column) && this.isValidPasteTarget(column)) {
+                    pasteCells.push({ rowIndex: rowIndex, columnIndex: colIndex, columnField: column.field, value: value });
+                }
+                return pasteCells;
             }
             var rows = data.split('\n');
-            var cols;
             var dataRows = grid.getDataRows();
-            var mRows;
+            var movableRows = [];
             var isFrozen = this.parent.options.frozenColumns;
             if (isFrozen) {
-                mRows = grid.getMovableDataRows();
+                movableRows = grid.getMovableDataRows();
             }
-            for (var r = 0; r < rows.length; r++) {
-                cols = rows[parseInt(r.toString(), 10)].split('\t');
-                cIdx = colIndex;
-                if ((r === rows.length - 1 && rows[parseInt(r.toString(), 10)] === '') || sf.base.isUndefined(grid.getRowByIndex(rIdx))) {
-                    cIdx++;
+            for (var row = 0; row < rows.length; row++) {
+                // eslint-disable-next-line security/detect-object-injection
+                var rowValue = rows[row];
+                if (row === rows.length - 1 &&
+                    rowValue === '') {
                     break;
                 }
-                for (var c = 0; c < cols.length; c++) {
-                    isAvail = grid.getCellFromIndex(rIdx, cIdx);
+                if (sf.base.isUndefined(grid.getRowByIndex(currentRowIndex))) {
+                    break;
+                }
+                var columns = rowValue.split('\t');
+                var currentColumnIndex = colIndex;
+                for (var columnIndex = 0; columnIndex < columns.length; columnIndex++) {
+                    var isAvailable = grid.getCellFromIndex(currentRowIndex, currentColumnIndex);
                     if (isFrozen) {
-                        var fTr = dataRows[parseInt(rIdx.toString(), 10)];
-                        var mTr = mRows[parseInt(rIdx.toString(), 10)];
-                        isAvail = !fTr.querySelector('[aria-colindex="' + (cIdx + 1) + '"]') ?
-                            mTr.querySelector('[aria-colindex="' + (cIdx + 1) + '"]') : true;
+                        // eslint-disable-next-line security/detect-object-injection
+                        var frozenRow = dataRows[currentRowIndex];
+                        // eslint-disable-next-line security/detect-object-injection
+                        var movableRow = movableRows[currentRowIndex];
+                        if (!frozenRow || !movableRow) {
+                            break;
+                        }
+                        isAvailable = !frozenRow.querySelector('[aria-colindex="' + (currentColumnIndex + 1) + '"]')
+                            ? movableRow.querySelector('[aria-colindex="' + (currentColumnIndex + 1) + '"]')
+                            : true;
                     }
-                    if (!isAvail) {
-                        cIdx++;
+                    if (!isAvailable) {
                         break;
                     }
-                    col = grid.getColumnByIndex(cIdx);
-                    value = cols[parseInt(c.toString(), 10)];
-                    this.invokePasteAction(rIdx, cIdx, value, col);
-                    cIdx++;
-                }
-                rIdx++;
-            }
-        };
-        Clipboard.prototype.invokePasteAction = function (rowIndex, columnIndex, pasteValue, column) {
-            var grid = this.parent;
-            if (column.allowEditing && !column.isPrimaryKey && !column.template) {
-                grid.dotNetRef.invokeMethodAsync('InvokePasteAction', {
-                    cellValue: pasteValue
-                }, rowIndex, columnIndex, column.field);
-            }
-        };
-        Clipboard.prototype.pasteData = function (rowIndex, columnField, value, columnIndex, cancel) {
-            if (!cancel) {
-                if (this.parent.editModule) {
-                    {
-                        this.parent.dotNetRef.invokeMethodAsync('UpdateCell', rowIndex, columnField, value);
+                    var column = grid.getColumnByIndex(currentColumnIndex);
+                    if (this.isValidPasteTarget(column)) {
+                        // eslint-disable-next-line security/detect-object-injection
+                        pasteCells.push({ rowIndex: currentRowIndex, columnIndex: currentColumnIndex, columnField: column.field, value: columns[columnIndex] });
                     }
+                    currentColumnIndex++;
                 }
-                var cell = this.parent.getCellFromIndex(rowIndex, columnIndex);
-                if (cell) {
-                    sf.base.classList(cell, ['e-focus', 'e-focused'], []);
-                }
+                currentRowIndex++;
             }
+            return pasteCells;
+        };
+        Clipboard.prototype.invokeBatchPasteAction = function (pasteCells) {
+            return __awaiter$3(this, void 0, void 0, function () {
+                var processedCells, error_1;
+                return __generator$3(this, function (_a) {
+                    switch (_a.label) {
+                        case 0:
+                            if (!pasteCells || pasteCells.length === 0) {
+                                return [2 /*return*/, false];
+                            }
+                            _a.label = 1;
+                        case 1:
+                            _a.trys.push([1, 3, , 4]);
+                            return [4 /*yield*/, this.parent.dotNetRef.invokeMethodAsync('InvokeBatchPasteAction', pasteCells)];
+                        case 2:
+                            processedCells = _a.sent();
+                            if (!processedCells || processedCells.length === 0) {
+                                return [2 /*return*/, false];
+                            }
+                            return [2 /*return*/, true];
+                        case 3:
+                            error_1 = _a.sent();
+                            // Keep during development to expose interop/deserialization errors.
+                            console.error('InvokeBatchPasteAction failed.', error_1);
+                            return [2 /*return*/, false];
+                        case 4: return [2 /*return*/];
+                    }
+                });
+            });
+        };
+        Clipboard.prototype.pasteBatch = function (selectedCells, value) {
+            return __awaiter$3(this, void 0, void 0, function () {
+                var isSingleCellSource, pasteCells, result;
+                return __generator$3(this, function (_a) {
+                    switch (_a.label) {
+                        case 0:
+                            if (!selectedCells || selectedCells.length === 0 || !value) {
+                                return [2 /*return*/, Promise.resolve(false)];
+                            }
+                            isSingleCellSource = !value.includes('\n') && !value.includes('\t');
+                            if (!isSingleCellSource) return [3 /*break*/, 3];
+                            if (!(this.parent.options.enableUndoRedo && this.parent.options.editMode === 'Batch')) return [3 /*break*/, 2];
+                            return [4 /*yield*/, this.parent.dotNetRef.invokeMethodAsync('BeginPasteBatch')];
+                        case 1:
+                            _a.sent();
+                            _a.label = 2;
+                        case 2:
+                            pasteCells = this.getSelectionPasteCells(selectedCells, value);
+                            return [3 /*break*/, 6];
+                        case 3:
+                            if (!(this.parent.options.enableUndoRedo && this.parent.options.editMode === 'Batch')) return [3 /*break*/, 5];
+                            return [4 /*yield*/, this.parent.dotNetRef.invokeMethodAsync('BeginPasteBatch')];
+                        case 4:
+                            _a.sent();
+                            _a.label = 5;
+                        case 5:
+                            pasteCells = this.getMatrixPasteCells(value, selectedCells[0].rowIndex, selectedCells[0].cellIndexes[0]);
+                            _a.label = 6;
+                        case 6: return [4 /*yield*/, this.invokeBatchPasteAction(pasteCells)];
+                        case 7:
+                            result = _a.sent();
+                            if (!(this.parent.options.enableUndoRedo && this.parent.options.editMode === 'Batch')) return [3 /*break*/, 9];
+                            return [4 /*yield*/, this.parent.dotNetRef.invokeMethodAsync('CommitPasteBatch')];
+                        case 8:
+                            _a.sent();
+                            _a.label = 9;
+                        case 9: return [2 /*return*/, result];
+                    }
+                });
+            });
         };
         Clipboard.prototype.setCopyData = function (withHeader) {
             var _this = this;
@@ -4665,10 +4958,12 @@ window.sfBlazor.Grid = (function () {
                 var clipboardFocus_1 = document.activeElement;
                 var selectedText = window.getSelection().toString();
                 if (selectedText) {
-                    navigator.clipboard.writeText(selectedText).then(function () {
-                        _this.clipBoardTextArea.blur();
-                        clipboardFocus_1.focus();
-                    });
+                    if (navigator.clipboard) {
+                        navigator.clipboard.writeText(selectedText).then(function () {
+                            _this.clipBoardTextArea.blur();
+                            clipboardFocus_1.focus();
+                        });
+                    }
                 }
             }
         };
@@ -4700,6 +4995,14 @@ window.sfBlazor.Grid = (function () {
         Clipboard.prototype.getCopyData = function (cells, isCell, splitKey, withHeader) {
             var isElement = typeof cells[0] !== 'string';
             for (var j = 0; j < cells.length; j++) {
+                if (isElement) {
+                    // eslint-disable-next-line security/detect-object-injection
+                    var colIndex = parseInt(cells[j].getAttribute('aria-colindex'), 10) - 1;
+                    var column = this.parent.getColumnByIndex(colIndex);
+                    if (!this.isValidCopyTarget(column)) {
+                        continue;
+                    }
+                }
                 if (withHeader && isCell) {
                     this.copyContent += this.parent.getColumns()[parseInt(cells[parseInt(j.toString(), 10)].getAttribute('aria-colindex'), 10) - 1].headerText + '\n';
                 }
@@ -4735,13 +5038,16 @@ window.sfBlazor.Grid = (function () {
             var gridObj = this.parent;
             var rowCellIndxes = [];
             var rows = gridObj.getRows();
-            var mrows;
+            var mrows = [];
             if (gridObj.options.frozenColumns) {
-                mrows = gridObj.getMovableDataRows();
+                var movableDataRows = gridObj.getMovableDataRows();
+                if (!sf.base.isNullOrUndefined(movableDataRows)) {
+                    mrows = movableDataRows;
+                }
             }
             var _loop_1 = function (i) {
                 var tempCells = rows[parseInt(i.toString(), 10)].querySelectorAll('.e-cellselectionbackground');
-                if (gridObj.options.frozenColumns && !tempCells.length) {
+                if (gridObj.options.frozenColumns && !tempCells.length && mrows.length > i) {
                     tempCells = mrows[parseInt(i.toString(), 10)].querySelectorAll('.e-cellselectionbackground');
                 }
                 if (tempCells.length) {
@@ -4857,6 +5163,7 @@ window.sfBlazor.Grid = (function () {
         CustomToolTip.prototype.close = function () {
             if (this.toolTipElement) {
                 var prevTarget = this.parent.element.querySelector('[aria-describedby="' + this.ctrlId + '_content' + '"]');
+                prevTarget = sf.base.isNullOrUndefined(prevTarget) ? this.parent.element.querySelector('[data-tooltip-id="' + this.ctrlId + '_content' + '"]') : prevTarget;
                 if (!sf.base.isNullOrUndefined(prevTarget)) {
                     prevTarget.removeAttribute('aria-describedby');
                     prevTarget.removeAttribute('data-tooltip-id');
@@ -4891,6 +5198,9 @@ window.sfBlazor.Grid = (function () {
             document.body.removeChild(ctable);
             if (element.firstElementChild) {
                 var childElement = element.firstElementChild;
+                if (childElement instanceof HTMLFormElement) {
+                    return false;
+                }
                 if (childElement.offsetWidth === childElement.scrollWidth) {
                     var clonedElement = childElement.cloneNode(true);
                     Object.assign(clonedElement.style, {
@@ -5028,7 +5338,6 @@ window.sfBlazor.Grid = (function () {
         return CustomToolTip;
     }());
 
-    // eslint-disable-next-line valid-jsdoc, jsdoc/require-param, jsdoc/require-returns
     /**
      *
      * Reorder module is used to handle row reordering.
@@ -5060,7 +5369,6 @@ window.sfBlazor.Grid = (function () {
             this.helper = function (e) {
                 var gObj = _this.parent;
                 var target = _this.draggable.currentStateTarget;
-                // eslint-disable-next-line @typescript-eslint/no-explicit-any
                 _this.draggable.queryPositionInfo = function (value) {
                     if (gObj.options.enableRtl && sf.base.isNullOrUndefined(gObj.options.rowDropTarget)) {
                         value.left = (this.position.left) - ((this.parentClientRect.left + this.borderWidth.left)) - document.querySelector('.e-cloneproperties').clientWidth + (gObj.element.querySelector('.e-rowdragdrop').clientWidth / 2) + 'px';
@@ -5078,7 +5386,7 @@ window.sfBlazor.Grid = (function () {
                 if (document.getElementsByClassName('e-griddragarea').length ||
                     ((senderTargetIsNotCell && gObj.options.selectionType !== 'Single')) ||
                     (!gObj.options.rowDropTarget && !parentsUntil(target, 'e-rowdragdrop') && sf.base.Browser.isDevice)
-                    || gObj.options.selectionType === 'Single' && target.parentElement.getAttribute('aria-rowindex') === null
+                    || (gObj.options.selectionType === 'Single' && !sf.base.isNullOrUndefined(target.parentElement) && target.parentElement.getAttribute('aria-rowindex') === null)
                     || _this.isTargetInEditMode(target)) {
                     if (sf.base.isNullOrUndefined(parentsUntil(target, 'e-rowdragdrop'))) {
                         return false;
@@ -5086,6 +5394,7 @@ window.sfBlazor.Grid = (function () {
                 }
                 if (gObj.options.rowDropTarget &&
                     gObj.options.selectionMode === 'Row' && gObj.options.selectionType === 'Single' &&
+                    !sf.base.isNullOrUndefined(_this.draggable.currentStateTarget.parentElement) &&
                     _this.draggable.currentStateTarget.parentElement.getAttribute('aria-rowindex') !== null) {
                     gObj.dotNetRef.invokeMethodAsync('SelectRow', parseInt(_this.draggable.currentStateTarget.parentElement.getAttribute('aria-rowindex'), 10) - 1, false, -1);
                 }
@@ -5155,7 +5464,6 @@ window.sfBlazor.Grid = (function () {
                 _this.parent.dotNetRef.invokeMethodAsync('RowDragStartEvent', fromIdx, dragUid);
                 e.bindEvents(e.dragElement);
                 _this.dragStartData = _this.rowData;
-                // eslint-disable-next-line @typescript-eslint/no-explicit-any
                 var dropElem = document.getElementById(gObj.options.rowDropTarget);
                 if (gObj.options.rowDropTarget && dropElem && dropElem.blazor__instance &&
                     (typeof dropElem.blazor__instance.getModuleName === 'function') &&
@@ -5193,6 +5501,7 @@ window.sfBlazor.Grid = (function () {
                 }
                 // eslint-disable-next-line @typescript-eslint/no-explicit-any
                 var instance = !sf.base.isNullOrUndefined(targetElementGrid) && !sf.base.isNullOrUndefined(targetElementGrid.blazor__instance)
+                    // eslint-disable-next-line @typescript-eslint/no-explicit-any
                     ? targetElementGrid.blazor__instance : null;
                 if (!sf.base.isNullOrUndefined(instance) && !sf.base.isNullOrUndefined(instance.options) && instance.options.showAddNewRow && !_this.showAddNewRowDisable) {
                     gObj.dotNetRef.invokeMethodAsync('DisableShowAddForm', 'RowDragStart', false, _this.destinationGrid.dotNetRef);
@@ -5263,6 +5572,7 @@ window.sfBlazor.Grid = (function () {
                 var stackedColumn = gObj.reorderModule.processStackedColumns(gObj.reorderModule.getColumnsModel(gObj.options.columns)).length;
                 var stackedHeader = gObj.getStackedColumns(gObj.reorderModule.getColumnsModel(gObj.options.columns)).length;
                 if (!sf.base.isNullOrUndefined(targetElementGrid) && gObj.options.allowGrouping
+                    // eslint-disable-next-line @typescript-eslint/no-explicit-any
                     && (targetElementGrid.blazor__instance.options.groupCount === gObj.options.columns.length
                         || (stackedColumn - stackedHeader) === gObj.options.groupCount) && !gObj.options.showGroupedColumn) {
                     sf.base.classList(cloneElement, ['e-notallowedcur'], ['e-defaultcur']);
@@ -5317,7 +5627,8 @@ window.sfBlazor.Grid = (function () {
                                 }
                             }
                         }
-                        else if (!sf.base.isNullOrUndefined(targetElementGrid) && targetElementGrid.querySelector('.e-emptyrow') && cloneElementGrid.id !== targetElementGrid.id && targetElementGrid.querySelector('.e-content').getElementsByClassName('e-emptyrow').length > 0 && !cloneElement.classList.contains('e-notallowedcur')) {
+                        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                        else if (!sf.base.isNullOrUndefined(targetElementGrid) && !sf.base.isNullOrUndefined(targetElementGrid.blazor__instance) && targetElementGrid.querySelector('.e-emptyrow') && cloneElementGrid.id !== targetElementGrid.id && targetElementGrid.querySelector('.e-content').getElementsByClassName('e-emptyrow').length > 0 && !cloneElement.classList.contains('e-notallowedcur')) {
                             // eslint-disable-next-line @typescript-eslint/no-explicit-any
                             if (targetElementGrid.blazor__instance.getRows().length === 0 || !sf.base.isNullOrUndefined(trElement) && parentsUntil(trElement, 'e-detailrow') && trElement.getElementsByClassName('e-emptyrow').length > 0) {
                                 if (!sf.base.isNullOrUndefined(cloneIsDetailRow) || (sf.base.isNullOrUndefined(cloneIsDetailRow) &&
@@ -5341,7 +5652,9 @@ window.sfBlazor.Grid = (function () {
                                 }
                             }
                         }
-                        else if (!sf.base.isNullOrUndefined(targetElementGrid) && gObj.options.allowEmptyAreaDrop
+                        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                        else if (!sf.base.isNullOrUndefined(targetElementGrid) && !sf.base.isNullOrUndefined(targetElementGrid.blazor__instance) && gObj.options.allowEmptyAreaDrop
+                            // eslint-disable-next-line @typescript-eslint/no-explicit-any
                             && targetElementGrid.blazor__instance.options.groupCount === 0) {
                             var gridContentEle = targetElementGrid.querySelector('.e-content');
                             var bottomborder = sf.base.createElement('div', { className: 'e-lastrow-dragborder' });
@@ -5579,7 +5892,6 @@ window.sfBlazor.Grid = (function () {
                 });
             };
             this.drop = function (e) {
-                // eslint-disable-next-line @typescript-eslint/no-explicit-any
                 var droppedElement = e.droppedElement || e.helper;
                 _this.columnDrop({ target: e.target, droppedElement: droppedElement, mouseEvent: e.event });
                 sf.base.remove(droppedElement);
@@ -5619,7 +5931,6 @@ window.sfBlazor.Grid = (function () {
                     -(this.destinationGrid.getRowHeight()) : this.destinationGrid.getRowHeight();
                 this.isOverflowBorder = false;
                 this.stopTimer();
-                // eslint-disable-next-line @typescript-eslint/no-explicit-any
                 this.timer = window.setInterval(function () { _this.setScrollDown(scrollElement, scrollPixel_1, targetRow); }, 200);
             }
         };
@@ -5661,7 +5972,7 @@ window.sfBlazor.Grid = (function () {
                 this.removeFirstRowBorder(element);
                 this.removeLastRowBorder(element);
             }
-            this.parent.element.querySelector('.e-dragstartrow');
+            // const dragIconIsActive: Element | null = this.parent.element.querySelector('.e-dragstartrow');
             // Get the mouse position relative to the target row
             var mouseY = getPosition(event).y - targetRow.getBoundingClientRect().top;
             // Calculate the midpoint of the target row
@@ -5915,8 +6226,8 @@ window.sfBlazor.Grid = (function () {
                     return;
                 }
                 if (targetGridId !== gObj.element.id) {
-                    // eslint-disable-next-line @typescript-eslint/no-explicit-any
                     srcControl = this.cloneElementGrid && rowDragTargetId ?
+                        // eslint-disable-next-line @typescript-eslint/no-explicit-any
                         this.cloneElementGrid.blazor__instance : e.droppedElement.parentElement.blazor__instance;
                 }
                 var dragStartRow = srcControl.content.querySelector('.e-dragstartrow');
@@ -6029,6 +6340,42 @@ window.sfBlazor.Grid = (function () {
         return RowDD;
     }());
 
+    var __awaiter$2 = (undefined && undefined.__awaiter) || function (thisArg, _arguments, P, generator) {
+        function adopt(value) { return value instanceof P ? value : new P(function (resolve) { resolve(value); }); }
+        return new (P || (P = Promise))(function (resolve, reject) {
+            function fulfilled(value) { try { step(generator.next(value)); } catch (e) { reject(e); } }
+            function rejected(value) { try { step(generator["throw"](value)); } catch (e) { reject(e); } }
+            function step(result) { result.done ? resolve(result.value) : adopt(result.value).then(fulfilled, rejected); }
+            step((generator = generator.apply(thisArg, _arguments || [])).next());
+        });
+    };
+    var __generator$2 = (undefined && undefined.__generator) || function (thisArg, body) {
+        var _ = { label: 0, sent: function() { if (t[0] & 1) throw t[1]; return t[1]; }, trys: [], ops: [] }, f, y, t, g;
+        return g = { next: verb(0), "throw": verb(1), "return": verb(2) }, typeof Symbol === "function" && (g[Symbol.iterator] = function() { return this; }), g;
+        function verb(n) { return function (v) { return step([n, v]); }; }
+        function step(op) {
+            if (f) throw new TypeError("Generator is already executing.");
+            while (g && (g = 0, op[0] && (_ = 0)), _) try {
+                if (f = 1, y && (t = op[0] & 2 ? y["return"] : op[0] ? y["throw"] || ((t = y["return"]) && t.call(y), 0) : y.next) && !(t = t.call(y, op[1])).done) return t;
+                if (y = 0, t) op = [op[0] & 2, t.value];
+                switch (op[0]) {
+                    case 0: case 1: t = op; break;
+                    case 4: _.label++; return { value: op[1], done: false };
+                    case 5: _.label++; y = op[1]; op = [0]; continue;
+                    case 7: op = _.ops.pop(); _.trys.pop(); continue;
+                    default:
+                        if (!(t = _.trys, t = t.length > 0 && t[t.length - 1]) && (op[0] === 6 || op[0] === 2)) { _ = 0; continue; }
+                        if (op[0] === 3 && (!t || (op[1] > t[0] && op[1] < t[3]))) { _.label = op[1]; break; }
+                        if (op[0] === 6 && _.label < t[1]) { _.label = t[1]; t = op; break; }
+                        if (t && _.label < t[2]) { _.label = t[2]; _.ops.push(op); break; }
+                        if (t[2]) _.ops.pop();
+                        _.trys.pop(); continue;
+                }
+                op = body.call(thisArg, _);
+            } catch (e) { op = [6, e]; y = 0; } finally { f = t = 0; }
+            if (op[0] & 5) throw op[1]; return { value: op[0] ? op[1] : void 0, done: true };
+        }
+    };
     var __spreadArray$1 = (undefined && undefined.__spreadArray) || function (to, from, pack) {
         if (pack || arguments.length === 2) for (var i = 0, l = from.length, ar; i < l; i++) {
             if (ar || !(i in from)) {
@@ -6119,76 +6466,91 @@ window.sfBlazor.Grid = (function () {
             }
         };
         Selection.prototype.mouseUpHandler = function (e) {
-            document.body.classList.remove('e-disableuserselect');
-            if (!sf.base.isNullOrUndefined(this.element) && !sf.base.isNullOrUndefined(this.element.parentNode)) {
-                sf.base.remove(this.element);
-            }
-            var targetGrid = parentsUntil(e.target, 'e-grid');
-            var targetGridId = targetGrid ? targetGrid.id : null;
-            if (!this.isCellDrag && (!sf.base.isNullOrUndefined(this.prevStartDIndex) && !sf.base.isNullOrUndefined(this.prevEndIndex))
-                && !isNaN(this.prevStartDIndex) && !isNaN(this.prevEndIndex)) {
-                var targetElement = sf.base.closest(e.target, 'td');
-                var endDragCellIndex = targetElement ? parseInt(targetElement.getAttribute('aria-colindex'), 10) - 1 : NaN;
-                if (!isNaN(this.startDragCellIndex) && !isNaN(endDragCellIndex)
-                    && !sf.base.isNullOrUndefined(this.startDragCellIndex) && !sf.base.isNullOrUndefined(endDragCellIndex)) {
-                    this.parent.dotNetRef.invokeMethodAsync('DragSelection', this.prevStartDIndex, this.prevEndIndex, false, targetGridId, this.startDragCellIndex, endDragCellIndex);
-                }
-                else {
-                    this.parent.dotNetRef.invokeMethodAsync('DragSelection', this.prevStartDIndex, this.prevEndIndex, false, targetGridId, 0, 0);
-                }
-            }
-            else if ((this.parent.options.allowDragSelection && !this.parent.options.enableAutoFill) && this.isDragged && !this.isAutoFillSel
-                && (!sf.base.isNullOrUndefined(this.startDragIndex) && !sf.base.isNullOrUndefined(this.endDragIndex)
-                    && !sf.base.isNullOrUndefined(this.endDragCellIndex))) {
-                this.isDragged = false;
-                this.parent.dotNetRef.invokeMethodAsync('DragCellSelection', this.startDragIndex, this.startDragCellIndex, this.endDragIndex, this.endDragCellIndex, false, targetGridId);
-            }
-            this.isDragged = false;
-            document.body.style.cursor = 'default';
-            this.prevStartDIndex = undefined;
-            this.prevEndIndex = undefined;
-            this.startDragIndex = undefined;
-            this.startDragCellIndex = undefined;
-            this.endDragIndex = undefined;
-            this.endDragCellIndex = undefined;
-            if (this.parent.options.editMode === 'Batch' && this.parent.options.enableAutoFill) {
-                if (!sf.base.isNullOrUndefined(this.endRowIndex) && !sf.base.isNullOrUndefined(this.endColIndex)
-                    && !this.isAutoFillSel && this.isInitialSelect) {
-                    this.parent.dotNetRef.invokeMethodAsync('ClearSelection');
-                    var updateAFPos = this.updateAutofillPosition(this.endColIndex, this.endRowIndex, true);
-                    this.parent.dotNetRef.invokeMethodAsync('UpdateAutofillPositions', updateAFPos, 'UpdateAutofillBox');
-                    this.assignCells();
-                    this.selectCellByRow();
-                    this.isInitialSelect = false;
-                }
-                if (this.isAutoFillSel) {
-                    // eslint-disable-next-line @typescript-eslint/no-this-alias
-                    var _this_1 = this;
-                    this.assignCells();
-                    setTimeout(function () {
-                        _this_1.selectCellByRow();
-                    }, 10);
-                    this.expandAFBorder(e, true);
-                    var updateAFBor = this.createBorder(this.startRowIndex, this.startColIndex, this.endRowIndex, this.endColIndex, true);
-                    this.parent.dotNetRef.invokeMethodAsync('UpdateAutofillPositions', updateAFBor, 'UpdateAutofillBorder');
-                    var updateAFPos = this.updateAutofillPosition(this.endColIndex, this.endRowIndex, true);
-                    this.parent.dotNetRef.invokeMethodAsync('UpdateAutofillPositions', updateAFPos, 'UpdateAutofillBox');
-                }
-            }
-            sf.base.EventHandler.remove(this.parent.getContent(), 'mousemove', this.mouseMoveHandler);
-            if (this.parent.options.allowDragSelection) {
-                sf.base.EventHandler.remove(this.parent.getContent(), 'touchmove', this.mouseMoveHandler);
-            }
-            if (this.parent.options.frozenRows) {
-                sf.base.EventHandler.remove(this.parent.getHeaderContent(), 'mousemove', this.mouseMoveHandler);
-                if (this.parent.options.allowDragSelection) {
-                    sf.base.EventHandler.remove(this.parent.getHeaderContent(), 'touchmove', this.mouseMoveHandler);
-                }
-            }
-            sf.base.EventHandler.remove(document.body, 'mouseup', this.mouseUpHandler);
-            if (this.parent.options.allowDragSelection) {
-                sf.base.EventHandler.remove(document.body, 'touchend', this.mouseUpHandler);
-            }
+            return __awaiter$2(this, void 0, void 0, function () {
+                var targetGrid, targetGridId, targetElement, endDragCellIndex, updateAFPos, _this_1, updateAFBor, updateAFPos;
+                return __generator$2(this, function (_a) {
+                    switch (_a.label) {
+                        case 0:
+                            document.body.classList.remove('e-disableuserselect');
+                            if (!sf.base.isNullOrUndefined(this.element) && !sf.base.isNullOrUndefined(this.element.parentNode)) {
+                                sf.base.remove(this.element);
+                            }
+                            targetGrid = parentsUntil(e.target, 'e-grid');
+                            targetGridId = targetGrid ? targetGrid.id : null;
+                            if (!this.isCellDrag && (!sf.base.isNullOrUndefined(this.prevStartDIndex) && !sf.base.isNullOrUndefined(this.prevEndIndex))
+                                && !isNaN(this.prevStartDIndex) && !isNaN(this.prevEndIndex)) {
+                                targetElement = sf.base.closest(e.target, 'td');
+                                endDragCellIndex = targetElement ? parseInt(targetElement.getAttribute('aria-colindex'), 10) - 1 : NaN;
+                                if (!isNaN(this.startDragCellIndex) && !isNaN(endDragCellIndex)
+                                    && !sf.base.isNullOrUndefined(this.startDragCellIndex) && !sf.base.isNullOrUndefined(endDragCellIndex)) {
+                                    this.parent.dotNetRef.invokeMethodAsync('DragSelection', this.prevStartDIndex, this.prevEndIndex, false, targetGridId, this.startDragCellIndex, endDragCellIndex);
+                                }
+                                else {
+                                    this.parent.dotNetRef.invokeMethodAsync('DragSelection', this.prevStartDIndex, this.prevEndIndex, false, targetGridId, 0, 0);
+                                }
+                            }
+                            else if ((this.parent.options.allowDragSelection && !this.parent.options.enableAutoFill) && this.isDragged && !this.isAutoFillSel
+                                && (!sf.base.isNullOrUndefined(this.startDragIndex) && !sf.base.isNullOrUndefined(this.endDragIndex)
+                                    && !sf.base.isNullOrUndefined(this.endDragCellIndex))) {
+                                this.isDragged = false;
+                                this.parent.dotNetRef.invokeMethodAsync('DragCellSelection', this.startDragIndex, this.startDragCellIndex, this.endDragIndex, this.endDragCellIndex, false, targetGridId);
+                            }
+                            this.isDragged = false;
+                            document.body.style.cursor = 'default';
+                            this.prevStartDIndex = undefined;
+                            this.prevEndIndex = undefined;
+                            this.startDragIndex = undefined;
+                            this.startDragCellIndex = undefined;
+                            this.endDragIndex = undefined;
+                            this.endDragCellIndex = undefined;
+                            if (!(this.parent.options.editMode === 'Batch' && this.parent.options.enableAutoFill)) return [3 /*break*/, 3];
+                            if (!sf.base.isNullOrUndefined(this.endRowIndex) && !sf.base.isNullOrUndefined(this.endColIndex)
+                                && !this.isAutoFillSel && this.isInitialSelect) {
+                                this.parent.dotNetRef.invokeMethodAsync('ClearSelection');
+                                updateAFPos = this.updateAutofillPosition(this.endColIndex, this.endRowIndex, true);
+                                this.parent.dotNetRef.invokeMethodAsync('UpdateAutofillPositions', updateAFPos, 'UpdateAutofillBox');
+                                this.assignCells();
+                                this.selectCellByRow();
+                                this.isInitialSelect = false;
+                            }
+                            if (!this.isAutoFillSel) return [3 /*break*/, 3];
+                            _this_1 = this;
+                            this.assignCells();
+                            setTimeout(function () {
+                                _this_1.selectCellByRow();
+                            }, 10);
+                            if (!(!sf.base.isNullOrUndefined(this.startCell) && !sf.base.isNullOrUndefined(this.endCell))) return [3 /*break*/, 2];
+                            return [4 /*yield*/, this.expandAFBorder(e, true)];
+                        case 1:
+                            _a.sent();
+                            _a.label = 2;
+                        case 2:
+                            if (!sf.base.isNullOrUndefined(this.startRowIndex) && !sf.base.isNullOrUndefined(this.endRowIndex)) {
+                                updateAFBor = this.createBorder(this.startRowIndex, this.startColIndex, this.endRowIndex, this.endColIndex, true);
+                                this.parent.dotNetRef.invokeMethodAsync('UpdateAutofillPositions', updateAFBor, 'UpdateAutofillBorder');
+                                updateAFPos = this.updateAutofillPosition(this.endColIndex, this.endRowIndex, true);
+                                this.parent.dotNetRef.invokeMethodAsync('UpdateAutofillPositions', updateAFPos, 'UpdateAutofillBox');
+                            }
+                            _a.label = 3;
+                        case 3:
+                            sf.base.EventHandler.remove(this.parent.getContent(), 'mousemove', this.mouseMoveHandler);
+                            if (this.parent.options.allowDragSelection) {
+                                sf.base.EventHandler.remove(this.parent.getContent(), 'touchmove', this.mouseMoveHandler);
+                            }
+                            if (this.parent.options.frozenRows) {
+                                sf.base.EventHandler.remove(this.parent.getHeaderContent(), 'mousemove', this.mouseMoveHandler);
+                                if (this.parent.options.allowDragSelection) {
+                                    sf.base.EventHandler.remove(this.parent.getHeaderContent(), 'touchmove', this.mouseMoveHandler);
+                                }
+                            }
+                            sf.base.EventHandler.remove(document.body, 'mouseup', this.mouseUpHandler);
+                            if (this.parent.options.allowDragSelection) {
+                                sf.base.EventHandler.remove(document.body, 'touchend', this.mouseUpHandler);
+                            }
+                            return [2 /*return*/];
+                    }
+                });
+            });
         };
         Selection.prototype.enableDrag = function (e, isUpdate) {
             var gObj = this.parent;
@@ -6222,140 +6584,145 @@ window.sfBlazor.Grid = (function () {
             }
         };
         Selection.prototype.mouseMoveHandler = function (e) {
-            if (!this.parent.options.allowDragSelection && e.type !== 'touchmove') {
-                e.preventDefault();
-            }
-            var gBRect = this.parent.element.getBoundingClientRect();
-            var x1 = this.x;
-            var y1 = this.y;
-            var position = getPosition(e);
-            var x2 = position.x - gBRect.left;
-            var y2 = position.y - gBRect.top;
-            var xPos = e.type === 'touchmove' ? e.touches[0].pageX : e.pageX;
-            var yPos = e.type === 'touchmove' ? e.touches[0].pageY : e.pageY;
-            var eleLocation = yPos + 2;
-            var tmp;
-            var target;
-            if (!sf.base.isNullOrUndefined(e.touches)
-                && !sf.base.isNullOrUndefined(document.elementFromPoint(e.touches[0].clientX, e.touches[0].clientY))) {
-                target = sf.base.closest(document.elementFromPoint(e.touches[0].clientX, e.touches[0].clientY), 'tr');
-            }
-            else {
-                target = sf.base.closest(e.target, 'tr');
-            }
-            this.isDragged = true;
-            if (!this.isCellDrag || ((this.parent.options.allowDragSelection && !this.parent.options.enableAutoFill) && this.isCellDrag)) {
-                if (!target) {
-                    target = sf.base.closest(document.elementFromPoint(this.parent.element.offsetLeft + 2, !sf.base.isNullOrUndefined(e.touches) ? e.touches[0].clientY : e.clientY), 'tr');
-                }
-                if (x1 > x2) {
-                    tmp = x2;
-                    x2 = x1;
-                    x1 = tmp;
-                }
-                if (y1 > y2) {
-                    tmp = y2;
-                    y2 = y1;
-                    y1 = tmp;
-                    eleLocation = yPos - 2;
-                }
-                var classList = ['.e-gridheader', '.e-groupdroparea', '.e-toolbar'];
-                var siblingHeight = 0;
-                for (var i = 0; i < classList.length; i++) {
-                    var sibling = this.parent.element.querySelector(classList[parseInt(i.toString(), 10)]);
-                    if (sibling) {
-                        siblingHeight += sibling.offsetHeight;
-                    }
-                }
-                var topHeight = this.parent.element.querySelector('.e-yscroll');
-                var scrollTopHeight = 0;
-                if (topHeight) {
-                    scrollTopHeight += topHeight.scrollTop;
-                }
-                var Content = this.parent.element.querySelector('.e-content');
-                this.element.style.left = x1 + Content.scrollLeft + 2 + 'px';
-                this.element.style.top = y1 - siblingHeight + scrollTopHeight + 'px';
-                this.element.style.width = x2 - x1 + 'px';
-                this.element.style.height = y2 - y1 + 'px';
-                this.element.style.pointerEvents = 'none';
-            }
-            if (target && !e.ctrlKey && !e.shiftKey) {
-                var rowIndex = parseInt(target.getAttribute('aria-rowindex'), 10) - 1;
-                if (!this.isCellDrag && (sf.base.isNullOrUndefined(this.prevStartDIndex) ||
-                    this.prevStartDIndex !== this.startDragIndex || this.prevEndIndex !== rowIndex)) {
-                    //Below calculation is to perform ClearSelection in server side
-                    var clearIndex = -1;
-                    var isInvokedFirst = false;
-                    var selectedIndexes = this.parent.getSelectedRowIndexes(this.parent.options.enableVirtualization);
-                    if (sf.base.isNullOrUndefined(this.prevStartDIndex)) {
-                        clearIndex = -1;
-                        isInvokedFirst = true;
-                    }
-                    else if (rowIndex >= this.prevStartDIndex && selectedIndexes.indexOf(rowIndex) >= 0) {
-                        clearIndex = this.prevEndIndex;
-                    }
-                    else if (this.prevStartDIndex > rowIndex && selectedIndexes.indexOf(this.startDragIndex) >= 0) {
-                        clearIndex = this.prevEndIndex;
-                    }
-                    this.prevStartDIndex = this.startDragIndex;
-                    this.prevEndIndex = rowIndex;
-                    if (isInvokedFirst && !isNaN(rowIndex)) {
-                        this.parent.dotNetRef.invokeMethodAsync('DragSelection', this.startDragIndex, rowIndex, true, null, 0, 0);
-                    }
-                    else {
-                        this.performDragSelection(this.startDragIndex, rowIndex, clearIndex);
-                    }
-                }
-                else if ((this.parent.options.allowDragSelection && !this.parent.options.enableAutoFill) && this.isCellDrag) {
-                    var target_1;
-                    var isInvokedFirst = false;
-                    if (!sf.base.isNullOrUndefined(e.touches)
-                        && !sf.base.isNullOrUndefined(document.elementFromPoint(e.touches[0].clientX, e.touches[0].clientY))) {
-                        target_1 = sf.base.closest(document.elementFromPoint(e.touches[0].clientX, e.touches[0].clientY), 'td');
-                    }
-                    else {
-                        target_1 = sf.base.closest(e.target, 'td');
-                    }
-                    if (!target_1) {
-                        target_1 = document.elementFromPoint(xPos, eleLocation);
-                    }
-                    if (target_1) {
-                        if (sf.base.isNullOrUndefined(this.prevStartDIndex)) {
-                            isInvokedFirst = true;
-                        }
-                        this.prevStartDIndex = this.startDragIndex;
-                        this.endDragIndex = rowIndex;
-                        this.endDragCellIndex = parseInt(target_1.getAttribute('aria-colindex'), 10) - 1;
-                        if (!this.isAutoFillSel) {
-                            if (isInvokedFirst && !isNaN(rowIndex) && !isNaN(parseInt(target_1.getAttribute('aria-colindex'), 10) - 1)) {
-                                this.parent.dotNetRef.invokeMethodAsync('DragCellSelection', this.startDragIndex, this.startDragCellIndex, rowIndex, (parseInt(target_1.getAttribute('aria-colindex'), 10) - 1), true, null);
+            return __awaiter$2(this, void 0, void 0, function () {
+                var gBRect, x1, y1, position, x2, y2, xPos, yPos, eleLocation, tmp, target, classList, siblingHeight, i, sibling, topHeight, scrollTopHeight, Content, rowIndex, clearIndex, isInvokedFirst, selectedIndexes, target_1, isInvokedFirst, td, updateAFBor;
+                return __generator$2(this, function (_a) {
+                    switch (_a.label) {
+                        case 0:
+                            if (!this.parent.options.allowDragSelection && e.type !== 'touchmove') {
+                                e.preventDefault();
+                            }
+                            gBRect = this.parent.element.getBoundingClientRect();
+                            x1 = this.x;
+                            y1 = this.y;
+                            position = getPosition(e);
+                            x2 = position.x - gBRect.left;
+                            y2 = position.y - gBRect.top;
+                            xPos = e.type === 'touchmove' ? e.touches[0].pageX : e.pageX;
+                            yPos = e.type === 'touchmove' ? e.touches[0].pageY : e.pageY;
+                            eleLocation = yPos + 2;
+                            if (!sf.base.isNullOrUndefined(e.touches)
+                                && !sf.base.isNullOrUndefined(document.elementFromPoint(e.touches[0].clientX, e.touches[0].clientY))) {
+                                target = sf.base.closest(document.elementFromPoint(e.touches[0].clientX, e.touches[0].clientY), 'tr');
                             }
                             else {
-                                this.performDragCellSelection(this.startDragIndex, this.startDragCellIndex, rowIndex, (parseInt(target_1.getAttribute('aria-colindex'), 10) - 1));
+                                target = sf.base.closest(e.target, 'tr');
                             }
-                        }
-                    }
-                }
-                else if (this.parent.options.editMode === 'Batch' && this.parent.options.enableAutoFill) {
-                    if (this.startCell) {
-                        var td = parentsUntil(e.target, 'e-rowcell');
-                        if (td && !td.classList.contains('e-editedbatchcell')) {
+                            this.isDragged = true;
+                            if (!this.isCellDrag || ((this.parent.options.allowDragSelection && !this.parent.options.enableAutoFill) && this.isCellDrag)) {
+                                if (!target) {
+                                    target = sf.base.closest(document.elementFromPoint(this.parent.element.offsetLeft + 2, !sf.base.isNullOrUndefined(e.touches) ? e.touches[0].clientY : e.clientY), 'tr');
+                                }
+                                if (x1 > x2) {
+                                    tmp = x2;
+                                    x2 = x1;
+                                    x1 = tmp;
+                                }
+                                if (y1 > y2) {
+                                    tmp = y2;
+                                    y2 = y1;
+                                    y1 = tmp;
+                                    eleLocation = yPos - 2;
+                                }
+                                classList = ['.e-gridheader', '.e-groupdroparea', '.e-toolbar'];
+                                siblingHeight = 0;
+                                for (i = 0; i < classList.length; i++) {
+                                    sibling = this.parent.element.querySelector(classList[parseInt(i.toString(), 10)]);
+                                    if (sibling) {
+                                        siblingHeight += sibling.offsetHeight;
+                                    }
+                                }
+                                topHeight = this.parent.element.querySelector('.e-yscroll');
+                                scrollTopHeight = 0;
+                                if (topHeight) {
+                                    scrollTopHeight += topHeight.scrollTop;
+                                }
+                                Content = this.parent.element.querySelector('.e-content');
+                                this.element.style.left = x1 + Content.scrollLeft + 2 + 'px';
+                                this.element.style.top = y1 - siblingHeight + scrollTopHeight + 'px';
+                                this.element.style.width = x2 - x1 + 'px';
+                                this.element.style.height = y2 - y1 + 'px';
+                                this.element.style.pointerEvents = 'none';
+                            }
+                            if (!(target && !e.ctrlKey && !e.shiftKey)) return [3 /*break*/, 5];
+                            rowIndex = parseInt(target.getAttribute('aria-rowindex'), 10) - 1;
+                            if (!(!this.isCellDrag && (sf.base.isNullOrUndefined(this.prevStartDIndex) ||
+                                this.prevStartDIndex !== this.startDragIndex || this.prevEndIndex !== rowIndex))) return [3 /*break*/, 1];
+                            clearIndex = -1;
+                            isInvokedFirst = false;
+                            selectedIndexes = this.parent.getSelectedRowIndexes(this.parent.options.enableVirtualization);
+                            if (sf.base.isNullOrUndefined(this.prevStartDIndex)) {
+                                clearIndex = -1;
+                                isInvokedFirst = true;
+                            }
+                            else if (rowIndex >= this.prevStartDIndex && selectedIndexes.indexOf(rowIndex) >= 0) {
+                                clearIndex = this.prevEndIndex;
+                            }
+                            else if (this.prevStartDIndex > rowIndex && selectedIndexes.indexOf(this.startDragIndex) >= 0) {
+                                clearIndex = this.prevEndIndex;
+                            }
+                            this.prevStartDIndex = this.startDragIndex;
+                            this.prevEndIndex = rowIndex;
+                            if (isInvokedFirst && !isNaN(rowIndex)) {
+                                this.parent.dotNetRef.invokeMethodAsync('DragSelection', this.startDragIndex, rowIndex, true, null, 0, 0);
+                            }
+                            else {
+                                this.performDragSelection(this.startDragIndex, rowIndex, clearIndex);
+                            }
+                            return [3 /*break*/, 5];
+                        case 1:
+                            if (!((this.parent.options.allowDragSelection && !this.parent.options.enableAutoFill) && this.isCellDrag)) return [3 /*break*/, 2];
+                            isInvokedFirst = false;
+                            if (!sf.base.isNullOrUndefined(e.touches)
+                                && !sf.base.isNullOrUndefined(document.elementFromPoint(e.touches[0].clientX, e.touches[0].clientY))) {
+                                target_1 = sf.base.closest(document.elementFromPoint(e.touches[0].clientX, e.touches[0].clientY), 'td');
+                            }
+                            else {
+                                target_1 = sf.base.closest(e.target, 'td');
+                            }
+                            if (!target_1) {
+                                target_1 = document.elementFromPoint(xPos, eleLocation);
+                            }
+                            if (target_1) {
+                                if (sf.base.isNullOrUndefined(this.prevStartDIndex)) {
+                                    isInvokedFirst = true;
+                                }
+                                this.prevStartDIndex = this.startDragIndex;
+                                this.endDragIndex = rowIndex;
+                                this.endDragCellIndex = parseInt(target_1.getAttribute('aria-colindex'), 10) - 1;
+                                if (!this.isAutoFillSel) {
+                                    if (isInvokedFirst && !isNaN(rowIndex) && !isNaN(parseInt(target_1.getAttribute('aria-colindex'), 10) - 1)) {
+                                        this.parent.dotNetRef.invokeMethodAsync('DragCellSelection', this.startDragIndex, this.startDragCellIndex, rowIndex, (parseInt(target_1.getAttribute('aria-colindex'), 10) - 1), true, null);
+                                    }
+                                    else {
+                                        this.performDragCellSelection(this.startDragIndex, this.startDragCellIndex, rowIndex, (parseInt(target_1.getAttribute('aria-colindex'), 10) - 1));
+                                    }
+                                }
+                            }
+                            return [3 /*break*/, 5];
+                        case 2:
+                            if (!(this.parent.options.editMode === 'Batch' && this.parent.options.enableAutoFill)) return [3 /*break*/, 5];
+                            if (!this.startCell) return [3 /*break*/, 5];
+                            td = parentsUntil(e.target, 'e-rowcell');
+                            if (!(td && !td.classList.contains('e-editedbatchcell'))) return [3 /*break*/, 5];
                             this.startAFCell = this.startCell;
                             this.endAFCell = td;
                             this.endCell = td;
-                            if (this.isAutoFillSel) {
-                                this.expandAFBorder(e, false);
-                            }
-                            else {
-                                this.assignCells();
-                                var updateAFBor = this.createBorder(this.startRowIndex, this.startColIndex, this.endRowIndex, this.endColIndex, true);
-                                this.parent.dotNetRef.invokeMethodAsync('UpdateAutofillPositions', updateAFBor, 'UpdateAutofillBorder');
-                                this.isInitialSelect = true;
-                            }
-                        }
+                            if (!this.isAutoFillSel) return [3 /*break*/, 4];
+                            return [4 /*yield*/, this.expandAFBorder(e, false)];
+                        case 3:
+                            _a.sent();
+                            return [3 /*break*/, 5];
+                        case 4:
+                            this.assignCells();
+                            updateAFBor = this.createBorder(this.startRowIndex, this.startColIndex, this.endRowIndex, this.endColIndex, true);
+                            this.parent.dotNetRef.invokeMethodAsync('UpdateAutofillPositions', updateAFBor, 'UpdateAutofillBorder');
+                            this.isInitialSelect = true;
+                            _a.label = 5;
+                        case 5: return [2 /*return*/];
                     }
-                }
-            }
+                });
+            });
         };
         Selection.prototype.performDragCellSelection = function (startIndex, startCellIndex, rowIndex, endCellIndex) {
             var sIndex = startIndex;
@@ -6470,7 +6837,10 @@ window.sfBlazor.Grid = (function () {
             var selectedCells = [].slice.call(this.parent.element.querySelectorAll('.e-cellselectionbackground'));
             var rowstart = this.parent.getRowByIndex(startRowIndex);
             var cellStart = rowstart.querySelector('[aria-colindex="' + (startColIndex + 1) + '"]');
-            var cellsStart = [].slice.call(cellStart.parentElement.querySelectorAll('[aria-colindex="' + (startColIndex + 1) + '"]'));
+            var cellsStart = [];
+            if (!sf.base.isNullOrUndefined(cellStart) && !sf.base.isNullOrUndefined(cellStart.parentElement)) {
+                cellsStart = [].slice.call(cellStart.parentElement.querySelectorAll('[aria-colindex="' + (startColIndex + 1) + '"]'));
+            }
             var rowEnd;
             var cellEnd;
             var cellsEnd;
@@ -6483,7 +6853,9 @@ window.sfBlazor.Grid = (function () {
             if (endRowIndex != null && endColIndex != null) {
                 rowEnd = this.parent.getRowByIndex(endRowIndex);
                 cellEnd = rowEnd.querySelector('[aria-colindex="' + (endColIndex + 1) + '"]');
-                cellsEnd = [].slice.call(cellEnd.parentElement.querySelectorAll('[aria-colindex="' + (endColIndex + 1) + '"]'));
+                if (!sf.base.isNullOrUndefined(cellEnd) && !sf.base.isNullOrUndefined(cellEnd.parentElement)) {
+                    cellsEnd = [].slice.call(cellEnd.parentElement.querySelectorAll('[aria-colindex="' + (endColIndex + 1) + '"]'));
+                }
             }
             else {
                 rowEnd = rowstart;
@@ -6491,10 +6863,14 @@ window.sfBlazor.Grid = (function () {
                 cellsEnd = cellsStart;
             }
             if (selectedCells && !newSelect) {
-                cellsStart = [].slice.call(selectedCells[0].parentElement.querySelectorAll('[aria-colindex="' +
-                    (selectedCells[0].cellIndex - this.parent.getIndentCount() + 1) + '"]'));
-                cellsEnd = [].slice.call(selectedCells[selectedCells.length - 1].parentElement.querySelectorAll('[aria-colindex="' +
-                    (selectedCells[selectedCells.length - 1].cellIndex - this.parent.getIndentCount() + 1) + '"]'));
+                if (!sf.base.isNullOrUndefined(selectedCells[0]) && !sf.base.isNullOrUndefined(selectedCells[0].parentElement)) {
+                    cellsStart = [].slice.call(selectedCells[0].parentElement.querySelectorAll('[aria-colindex="' +
+                        (selectedCells[0].cellIndex - this.parent.getIndentCount() + 1) + '"]'));
+                }
+                if (!sf.base.isNullOrUndefined(selectedCells[selectedCells.length - 1]) && !sf.base.isNullOrUndefined(selectedCells[selectedCells.length - 1].parentElement)) {
+                    cellsEnd = [].slice.call(selectedCells[selectedCells.length - 1].parentElement.querySelectorAll('[aria-colindex="' +
+                        (selectedCells[selectedCells.length - 1].cellIndex - this.parent.getIndentCount() + 1) + '"]'));
+                }
             }
             if (!this.startCell) {
                 this.startCell = cellsStart[0];
@@ -6531,122 +6907,157 @@ window.sfBlazor.Grid = (function () {
             };
         };
         Selection.prototype.expandAFBorder = function (e, isApply) {
-            var selectedCells = [].slice.call(this.parent.element.querySelectorAll('.e-cellselectionbackground'));
-            var startrowIdx = parseInt(parentsUntil(this.startCell, 'e-row').getAttribute('aria-rowindex'), 10) - 1;
-            var startCellIdx = parseInt(this.startCell.getAttribute('aria-colindex'), 10) - 1;
-            var endrowIdx = parseInt(parentsUntil(this.endCell, 'e-row').getAttribute('aria-rowindex'), 10) - 1;
-            var endCellIdx = parseInt(this.endCell.getAttribute('aria-colindex'), 10) - 1;
-            var rowLen = (parseInt(parentsUntil(selectedCells[selectedCells.length - 1], 'e-row').getAttribute('aria-rowindex'), 10) - 1) - (parseInt(parentsUntil(selectedCells[0], 'e-row').getAttribute('aria-rowindex'), 10) - 1);
-            var rowIdx = parseInt(parentsUntil(selectedCells[0], 'e-row').getAttribute('aria-rowindex'), 10) - 1;
-            var row = (this.parent.getRowByIndex(rowIdx));
-            var colLen = 0;
-            for (var i = 0, cellLen = row.cells.length; i < cellLen; i++) {
-                if (row.cells[parseInt(i.toString(), 10)].classList.contains('e-cellselectionbackground')) {
-                    colLen++;
-                }
-            }
-            colLen = colLen - 1;
-            colLen = colLen >= 0 ? colLen : 0;
-            switch (true) {
-                case !isApply && this.endAFCell.classList.contains('e-cellselectionbackground') &&
-                    !!parentsUntil(e.target, 'e-rowcell'):
-                    this.startAFCell = this.parent.getCellFromIndex(startrowIdx, startCellIdx);
-                    this.endAFCell = this.parent.getCellFromIndex(startrowIdx + rowLen, startCellIdx + colLen);
-                    this.drawAFBorders();
-                    break;
-                case startCellIdx + colLen < endCellIdx &&
-                    endCellIdx - startCellIdx - colLen + 1 > endrowIdx - startrowIdx - rowLen
-                    && endCellIdx - startCellIdx - colLen + 1 > startrowIdx - endrowIdx:
-                    this.endAFCell = this.parent.getCellFromIndex(startrowIdx + rowLen, endCellIdx);
-                    endrowIdx = parseInt(parentsUntil(this.endAFCell, 'e-row').getAttribute('aria-rowindex'), 10) - 1;
-                    endCellIdx = parseInt(this.endAFCell.getAttribute('aria-colindex'), 10) - 1;
-                    if (!isApply) {
-                        this.drawAFBorders();
-                    }
-                    else {
-                        var cellIdx = parseInt(this.endCells.getAttribute('aria-colindex'), 10) - 1;
-                        for (var i = startrowIdx; i <= endrowIdx; i++) {
-                            var cells = this.getAutoFillCells(i);
-                            var c = 0;
-                            for (var j = cellIdx + 1; j <= endCellIdx; j++) {
-                                if (c > colLen) {
-                                    c = 0;
+            return __awaiter$2(this, void 0, void 0, function () {
+                var selectedCells, startrowIdx, startCellIdx, endrowIdx, endCellIdx, rowLen, rowIdx, row, colLen, i, cellLen, cellIdx, i, cells, c, j, i, cells, c, j, trIdx, r, i, cells, c, j, trIdx, r, i, cells, c, m, error_1;
+                return __generator$2(this, function (_a) {
+                    switch (_a.label) {
+                        case 0:
+                            selectedCells = [].slice.call(this.parent.element.querySelectorAll('.e-cellselectionbackground'));
+                            startrowIdx = parseInt(parentsUntil(this.startCell, 'e-row').getAttribute('aria-rowindex'), 10) - 1;
+                            startCellIdx = parseInt(this.startCell.getAttribute('aria-colindex'), 10) - 1;
+                            endrowIdx = parseInt(parentsUntil(this.endCell, 'e-row').getAttribute('aria-rowindex'), 10) - 1;
+                            endCellIdx = parseInt(this.endCell.getAttribute('aria-colindex'), 10) - 1;
+                            rowLen = (parseInt(parentsUntil(selectedCells[selectedCells.length - 1], 'e-row').getAttribute('aria-rowindex'), 10) - 1) - (parseInt(parentsUntil(selectedCells[0], 'e-row').getAttribute('aria-rowindex'), 10) - 1);
+                            rowIdx = parseInt(parentsUntil(selectedCells[0], 'e-row').getAttribute('aria-rowindex'), 10) - 1;
+                            row = (this.parent.getRowByIndex(rowIdx));
+                            colLen = 0;
+                            for (i = 0, cellLen = row.cells.length; i < cellLen; i++) {
+                                if (row.cells[parseInt(i.toString(), 10)].classList.contains('e-cellselectionbackground')) {
+                                    colLen++;
                                 }
-                                this.updateValue(i, j, cells[parseInt(c.toString(), 10)]);
-                                c++;
                             }
-                        }
-                    }
-                    break;
-                case startCellIdx > endCellIdx &&
-                    startCellIdx - endCellIdx + 1 > endrowIdx - startrowIdx - rowLen &&
-                    startCellIdx - endCellIdx + 1 > startrowIdx - endrowIdx:
-                    this.startAFCell = this.parent.getCellFromIndex(startrowIdx, endCellIdx);
-                    this.endAFCell = this.endCells;
-                    if (!isApply) {
-                        this.drawAFBorders();
-                    }
-                    else {
-                        for (var i = startrowIdx; i <= startrowIdx + rowLen; i++) {
-                            var cells = this.getAutoFillCells(i);
-                            cells.reverse();
-                            var c = 0;
-                            for (var j = this.startCellIndex - 1; j >= endCellIdx; j--) {
-                                if (c > colLen) {
-                                    c = 0;
-                                }
-                                this.updateValue(i, j, cells[parseInt(c.toString(), 10)]);
-                                c++;
+                            colLen = colLen - 1;
+                            colLen = colLen >= 0 ? colLen : 0;
+                            if (!isApply) return [3 /*break*/, 2];
+                            if (!(this.parent.options.enableUndoRedo && this.parent.options.editMode === 'Batch')) return [3 /*break*/, 2];
+                            return [4 /*yield*/, this.parent.dotNetRef.invokeMethodAsync('BeginAutoFillBatch')];
+                        case 1:
+                            _a.sent();
+                            _a.label = 2;
+                        case 2:
+                            _a.trys.push([2, 5, , 8]);
+                            switch (true) {
+                                case !isApply && this.endAFCell.classList.contains('e-cellselectionbackground') &&
+                                    !!parentsUntil(e.target, 'e-rowcell'):
+                                    this.startAFCell = this.parent.getCellFromIndex(startrowIdx, startCellIdx);
+                                    this.endAFCell = this.parent.getCellFromIndex(startrowIdx + rowLen, startCellIdx + colLen);
+                                    this.drawAFBorders();
+                                    break;
+                                case startCellIdx + colLen < endCellIdx &&
+                                    endCellIdx - startCellIdx - colLen + 1 > endrowIdx - startrowIdx - rowLen
+                                    && endCellIdx - startCellIdx - colLen + 1 > startrowIdx - endrowIdx:
+                                    this.endAFCell = this.parent.getCellFromIndex(startrowIdx + rowLen, endCellIdx);
+                                    endrowIdx = parseInt(parentsUntil(this.endAFCell, 'e-row').getAttribute('aria-rowindex'), 10) - 1;
+                                    endCellIdx = parseInt(this.endAFCell.getAttribute('aria-colindex'), 10) - 1;
+                                    if (!isApply) {
+                                        this.drawAFBorders();
+                                    }
+                                    else {
+                                        cellIdx = parseInt(this.endCells.getAttribute('aria-colindex'), 10) - 1;
+                                        for (i = startrowIdx; i <= endrowIdx; i++) {
+                                            cells = this.getAutoFillCells(i);
+                                            c = 0;
+                                            if (!sf.base.isNullOrUndefined(cells) && cells.length > 0) {
+                                                for (j = cellIdx + 1; j <= endCellIdx; j++) {
+                                                    if (c > colLen) {
+                                                        c = 0;
+                                                    }
+                                                    this.updateValue(i, j, cells[parseInt(c.toString(), 10)]);
+                                                    c++;
+                                                }
+                                            }
+                                        }
+                                    }
+                                    break;
+                                case startCellIdx > endCellIdx &&
+                                    startCellIdx - endCellIdx + 1 > endrowIdx - startrowIdx - rowLen &&
+                                    startCellIdx - endCellIdx + 1 > startrowIdx - endrowIdx:
+                                    this.startAFCell = this.parent.getCellFromIndex(startrowIdx, endCellIdx);
+                                    this.endAFCell = this.endCells;
+                                    if (!isApply) {
+                                        this.drawAFBorders();
+                                    }
+                                    else {
+                                        for (i = startrowIdx; i <= startrowIdx + rowLen; i++) {
+                                            cells = this.getAutoFillCells(i);
+                                            cells.reverse();
+                                            c = 0;
+                                            for (j = this.startCellIndex - 1; j >= endCellIdx; j--) {
+                                                if (c > colLen) {
+                                                    c = 0;
+                                                }
+                                                this.updateValue(i, j, cells[parseInt(c.toString(), 10)]);
+                                                c++;
+                                            }
+                                        }
+                                    }
+                                    break;
+                                case startrowIdx > endrowIdx:
+                                    this.startAFCell = this.parent.getCellFromIndex(endrowIdx, startCellIdx);
+                                    this.endAFCell = this.endCells;
+                                    if (!isApply) {
+                                        this.drawAFBorders();
+                                    }
+                                    else {
+                                        trIdx = parseInt(this.endCells.parentElement.getAttribute('aria-rowindex'), 10) - 1;
+                                        r = trIdx;
+                                        for (i = startrowIdx - 1; i >= endrowIdx; i--) {
+                                            if (r === this.startIndex - 1) {
+                                                r = trIdx;
+                                            }
+                                            cells = this.getAutoFillCells(r);
+                                            c = 0;
+                                            r--;
+                                            for (j = this.startCellIndex; j <= this.startCellIndex + colLen; j++) {
+                                                this.updateValue(i, j, cells[parseInt(c.toString(), 10)]);
+                                                c++;
+                                            }
+                                        }
+                                    }
+                                    break;
+                                default:
+                                    this.endAFCell = this.parent.getCellFromIndex(endrowIdx, startCellIdx + colLen);
+                                    if (!isApply) {
+                                        this.drawAFBorders();
+                                    }
+                                    else {
+                                        trIdx = parseInt(this.endCells.parentElement.getAttribute('aria-rowindex'), 10) - 1;
+                                        r = this.startIndex;
+                                        for (i = trIdx + 1; i <= endrowIdx; i++) {
+                                            if (r === trIdx + 1) {
+                                                r = this.startIndex;
+                                            }
+                                            cells = this.getAutoFillCells(r);
+                                            r++;
+                                            c = 0;
+                                            for (m = this.startCellIndex; m <= this.startCellIndex + colLen; m++) {
+                                                this.updateValue(i, m, cells[parseInt(c.toString(), 10)]);
+                                                c++;
+                                            }
+                                        }
+                                    }
+                                    break;
                             }
-                        }
+                            if (!isApply) return [3 /*break*/, 4];
+                            if (!(this.parent.options.enableUndoRedo && this.parent.options.editMode === 'Batch')) return [3 /*break*/, 4];
+                            return [4 /*yield*/, this.parent.dotNetRef.invokeMethodAsync('CommitAutoFillBatch')];
+                        case 3:
+                            _a.sent();
+                            _a.label = 4;
+                        case 4: return [3 /*break*/, 8];
+                        case 5:
+                            error_1 = _a.sent();
+                            if (!isApply) return [3 /*break*/, 7];
+                            if (!(this.parent.options.enableUndoRedo && this.parent.options.editMode === 'Batch')) return [3 /*break*/, 7];
+                            return [4 /*yield*/, this.parent.dotNetRef.invokeMethodAsync('DiscardAutoFillBatch')];
+                        case 6:
+                            _a.sent();
+                            _a.label = 7;
+                        case 7: throw error_1;
+                        case 8: return [2 /*return*/];
                     }
-                    break;
-                case startrowIdx > endrowIdx:
-                    this.startAFCell = this.parent.getCellFromIndex(endrowIdx, startCellIdx);
-                    this.endAFCell = this.endCells;
-                    if (!isApply) {
-                        this.drawAFBorders();
-                    }
-                    else {
-                        var trIdx = parseInt(this.endCells.parentElement.getAttribute('aria-rowindex'), 10) - 1;
-                        var r = trIdx;
-                        for (var i = startrowIdx - 1; i >= endrowIdx; i--) {
-                            if (r === this.startIndex - 1) {
-                                r = trIdx;
-                            }
-                            var cells = this.getAutoFillCells(r);
-                            var c = 0;
-                            r--;
-                            for (var j = this.startCellIndex; j <= this.startCellIndex + colLen; j++) {
-                                this.updateValue(i, j, cells[parseInt(c.toString(), 10)]);
-                                c++;
-                            }
-                        }
-                    }
-                    break;
-                default:
-                    this.endAFCell = this.parent.getCellFromIndex(endrowIdx, startCellIdx + colLen);
-                    if (!isApply) {
-                        this.drawAFBorders();
-                    }
-                    else {
-                        var trIdx = parseInt(this.endCells.parentElement.getAttribute('aria-rowindex'), 10) - 1;
-                        var r = this.startIndex;
-                        for (var i = trIdx + 1; i <= endrowIdx; i++) {
-                            if (r === trIdx + 1) {
-                                r = this.startIndex;
-                            }
-                            var cells = this.getAutoFillCells(r);
-                            r++;
-                            var c = 0;
-                            for (var m = this.startCellIndex; m <= this.startCellIndex + colLen; m++) {
-                                this.updateValue(i, m, cells[parseInt(c.toString(), 10)]);
-                                c++;
-                            }
-                        }
-                    }
-                    break;
-            }
+                });
+            });
         };
         Selection.prototype.drawAFBorders = function () {
             if (!this.startCell) {
@@ -6751,17 +7162,19 @@ window.sfBlazor.Grid = (function () {
             }
         };
         Selection.prototype.assignCells = function () {
-            this.startRowIndex = parseInt(this.startAFCell.parentElement.getAttribute('aria-rowindex'), 10) - 1;
-            this.endRowIndex = parseInt(this.endAFCell.parentElement.getAttribute('aria-rowindex'), 10) - 1;
-            this.startColIndex = parseInt(this.startAFCell.getAttribute('aria-colindex'), 10) - 1;
-            this.endColIndex = parseInt(this.endAFCell.getAttribute('aria-colindex'), 10) - 1;
-            if (this.startRowIndex > this.endRowIndex) {
-                this.startRowIndex = this.endRowIndex;
-                this.endRowIndex = parseInt(this.startAFCell.parentElement.getAttribute('aria-rowindex'), 10) - 1;
-            }
-            if (this.endColIndex < this.startColIndex) {
-                this.startColIndex = this.endColIndex;
-                this.endColIndex = parseInt(this.startAFCell.getAttribute('aria-colindex'), 10) - 1;
+            if (!sf.base.isNullOrUndefined(this.startAFCell) && !sf.base.isNullOrUndefined(this.endAFCell)) {
+                this.startRowIndex = parseInt(this.startAFCell.parentElement.getAttribute('aria-rowindex'), 10) - 1;
+                this.endRowIndex = parseInt(this.endAFCell.parentElement.getAttribute('aria-rowindex'), 10) - 1;
+                this.startColIndex = parseInt(this.startAFCell.getAttribute('aria-colindex'), 10) - 1;
+                this.endColIndex = parseInt(this.endAFCell.getAttribute('aria-colindex'), 10) - 1;
+                if (this.startRowIndex > this.endRowIndex) {
+                    this.startRowIndex = this.endRowIndex;
+                    this.endRowIndex = parseInt(this.startAFCell.parentElement.getAttribute('aria-rowindex'), 10) - 1;
+                }
+                if (this.endColIndex < this.startColIndex) {
+                    this.startColIndex = this.endColIndex;
+                    this.endColIndex = parseInt(this.startAFCell.getAttribute('aria-colindex'), 10) - 1;
+                }
             }
         };
         Selection.prototype.selectCellByRow = function () {
@@ -6823,7 +7236,10 @@ window.sfBlazor.Grid = (function () {
                 if (!isMovableRow) {
                     var checkboxCell = cells.filter(function (cell) { return cell.classList.contains('e-gridchkbox'); })[0];
                     if (!sf.base.isNullOrUndefined(checkboxCell) && checkboxCell.classList.contains('e-gridchkbox')) {
-                        checkboxCell.querySelector('.e-frame').classList.replace('e-uncheck', 'e-check');
+                        var frameElement_1 = checkboxCell.querySelector('.e-frame');
+                        if (!sf.base.isNullOrUndefined(frameElement_1)) {
+                            frameElement_1.classList.replace('e-uncheck', 'e-check');
+                        }
                     }
                 }
             }
@@ -6837,7 +7253,10 @@ window.sfBlazor.Grid = (function () {
             addRemoveActiveClasses.apply(void 0, __spreadArray$1([cells, false], ['e-aria-selected', 'e-active'], false));
             var checkboxCell = cells.filter(function (cell) { return cell.classList.contains('e-gridchkbox'); })[0];
             if (!sf.base.isNullOrUndefined(checkboxCell) && checkboxCell.classList.contains('e-gridchkbox')) {
-                checkboxCell.querySelector('.e-frame').classList.replace('e-check', 'e-uncheck');
+                var frameElement_2 = checkboxCell.querySelector('.e-frame');
+                if (!sf.base.isNullOrUndefined(frameElement_2)) {
+                    frameElement_2.classList.replace('e-check', 'e-uncheck');
+                }
             }
         };
         Selection.prototype.clearSelectionExceptDragIndexes = function (startIndex, endIndex) {
@@ -6976,7 +7395,6 @@ window.sfBlazor.Grid = (function () {
          * @returns {{standard: Function, horizontal: Function}} Object containing debounced callbacks
          */
         InterSectionObserver.prototype.createDebouncedCallbacks = function (callback) {
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
             var delay = sf.base.Browser.info.name === 'chrome'
                 ? this.SCROLL_CONSTANTS.DEBOUNCE_DELAY_CHROME
                 : this.SCROLL_CONSTANTS.DEBOUNCE_DELAY_DEFAULT;
@@ -7205,7 +7623,6 @@ window.sfBlazor.Grid = (function () {
             var config = this.getScrollThresholdConfig();
             var viewInfo = this.getViewInfo();
             var exactTopIndex = scrollTop / config.rowHeight;
-            config.height / config.rowHeight;
             var pageSizeTotal = config.pageSize + (config.overscanCount * 2);
             var pageSizeBy2 = pageSizeTotal / 2;
             var pageSizeBy4 = pageSizeTotal / 4;
@@ -7238,7 +7655,6 @@ window.sfBlazor.Grid = (function () {
         InterSectionObserver.prototype.virtualScrollHandler = function (callback, onEnterCallback) {
             var _this = this;
             // prepare debounced callbacks once per handler creation
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
             var callbacks = this.createDebouncedCallbacks(callback);
             return function (e) {
                 var target = e.target;
@@ -7742,6 +8158,8 @@ window.sfBlazor.Grid = (function () {
             var CTRL_END = 'ctrlEnd';
             var CTRL_HOME = 'ctrlHome';
             var EMPTY_KEY = '';
+            var PAGE_DOWN = 'PageDown';
+            var PAGE_UP = 'PageUp';
             if (sf.base.isNullOrUndefined(this.observer)) {
                 return;
             }
@@ -7761,6 +8179,9 @@ window.sfBlazor.Grid = (function () {
                     this.keyCombination = isEndKey ? CTRL_END : CTRL_HOME;
                     keyboardEvent.preventDefault();
                 }
+            }
+            if (pressedKey === PAGE_DOWN || pressedKey === PAGE_UP) {
+                this.scrollContentByPage(pressedKey === PAGE_DOWN ? 'down' : 'up');
             }
         };
         VirtualContentRenderer.prototype.columnVirtualizationKeyDownHandler = function (keyboardEvent) {
@@ -7954,6 +8375,7 @@ window.sfBlazor.Grid = (function () {
             var CTRL_END = 'CtrlEnd';
             var HOME_KEY = 'Home';
             var END_KEY = 'End';
+            var ENTER_KEY = 'Enter';
             // CSS class constants
             var HEADER_CELL_DIV_CLASS = 'e-headercelldiv';
             // Attribute constants
@@ -7991,6 +8413,13 @@ window.sfBlazor.Grid = (function () {
             }
             // --- SECTION 3: Apply focus behavior based on navigation direction ---
             if (isVerticalNavigation) {
+                var parentRow = parentsUntil(cell, 'e-row');
+                if (parentRow) {
+                    var rowIndex = parseInt(parentRow.getAttribute('aria-rowindex'), 10) - 1;
+                    if (!isNaN(rowIndex)) {
+                        this.selectedRowNavigation = rowIndex;
+                    }
+                }
                 // Vertical navigation: prevent scroll during focus to avoid browser auto-scroll
                 cell.focus({ preventScroll: true });
             }
@@ -8018,7 +8447,8 @@ window.sfBlazor.Grid = (function () {
                 keyCombination === CTRL_HOME ||
                 keyCombination === CTRL_END ||
                 keyCombination === HOME_KEY ||
-                keyCombination === END_KEY || isCancelAction;
+                keyCombination === END_KEY || isCancelAction ||
+                (keyCombination === ENTER_KEY && this.parent.options.editMode == 'Cell');
             if (requiresSpecialHandling) {
                 //keyCombination == null && action == null -> We get this when clicking Cancel in Add form
                 var requiresScrollIntoView = keyCombination === ALT_W ||
@@ -8257,7 +8687,10 @@ window.sfBlazor.Grid = (function () {
             }
             // Update navigation tracking
             var selectedIndexes = this.parent.getSelectedRowIndexes(true);
-            this.nextRowToNavigate = selectedIndexes.length > 0 ? selectedIndexes[selectedIndexes.length - 1] - 1 : -1;
+            var focusedRowIndex = selectedIndexes.length === 0
+                ? this.selectedRowNavigation
+                : selectedIndexes.length > 0 ? selectedIndexes[selectedIndexes.length - 1] : -1;
+            this.nextRowToNavigate = focusedRowIndex >= 0 ? focusedRowIndex - 1 : -1;
         };
         /**
          * Handles upward scroll calculations and updates virtual info.
@@ -8362,10 +8795,10 @@ window.sfBlazor.Grid = (function () {
             }
             // Update navigation tracking
             var selectedRowIndexes = this.parent.getSelectedRowIndexes(true);
-            var LAST_SELECTED_OFFSET = -1;
-            this.nextRowToNavigate = selectedRowIndexes.length > 0
-                ? selectedRowIndexes[0] + 1
-                : 1 * LAST_SELECTED_OFFSET;
+            var focusedRowIndex = selectedRowIndexes.length === 0
+                ? this.selectedRowNavigation
+                : selectedRowIndexes.length > 0 ? selectedRowIndexes[0] : -1;
+            this.nextRowToNavigate = focusedRowIndex >= 0 ? focusedRowIndex + 1 : -1;
         };
         VirtualContentRenderer.prototype.onDataReady = function () {
             var _this_1 = this;
@@ -8976,6 +9409,33 @@ window.sfBlazor.Grid = (function () {
         VirtualContentRenderer.prototype.isDefaultGrouping = function () {
             var _a = this.parent.options, allowGrouping = _a.allowGrouping, enableLazyLoading = _a.enableLazyLoading, groupCount = _a.groupCount;
             return allowGrouping && !enableLazyLoading && groupCount > 0;
+        };
+        /**
+         * Scrolls the virtual content scroller by one viewport-sized block.
+         * @param {'up' | 'down'} direction - Direction to advance the virtual window
+         * @returns {void}
+         */
+        VirtualContentRenderer.prototype.scrollContentByPage = function (direction) {
+            if (sf.base.isNullOrUndefined(this.content) || sf.base.isNullOrUndefined(this.observer)) {
+                return;
+            }
+            var rowHeight = this.parent.getRowHeight();
+            if (rowHeight <= 0) {
+                return;
+            }
+            var height = this.parent.options.height;
+            var viewportHeight = height.toString().indexOf('%') < 0
+                ? this.content.getBoundingClientRect().height
+                : this.parent.element.getBoundingClientRect().height;
+            var blockSize = Math.max(1, Math.floor(viewportHeight / rowHeight) - 1);
+            var delta = direction === 'down' ? blockSize * rowHeight : -blockSize * rowHeight;
+            var maxScrollTop = this.content.scrollHeight - this.content.clientHeight;
+            var target = Math.max(0, Math.min(maxScrollTop, this.content.scrollTop + delta));
+            this.content.scrollTop = target;
+            // Edge case: at the very bottom
+            if (direction === 'down' && this.content.scrollTop + this.content.clientHeight >= this.content.scrollHeight) {
+                this.content.scrollTop = this.content.scrollHeight;
+            }
         };
         return VirtualContentRenderer;
     }());
@@ -10297,6 +10757,10 @@ window.sfBlazor.Grid = (function () {
             // eslint-disable-next-line @typescript-eslint/no-explicit-any
             window.sfBlazor = window.sfBlazor;
             this.editedCellIndex = null;
+            this.isDeferredInitialization = false;
+            this.virtualRowHeightValue = null;
+            this.domVirtualScrollCleanup = null;
+            this.domVirtualMaxHeightCleanup = null;
             this.firstFocusableTemplateElement = null;
             this.lastFocusableTemplateElement = null;
             this.inViewIndexes = [];
@@ -10308,25 +10772,22 @@ window.sfBlazor.Grid = (function () {
             this.preventSaveCellOnDragRelease = false;
             this._mouseDownX = null;
             this._mouseDownY = null;
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
             this.getFrozenLeftColumn = function () {
                 var columns = [];
-                var gridColumns = this.getColumns();
+                var gridColumns = _this_1.getColumns();
                 gridColumns.filter(function (c) { return c.isFrozen && c.freeze === 'Left'; })
                     .map(function (c) { return columns.push(c); });
                 return columns;
             };
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
             this.getFrozenRightColumns = function () {
                 var columns = [];
-                var gridColumns = this.getColumns();
+                var gridColumns = _this_1.getColumns();
                 gridColumns.filter(function (c) { return c.isFrozen && c.freeze === 'Right'; })
                     .map(function (c) { return columns.push(c); });
                 return columns;
             };
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
             this.tapEvent = function (e) {
-                if (this.resizeModule.getUserAgent()) {
+                if (!sf.base.isNullOrUndefined(_this_1.resizeModule) && _this_1.resizeModule.getUserAgent()) {
                     if (!Global.timer) {
                         Global.timer = setTimeout(function () {
                             Global.timer = null;
@@ -10357,6 +10818,7 @@ window.sfBlazor.Grid = (function () {
                 // eslint-disable-next-line @typescript-eslint/no-explicit-any
                 var gridtimer_1 = setInterval(function () {
                     if (_this_1.element.offsetWidth > 0) {
+                        _this_1.isDeferredInitialization = true;
                         _this_1.initModulesResults = _this_1.initModules();
                         clearInterval(gridtimer_1);
                     }
@@ -10367,7 +10829,6 @@ window.sfBlazor.Grid = (function () {
             }
             this.addScrollEvents(true);
             if (!sf.base.isNullOrUndefined(this.element)) {
-                // eslint-disable-next-line camelcase
                 this.element.blazor__instance = this;
                 window.sfBlazor.setCompInstance(this);
             }
@@ -10406,12 +10867,16 @@ window.sfBlazor.Grid = (function () {
                 eventName: 'keydown'
             });
             var contentReadyResults;
-            var virtualRowHeight = null;
             if (this.options.enableColumnVirtualization) {
                 this.virtualHeaderModule.renderTable();
             }
             if (this.options.enableVirtualization || this.options.enableColumnVirtualization) {
-                virtualRowHeight = this.virtualContentModule.renderTable();
+                this.virtualRowHeightValue = this.virtualContentModule.renderTable();
+            }
+            if (this.options.enableDomVirtualization) {
+                this.virtualRowHeightValue = this.getRowHeight();
+                this.bindDomVirtualScroll();
+                this.bindDomVirtualMaxHeight();
             }
             if (this.options.allowResizing) {
                 this.resizeModule.render();
@@ -10432,9 +10897,152 @@ window.sfBlazor.Grid = (function () {
                 this.updateColumnWidth(this.options.columns);
             }
             if (contentReadyResults != null) {
-                contentReadyResults.rowHeight = virtualRowHeight;
+                contentReadyResults.rowHeight = this.virtualRowHeightValue;
             }
             return contentReadyResults;
+        };
+        /**
+         * Keeps the DOM virtualization custom scrollbar and `.e-content` in sync entirely on the client
+         * and notifies .NET (at most once per animation frame, and never while a previous call is pending)
+         * with the latest scrollTop so the visible row window can be re-rendered.
+         *
+         * @private
+         * @returns {void}
+         */
+        SfGrid.prototype.bindDomVirtualScroll = function () {
+            var _this_1 = this;
+            if (this.domVirtualScrollCleanup) {
+                this.domVirtualScrollCleanup();
+            }
+            var content = this.getContent();
+            var scrollbar = this.element.querySelector('.e-dom-virtual-scrollbar');
+            if (sf.base.isNullOrUndefined(content) || sf.base.isNullOrUndefined(scrollbar) || sf.base.isNullOrUndefined(this.dotNetRef)) {
+                return;
+            }
+            var lastSent = -1;
+            var inFlight = false;
+            var dirty = false;
+            var disposed = false;
+            var rafId = 0;
+            var notify = function () {
+                if (disposed) {
+                    return;
+                }
+                if (inFlight) {
+                    dirty = true;
+                    return;
+                }
+                var top = Math.round(content.scrollTop);
+                if (top === lastSent) {
+                    return;
+                }
+                lastSent = top;
+                inFlight = true;
+                dirty = false;
+                var done = function () {
+                    inFlight = false;
+                    if (dirty) {
+                        notify();
+                    }
+                };
+                _this_1.dotNetRef.invokeMethodAsync('DomVirtualScroll', top).then(done, done);
+            };
+            var schedule = function () {
+                if (rafId) {
+                    return;
+                }
+                rafId = requestAnimationFrame(function () {
+                    rafId = 0;
+                    notify();
+                });
+            };
+            var onContentScroll = function () {
+                if (Math.abs(scrollbar.scrollTop - content.scrollTop) >= 1) {
+                    scrollbar.scrollTop = content.scrollTop;
+                }
+                schedule();
+            };
+            var onScrollbarScroll = function () {
+                if (Math.abs(content.scrollTop - scrollbar.scrollTop) >= 1) {
+                    content.scrollTop = scrollbar.scrollTop;
+                }
+                schedule();
+            };
+            sf.base.EventHandler.add(content, 'scroll', onContentScroll, this);
+            sf.base.EventHandler.add(scrollbar, 'scroll', onScrollbarScroll, this);
+            this.domVirtualScrollCleanup = function () {
+                disposed = true;
+                if (rafId) {
+                    cancelAnimationFrame(rafId);
+                }
+                sf.base.EventHandler.remove(content, 'scroll', onContentScroll);
+                sf.base.EventHandler.remove(scrollbar, 'scroll', onScrollbarScroll);
+                _this_1.domVirtualScrollCleanup = null;
+            };
+        };
+        SfGrid.prototype.getBrowserMaxScrollHeight = function () {
+            var host = document.createElement('div');
+            var child = document.createElement('div');
+            host.style.position = 'absolute';
+            host.style.visibility = 'hidden';
+            host.style.height = '1px';
+            host.style.width = '1px';
+            host.style.overflow = 'scroll';
+            host.style.top = '-10000px';
+            child.style.height = '1000000000px';
+            host.appendChild(child);
+            document.body.appendChild(host);
+            var measured = Math.max(child.offsetHeight, host.scrollHeight);
+            document.body.removeChild(host);
+            return measured > 0 ? measured : 32767000;
+        };
+        SfGrid.prototype.bindDomVirtualMaxHeight = function () {
+            var _this_1 = this;
+            if (this.domVirtualMaxHeightCleanup) {
+                this.domVirtualMaxHeightCleanup();
+            }
+            if (sf.base.isNullOrUndefined(this.dotNetRef)) {
+                return;
+            }
+            var disposed = false;
+            var rafId = 0;
+            var lastHeight = -1;
+            var notify = function () {
+                if (disposed) {
+                    return;
+                }
+                var current = _this_1.getBrowserMaxScrollHeight();
+                if (current <= 0 || current === lastHeight) {
+                    return;
+                }
+                lastHeight = current;
+                _this_1.dotNetRef.invokeMethodAsync('SetDomVirtualMaxHeight', current);
+            };
+            var schedule = function () {
+                if (rafId) {
+                    return;
+                }
+                rafId = requestAnimationFrame(function () {
+                    rafId = 0;
+                    notify();
+                });
+            };
+            notify();
+            window.addEventListener('resize', schedule);
+            if (window.visualViewport) {
+                window.visualViewport.addEventListener('resize', schedule);
+            }
+            this.domVirtualMaxHeightCleanup = function () {
+                disposed = true;
+                if (rafId) {
+                    cancelAnimationFrame(rafId);
+                }
+                window.removeEventListener('resize', schedule);
+                if (window.visualViewport) {
+                    window.visualViewport.removeEventListener('resize', schedule);
+                }
+                _this_1.domVirtualMaxHeightCleanup = null;
+            };
         };
         SfGrid.prototype.getHeaderContent = function () { return this.header; };
         SfGrid.prototype.getHeaderTable = function () { return this.header.querySelector('.e-table'); };
@@ -10494,7 +11102,8 @@ window.sfBlazor.Grid = (function () {
             if (sf.base.isNullOrUndefined(movableContent)) {
                 movableContent = this.getContent();
             }
-            if (movableContent.querySelector('table').style.width !== '') {
+            var movableTable = movableContent.querySelector('table');
+            if (!sf.base.isNullOrUndefined(movableTable) && movableTable.style.width !== '') {
                 if (this.options.frozenLeftColumnsCount !== 0 || this.options.frozenRightColumnsCount !== 0) {
                     this.updateColumnLevelFrozen();
                 }
@@ -10509,7 +11118,7 @@ window.sfBlazor.Grid = (function () {
         SfGrid.prototype.addScrollEvents = function (add) {
             if (this.options.showColumnMenu) {
                 var elements = sf.popups.getScrollableParent(this.element);
-                for (var i = 0; i < elements.length; i++) {
+                for (var i = 0; !sf.base.isNullOrUndefined(elements) && i < elements.length; i++) {
                     if (elements[parseInt(i.toString(), 10)] instanceof HTMLElement) {
                         if (add) {
                             sf.base.EventHandler.add(elements[parseInt(i.toString(), 10)], 'scroll', this.scrollHandler, this);
@@ -10519,16 +11128,19 @@ window.sfBlazor.Grid = (function () {
                         }
                     }
                 }
-                if (add) {
-                    sf.base.EventHandler.add(this.content, 'scroll', this.scrollHandler, this);
-                }
-                else {
-                    sf.base.EventHandler.remove(this.content, 'scroll', this.scrollHandler);
+                if (!sf.base.isNullOrUndefined(this.content)) {
+                    if (add) {
+                        sf.base.EventHandler.add(this.content, 'scroll', this.scrollHandler, this);
+                    }
+                    else {
+                        sf.base.EventHandler.remove(this.content, 'scroll', this.scrollHandler);
+                    }
                 }
             }
         };
         SfGrid.prototype.scrollHandler = function () {
-            if (!sf.base.isNullOrUndefined(this.element) && !sf.base.isNullOrUndefined(this.element.blazor__instance)) {
+            if (!sf.base.isNullOrUndefined(this.element) && !sf.base.isNullOrUndefined(this.element.blazor__instance)
+                && !sf.base.isNullOrUndefined(this.columnMenuModule)) {
                 return this.columnMenuModule.setPosition();
             }
         };
@@ -10573,7 +11185,7 @@ window.sfBlazor.Grid = (function () {
         SfGrid.prototype.updateColumnWidth = function (columns) {
             this.nColumnOffsets = [];
             var offset = 0;
-            if (!this.options.enableColumnVirtualization) {
+            if (!this.options.enableColumnVirtualization && !sf.base.isNullOrUndefined(columns)) {
                 for (var i = 0, len = columns.length; i < len; i++) {
                     offset = parseInt(offset.toString(), 10) + (columns[parseInt(i.toString(), 10)].visible ?
                         parseInt(columns[parseInt(i.toString(), 10)].width, 10) : 0);
@@ -10591,13 +11203,18 @@ window.sfBlazor.Grid = (function () {
             return column;
         };
         SfGrid.prototype.getDataRows = function () {
-            if (sf.base.isNullOrUndefined(this.getContentTable().querySelector('tbody'))) {
+            var contentTable = this.getContentTable();
+            if (sf.base.isNullOrUndefined(contentTable) || sf.base.isNullOrUndefined(contentTable.querySelector('tbody'))) {
                 return [];
             }
-            var rows = [].slice.call(this.getContentTable().querySelector('tbody').children);
+            var rows = [].slice.call(contentTable.querySelector('tbody').children);
             if (this.options.frozenRows) {
-                var freezeRows = [].slice.call(this.getHeaderTable().querySelector('tbody').children);
-                rows = this.addMovableRows(freezeRows, rows);
+                var headerTable = this.getHeaderTable();
+                var headerBody = !sf.base.isNullOrUndefined(headerTable) ? headerTable.querySelector('tbody') : null;
+                if (!sf.base.isNullOrUndefined(headerBody)) {
+                    var freezeRows = [].slice.call(headerBody.children);
+                    rows = this.addMovableRows(freezeRows, rows);
+                }
             }
             var dataRows = this.generateDataRows(rows);
             return dataRows;
@@ -10618,19 +11235,35 @@ window.sfBlazor.Grid = (function () {
             return dRows;
         };
         SfGrid.prototype.getMovableDataRows = function () {
-            var rows = [].slice.call(this.getContent().querySelector('tbody').children);
+            var contentBody = this.getContent().querySelector('tbody');
+            if (sf.base.isNullOrUndefined(contentBody)) {
+                return [];
+            }
+            var rows = [].slice.call(contentBody.children);
             if (this.options.frozenRows) {
-                var freezeRows = [].slice.call(this.getHeaderContent().querySelector('tbody').children);
-                rows = this.addMovableRows(freezeRows, rows);
+                var headerBody = this.getHeaderContent().querySelector('tbody');
+                if (!sf.base.isNullOrUndefined(headerBody)) {
+                    var freezeRows = [].slice.call(headerBody.children);
+                    rows = this.addMovableRows(freezeRows, rows);
+                }
             }
             var dataRows = this.generateDataRows(rows);
             return dataRows;
         };
         SfGrid.prototype.getFrozenDataRows = function () {
-            var rows = [].slice.call(this.getContent().querySelector('.e-frozencontent').querySelector('tbody').children);
+            var frozenContent = this.getContent().querySelector('.e-frozencontent');
+            var frozenBody = !sf.base.isNullOrUndefined(frozenContent) ? frozenContent.querySelector('tbody') : null;
+            if (sf.base.isNullOrUndefined(frozenBody)) {
+                return [];
+            }
+            var rows = [].slice.call(frozenBody.children);
             if (this.options.frozenRows) {
-                var freezeRows = [].slice.call(this.getHeaderContent().querySelector('.e-frozenheader').querySelector('tbody').children);
-                rows = this.addMovableRows(freezeRows, rows);
+                var frozenHeader = this.getHeaderContent().querySelector('.e-frozenheader');
+                var frozenHeaderBody = !sf.base.isNullOrUndefined(frozenHeader) ? frozenHeader.querySelector('tbody') : null;
+                if (!sf.base.isNullOrUndefined(frozenHeaderBody)) {
+                    var freezeRows = [].slice.call(frozenHeaderBody.children);
+                    rows = this.addMovableRows(freezeRows, rows);
+                }
             }
             var dataRows = this.generateDataRows(rows);
             return dataRows;
@@ -10639,17 +11272,26 @@ window.sfBlazor.Grid = (function () {
             var cols = position === 'left' ? this.getFrozenLeftColumn() : position === 'right' ? this.getFrozenRightColumns() : [];
             var width = 0;
             cols.filter(function (col) {
-                if (col.visible) {
+                if (col.visible && !sf.base.isNullOrUndefined(col.width)) {
                     width += parseInt(col.width.toString(), 10);
                 }
             });
             return width;
         };
         SfGrid.prototype.getFrozenRightDataRows = function () {
-            var rows = [].slice.call(this.getContent().querySelector('.e-frozen-right-content').querySelector('tbody').children);
+            var frozenRightContent = this.getContent().querySelector('.e-frozen-right-content');
+            var frozenRightBody = !sf.base.isNullOrUndefined(frozenRightContent) ? frozenRightContent.querySelector('tbody') : null;
+            if (sf.base.isNullOrUndefined(frozenRightBody)) {
+                return [];
+            }
+            var rows = [].slice.call(frozenRightBody.children);
             if (this.options.frozenRows) {
-                var freezeRows = [].slice.call(this.getHeaderContent().querySelector('.e-frozenheader').querySelector('tbody').children);
-                rows = this.addMovableRows(freezeRows, rows);
+                var frozenHeader = this.getHeaderContent().querySelector('.e-frozenheader');
+                var frozenHeaderBody = !sf.base.isNullOrUndefined(frozenHeader) ? frozenHeader.querySelector('tbody') : null;
+                if (!sf.base.isNullOrUndefined(frozenHeaderBody)) {
+                    var freezeRows = [].slice.call(frozenHeaderBody.children);
+                    rows = this.addMovableRows(freezeRows, rows);
+                }
             }
             return this.generateDataRows(rows);
         };
@@ -10923,7 +11565,17 @@ window.sfBlazor.Grid = (function () {
                     indentWidthCalc: null
                 };
             }
-            var indentWidth = this.getHeaderTable().querySelector('.e-emptycell').parentElement.offsetWidth;
+            var emptyCellElement = this.getHeaderTable().querySelector('.e-emptycell').parentElement;
+            var indentWidth = sf.base.isNullOrUndefined(emptyCellElement) ? 0 : emptyCellElement.offsetWidth;
+            // Applies the default indent cell offsetWidth value when grid is rendered inside
+            // the tab component which is not currently visible (ContentLoad.Init).
+            // Refer BLAZ-1032782 for more details.
+            if (indentWidth === 0 && parentsUntil(emptyCellElement, 'e-tab')) {
+                return {
+                    isRowDragCellEnable: null,
+                    indentWidthCalc: null
+                };
+            }
             if (isRowDragHeaderCell.length > 0 && groupingIndentCell.length > 0 && groupIndentRefresh === 'false') {
                 indentWidth = groupingIndentCell[0].parentElement.offsetWidth;
             }
@@ -10970,7 +11622,7 @@ window.sfBlazor.Grid = (function () {
                 var mappingUidDiv = null;
                 var mappingUid = null;
                 var headerCellDiv = null;
-                if (cellElement.getAttribute('aria-colIndex') === null) {
+                if (!sf.base.isNullOrUndefined(cellElement) && cellElement.getAttribute('aria-colIndex') === null) {
                     var headerCell = parentsUntil(cellElement, 'e-headercell');
                     var rowCell = parentsUntil(cellElement, 'e-rowcell');
                     cellElement = headerCell !== null ? headerCell : (rowCell !== null ? rowCell : cellElement);
@@ -10997,6 +11649,7 @@ window.sfBlazor.Grid = (function () {
             }
         };
         SfGrid.prototype.contentReady = function (action, isResetData) {
+            var _a, _b, _c;
             if (action === void 0) { action = null; }
             //To add 100% width for main HTML element, when grid width is 100% or auto
             var mainLayoutTag = document.getElementsByTagName('main')[0];
@@ -11006,7 +11659,7 @@ window.sfBlazor.Grid = (function () {
                 indentWidth: null,
                 isRowDragCell: null
             };
-            if (!sf.base.isNullOrUndefined(mainLayoutTag) && mainLayoutTag.parentElement.classList.contains('page') && (this.element.style.width === '100%' || 'auto')) {
+            if (!sf.base.isNullOrUndefined(mainLayoutTag) && !sf.base.isNullOrUndefined(mainLayoutTag.parentElement) && mainLayoutTag.parentElement.classList.contains('page') && (this.element.style.width === '100%' || 'auto')) {
                 mainLayoutTag.style.width = '100%';
             }
             if (this.getColumns().some(function (x) { return x.autoFit; })) {
@@ -11057,6 +11710,10 @@ window.sfBlazor.Grid = (function () {
                 this.virtualContentModule.onDataReady();
             }
             var indentResults = this.recalcIndentWidth();
+            if (this.isDeferredInitialization && !sf.base.isNullOrUndefined(this.dotNetRef)) {
+                this.dotNetRef.invokeMethodAsync('SetGridInitInfo', (_a = indentResults === null || indentResults === void 0 ? void 0 : indentResults.indentWidthCalc) !== null && _a !== void 0 ? _a : null, (_b = indentResults === null || indentResults === void 0 ? void 0 : indentResults.isRowDragCellEnable) !== null && _b !== void 0 ? _b : null, (_c = this.virtualRowHeightValue) !== null && _c !== void 0 ? _c : null, navigator.userAgent.indexOf('Mac OS') !== -1);
+                this.isDeferredInitialization = false;
+            }
             if (!sf.base.isNullOrUndefined(indentResults)) {
                 gridInitializeResults.indentWidth = indentResults.indentWidthCalc;
                 gridInitializeResults.isRowDragCell = indentResults.isRowDragCellEnable;
@@ -11094,14 +11751,15 @@ window.sfBlazor.Grid = (function () {
                     this.element.classList.add('e-right-shadow');
                 }
             }
-            if (this.options.frozenRows > 0) {
-                this.element.querySelector('.e-frozenrow-border').style.width = this.getContent().scrollHeight > this.getContent().offsetHeight ? this.element.offsetWidth - 17 + 'px' : this.element.offsetWidth + 'px';
+            var frozenRowBorder = this.element.querySelector('.e-frozenrow-border');
+            if (this.options.frozenRows > 0 && !sf.base.isNullOrUndefined(frozenRowBorder)) {
+                frozenRowBorder.style.width = this.getContent().scrollHeight > this.getContent().offsetHeight ? this.element.offsetWidth - 17 + 'px' : this.element.offsetWidth + 'px';
             }
-            if ((this.options.width === '100%' || 'auto') && this.options.frozenColumns > 0 && this.options.allowGrouping && this.options.groupCount > 0) {
+            if ((this.options.width === '100%' || 'auto') && this.options.frozenColumns > 0 && this.options.allowGrouping && this.options.groupCount > 0 && !sf.base.isNullOrUndefined(this.dotNetRef)) {
                 var width = this.getContent().offsetWidth;
                 this.dotNetRef.invokeMethodAsync('CalculateOffSetWidth', width);
             }
-            if (this.options.frozenColumns > 0 && this.options.allowGrouping && this.options.groupCount > 0) {
+            if (this.options.frozenColumns > 0 && this.options.allowGrouping && this.options.groupCount > 0 && !sf.base.isNullOrUndefined(this.dotNetRef)) {
                 if (!(this.getContent().scrollWidth > this.getContent().clientWidth)) {
                     this.dotNetRef.invokeMethodAsync('PreventExtraFrozenCellRendering');
                 }
@@ -11154,8 +11812,9 @@ window.sfBlazor.Grid = (function () {
             }
         };
         SfGrid.prototype.lastRowBorderCheck = function () {
-            if (!this.options.enableVirtualization) {
-                if (this.getContent().querySelector('.e-table').scrollHeight < this.getContent().clientHeight) {
+            var contentETable = this.getContent().querySelector('.e-table');
+            if (!this.options.enableVirtualization && !sf.base.isNullOrUndefined(contentETable) && !sf.base.isNullOrUndefined(this.dotNetRef)) {
+                if (contentETable.scrollHeight < this.getContent().clientHeight) {
                     this.dotNetRef.invokeMethodAsync('LastRowBorder', true);
                 }
                 else if (this.options.editMode === 'Batch' && this.options.height !== 'auto' && this.options.height !== '100%') {
@@ -11163,7 +11822,8 @@ window.sfBlazor.Grid = (function () {
                     if (this.options.frozenRows > 0) {
                         maxRows += this.options.frozenRows;
                     }
-                    this.dotNetRef.invokeMethodAsync('MaximumVisibleRows', maxRows);
+                    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                    this.dotNetRef.invokeMethodAsync('MaximumVisibleRows', maxRows).catch(function () { });
                 }
             }
         };
@@ -11194,6 +11854,7 @@ window.sfBlazor.Grid = (function () {
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         SfGrid.prototype.wireEvents = function () {
             sf.base.EventHandler.add(this.element, 'mousedown', this.mouseDownHandler, this);
+            sf.base.EventHandler.add(this.element, 'customContextMenuEvent', this.contextMenuHandler, this);
             sf.base.EventHandler.add(this.element, 'focus', this.gridFocus, this);
             this.delegateClickHandler = this.documentClickHandler.bind(this);
             sf.base.EventHandler.add(document, 'click', this.delegateClickHandler, this);
@@ -11205,7 +11866,6 @@ window.sfBlazor.Grid = (function () {
             sf.base.EventHandler.add(this.getContent(), 'click', this.preventClickOnDrag, this);
             // eslint-disable-next-line @typescript-eslint/no-explicit-any
             sf.base.EventHandler.add(window, 'resize', this.windowResized, this);
-            sf.base.EventHandler.add(this.element, 'contextmenu', this.mouseDownHandler, this);
             if (this.options.allowEditing) {
                 sf.base.EventHandler.add(this.element, 'dblclick', this.doubleClickHandler, this);
             }
@@ -11218,6 +11878,7 @@ window.sfBlazor.Grid = (function () {
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         SfGrid.prototype.unWireEvents = function () {
             sf.base.EventHandler.remove(this.element, 'mousedown', this.mouseDownHandler);
+            sf.base.EventHandler.remove(this.element, 'customContextMenuEvent', this.contextMenuHandler);
             sf.base.EventHandler.remove(this.element, 'focus', this.gridFocus);
             sf.base.EventHandler.remove(document, 'click', this.delegateClickHandler);
             sf.base.EventHandler.remove(this.element, 'keydown', this.gridKeyDownHandler);
@@ -11228,7 +11889,6 @@ window.sfBlazor.Grid = (function () {
             sf.base.EventHandler.remove(this.getContent(), 'click', this.preventClickOnDrag);
             // eslint-disable-next-line @typescript-eslint/no-explicit-any
             sf.base.EventHandler.remove(window, 'resize', this.windowResized);
-            sf.base.EventHandler.remove(this.element, 'contextmenu', this.mouseDownHandler);
             if (this.options.enableColumnVirtualization && this.options.allowPaging) {
                 sf.base.EventHandler.remove(this.element, 'shiftTabNavigation', this.handleShiftTabNavigation);
             }
@@ -11239,37 +11899,43 @@ window.sfBlazor.Grid = (function () {
             setTimeout(function () {
                 var content = _this.element.querySelector('.e-content.e-yscroll');
                 if (_this.options.frozenColumns && (_this.options.width === '100%' || 'auto')) {
-                    if (_this.options.allowTextWrap) {
+                    if (_this.options.allowTextWrap && !sf.base.isNullOrUndefined(_this.freezeModule)) {
                         _this.freezeModule.refreshRowHeight();
                     }
                 }
+                var gridHeader = _this.element.querySelector('.e-gridheader');
                 if (!sf.base.isNullOrUndefined(content) && content.scrollHeight > content.clientHeight) {
-                    _this.element.querySelector('.e-gridheader').style.paddingRight = getScrollBarWidth() - _this.scrollModule.getThreshold() + 'px';
+                    if (!sf.base.isNullOrUndefined(gridHeader)) {
+                        gridHeader.style.paddingRight = getScrollBarWidth() - _this.scrollModule.getThreshold() + 'px';
+                    }
                 }
                 else {
                     _this.scrollModule.setPadding();
                 }
                 var gridContent = _this.element.querySelector('.e-gridcontent');
-                var startIndex = gridContent.style.height.indexOf('- ') + 2;
-                var endIndex = gridContent.style.height.indexOf('p');
-                var sibilingsHeight = !sf.base.isNullOrUndefined(gridContent) && gridContent.style.height !== '' ? parseInt(gridContent.style.height.slice(startIndex, endIndex), 10) : 0;
-                var height = !sf.base.isNullOrUndefined(gridContent) && gridContent.style.height !== '' ? getSiblingsHeight(gridContent) : 0;
+                var hasGridContentHeight = !sf.base.isNullOrUndefined(gridContent) && gridContent.style.height !== '';
+                var startIndex = hasGridContentHeight ? gridContent.style.height.indexOf('- ') + 2 : 0;
+                var endIndex = hasGridContentHeight ? gridContent.style.height.indexOf('p') : 0;
+                var sibilingsHeight = hasGridContentHeight ? parseInt(gridContent.style.height.slice(startIndex, endIndex), 10) : 0;
+                var height = hasGridContentHeight ? getSiblingsHeight(gridContent) : 0;
                 if (height !== sibilingsHeight) {
                     _this.scrollModule.refresh();
                 }
                 if (!sf.base.Browser.isDevice) {
                     var activeElement = document.activeElement;
-                    var isTextInput = !!activeElement && /^(INPUT|TEXTAREA)$/.test(activeElement.tagName);
+                    var isTextInput = !sf.base.isNullOrUndefined(activeElement) && /^(INPUT|TEXTAREA)$/.test(activeElement.tagName);
                     var isLandscapeInputFocused = _this.isLandScapeMobile() && isTextInput;
                     if (!sf.base.isNullOrUndefined(_this.element) && (_this.element.querySelector('.e-filter-popup.e-popup-open') || _this.element.querySelector('.e-ccdlg.e-popup-open'))) {
-                        if (!isLandscapeInputFocused) {
+                        if (!isLandscapeInputFocused && !sf.base.isNullOrUndefined(_this.dotNetRef)) {
                             _this.dotNetRef.invokeMethodAsync('FilterPopupClose');
                         }
                     }
                     // Close enhanced operator dropdowns on window resize
                     _this.closeOperatorDropdownIfOpen();
                 }
-                _this.columnChooserModule.windowResized();
+                if (!sf.base.isNullOrUndefined(_this.columnChooserModule)) {
+                    _this.columnChooserModule.windowResized();
+                }
                 if (_this.isResetDataTriggered && (_this.options.width === '100%' || _this.options.width === 'auto') && _this.options.enableVirtualization && !_this.options.enableColumnVirtualization && _this.options.allowResizing) {
                     var contentTable = _this.getContentTable();
                     var headerTable = _this.getHeaderTable();
@@ -11299,12 +11965,14 @@ window.sfBlazor.Grid = (function () {
             if (e.target.tagName === 'TD') {
                 e.target.blur();
             }
-            this.toolTipModule.close();
+            if (!sf.base.isNullOrUndefined(this.toolTipModule)) {
+                this.toolTipModule.close();
+            }
         };
         SfGrid.prototype.setOptions = function (newOptions, options) {
             var oldOptions = sf.base.extend(options, {});
             this.options = newOptions;
-            if (!oldOptions.allowResizing && newOptions.allowResizing) {
+            if (!oldOptions.allowResizing && newOptions.allowResizing && !sf.base.isNullOrUndefined(this.resizeModule)) {
                 this.resizeModule.render();
             }
             if ((!oldOptions.allowGrouping && newOptions.allowGrouping)
@@ -11374,15 +12042,18 @@ window.sfBlazor.Grid = (function () {
                 }
                 if (!sf.base.isNullOrUndefined(isExcel)) {
                     setTimeout(function () {
-                        _this_1.dotNetRef.invokeMethodAsync('FilterPopupClose');
+                        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                        _this_1.dotNetRef.invokeMethodAsync('FilterPopupClose').catch(function () { });
                     }, 10);
                 }
                 else {
-                    this.dotNetRef.invokeMethodAsync('FilterPopupClose');
+                    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                    this.dotNetRef.invokeMethodAsync('FilterPopupClose').catch(function () { });
                 }
             }
             if ((this.options.editMode === 'Batch' || this.options.editMode === 'Cell') && sf.base.isNullOrUndefined(formElement) && (!cellElement || (!sf.base.isNullOrUndefined(targetGridId) && (this.element.id !== targetGridId))) && !toolbar && !this.targetIsFilterDialog(e) && this.element.querySelector('.e-gridform')) {
-                this.dotNetRef.invokeMethodAsync('UpdateChanges');
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                this.dotNetRef.invokeMethodAsync('UpdateChanges').catch(function () { });
             }
             if (!sf.base.Browser.isDevice) {
                 this.toolTipModule.close();
@@ -11419,17 +12090,24 @@ window.sfBlazor.Grid = (function () {
             }
         };
         SfGrid.prototype.targetIsFilterDialog = function (e) {
+            var _a;
+            var activeElement = document.activeElement;
             var popupElement = parentsUntil(parentsUntil(e.target, 'e-filter-popup'), 'e-popup-open');
             var filterDropdown = parentsUntil(parentsUntil(e.target, 'e-ddl'), 'e-popup-open');
+            var activeFilterDropdown = filterDropdown ? filterDropdown : parentsUntil(parentsUntil(activeElement, 'e-ddl'), 'e-popup-open');
             var filterCheckbox = parentsUntil(parentsUntil(e.target, 'e-selectall'), 'e-ftrchk');
             var searchClear = parentsUntil(e.target, 'e-chkcancel-icon');
-            var isBlankCheckbox = (e.target.classList.contains('e-check')) || (e.target.classList.contains('e-uncheck'));
+            var isBlankCheckbox = (e.target.classList.contains('e-check') || e.target.classList.contains('e-uncheck')) && !!((_a = document.elementFromPoint(e.clientX, e.clientY)) === null || _a === void 0 ? void 0 : _a.closest('.e-popup-open'));
             var ccPopupElement = parentsUntil(parentsUntil(e.target, 'e-ccdlg'), 'e-popup-open');
             var mentionElement = parentsUntil(parentsUntil(e.target, 'e-ccdlg-mention'), 'e-popup-open');
             var dropDownTreeElement = parentsUntil(parentsUntil(e.target, 'e-ddt'), 'e-popup-open');
             var zoomInElement = parentsUntil(e.target, 'e-zoomin');
+            var isScrollbar = e.target != null && e.target.clientWidth > 0 && e.target.clientHeight > 0 && (e.offsetX > e.target.clientWidth || e.offsetY > e.target.clientHeight);
+            if (isScrollbar) {
+                return false;
+            }
             if (popupElement || filterDropdown || filterCheckbox || searchClear || this.isOutsideGridComponent(e) || zoomInElement ||
-                isBlankCheckbox || ccPopupElement || mentionElement || dropDownTreeElement) {
+                isBlankCheckbox || ccPopupElement || mentionElement || dropDownTreeElement || activeFilterDropdown) {
                 return true;
             }
             else {
@@ -11460,8 +12138,6 @@ window.sfBlazor.Grid = (function () {
             return isPickerInGrid;
         };
         SfGrid.prototype.documentKeyHandler = function (e) {
-            //TODO: handle alt+w
-            // 74 - J
             if (e.altKey && e.keyCode === 74 && !sf.base.isNullOrUndefined(this.element)) {
                 var grids = document.querySelectorAll('.e-grid');
                 var targetGrid = parentsUntil(e.target, 'e-grid');
@@ -11522,7 +12198,7 @@ window.sfBlazor.Grid = (function () {
             return this.lastFocusableTemplateElement;
         };
         SfGrid.prototype.keyDownHandler = function (e) {
-            var _a;
+            var _a, _b;
             var gridElement = parentsUntil(e.target, 'e-grid');
             var elementTag = e.target.tagName;
             var isPagerFocused = !sf.base.isNullOrUndefined(parentsUntil(e.target, 'e-pager'));
@@ -11531,6 +12207,23 @@ window.sfBlazor.Grid = (function () {
             var focusTemplateCell = false;
             var cellIndex;
             var rowIndex;
+            //Keep the custom grid navigation in charge of Tab/Shift+Tab at the first/last grid cell.
+            // Otherwise the browser restores focus to the earliest grid cell and breaks the previous-cell traversal.
+            if (gridElement && e.key === 'Tab' && e.shiftKey) {
+                var focusedCell = parentsUntil(e.target, 'e-rowcell') || parentsUntil(e.target, 'e-headercell');
+                if (!sf.base.isNullOrUndefined(focusedCell) && sf.base.isNullOrUndefined(parentsUntil(e.target, 'e-editing'))) {
+                    var row = parentsUntil(focusedCell, 'e-row');
+                    if (!sf.base.isNullOrUndefined(row)) {
+                        var cells = Array.from(row.querySelectorAll('.e-rowcell:not(.e-hide), .e-headercell:not(.e-hide)'));
+                        if (cells.length > 0) {
+                            var lastCell = cells[cells.length - 1];
+                            if (focusedCell === lastCell) {
+                                e.preventDefault();
+                            }
+                        }
+                    }
+                }
+            }
             //when shift+tab pressed from first content cell, focus get stuck in filterBar cell
             if (gridElement) {
                 var headerCells = Array.from(gridElement.querySelectorAll('.e-headercell')).filter(function (cell) { return cell.offsetParent !== null; });
@@ -11616,24 +12309,22 @@ window.sfBlazor.Grid = (function () {
             if (allow && (e.key === 'Escape' || e.key === 'Enter') && document.activeElement.tagName === 'BODY') {
                 e.target.focus();
             }
-            if (e.key === 'Escape' && (allow && e.target.getAttribute('aria-expanded') === 'true')) {
+            // Handle keyboard events for popup components in batch/cell editing mode
+            var isPopupActive = false;
+            var isBatchEditpopupRow = !sf.base.isNullOrUndefined(parentsUntil(e.target, 'e-editedbatchcell')) && allow;
+            if (isBatchEditpopupRow) {
+                // Check if the popup is currently expanded
+                isPopupActive = e.target.getAttribute('aria-expanded') === 'true';
+                if (e.target.classList.contains('e-dropdownlist')) {
+                    isPopupActive = elementTag === 'INPUT' && ((_b = e.target.closest('.e-ddl')) === null || _b === void 0 ? void 0 : _b.getAttribute('aria-expanded')) === 'true';
+                }
+            }
+            // Handle Escape key to close popups in batch/cell editing
+            if (e.key === 'Escape' && allow && (e.target.getAttribute('aria-expanded') === 'true')) {
                 return;
             }
             if (!sf.base.isNullOrUndefined(parentsUntil(e.target, 'e-rowcell'))) {
                 this.editedCellIndex = parentsUntil(e.target, 'e-rowcell').cellIndex === this.editedCellIndex ? this.editedCellIndex : null;
-            }
-            //Batch edit with multi select with Enter key and arrow keys scenario handled.
-            var isMultiSelectPopupRendered = false;
-            if (!sf.base.isNullOrUndefined(parentsUntil(e.target, 'e-batchrow')) && allow && e.key === 'Enter' && e.target.classList.contains('e-multiselect')) {
-                var popupOpened = document.getElementsByClassName('e-popup-open');
-                if (popupOpened.length > 0) {
-                    for (var i = 0; i < popupOpened.length; i++) {
-                        if (popupOpened[parseInt(i.toString(), 10)].id === e.target.getAttribute('aria-owns')) {
-                            isMultiSelectPopupRendered = true;
-                        }
-                        break;
-                    }
-                }
             }
             if (!sf.base.isNullOrUndefined(parentsUntil(e.target, 'e-ccdlg')) && (e.key === 'Tab' || e.key === 'ArrowDown' || e.key === 'ArrowUp')) {
                 this.focusColumnChooserDialogElements(e);
@@ -11652,7 +12343,7 @@ window.sfBlazor.Grid = (function () {
                 && (e.key === 'Tab' || (e.key === 'Tab' && e.shiftKey));
             if (focusTemplateCell || e.key === 'F2' || e.key === 'Insert' || e.key === 'Delete' || (e.key === 'p' && e.ctrlKey)
                 || ((!isDialogOpen || ccDlgOpen) && e.key === 'Escape') || editedRowNavigation
-                || isMultiSelectPopupRendered || (e.altKey && e.keyCode === 87) ||
+                || isPopupActive || (e.altKey && e.keyCode === 87) ||
                 (e.action === 'pageUp' || e.action === 'pageDown' || e.action === 'ctrlAltPageUp'
                     || e.action === 'ctrlAltPageDown' || e.action === 'altPageUp' || e.action === 'altPageDown')) {
                 this.dotNetRef.invokeMethodAsync('GridKeyDown', {
@@ -11662,7 +12353,7 @@ window.sfBlazor.Grid = (function () {
                     shiftKey: e.shiftKey,
                     altKey: e.altKey,
                     metaKey: e.metaKey
-                }, isSearchInput, isPagerFocused, isGridToolbarFocused, this.editedCellIndex, rowIndex, cellIndex, focusTemplateCell, isMultiSelectPopupRendered);
+                }, isSearchInput, isPagerFocused, isGridToolbarFocused, this.editedCellIndex, rowIndex, cellIndex, focusTemplateCell, isPopupActive);
             }
         };
         SfGrid.prototype.focusColumnChooserDialogElements = function (e) {
@@ -11773,6 +12464,35 @@ window.sfBlazor.Grid = (function () {
             }, 30);
         };
         SfGrid.prototype.gridKeyDownHandler = function (e) {
+            var isMacLike = navigator.userAgent.indexOf('Mac') !== -1;
+            if (this.options.enableUndoRedo && this.options.editMode === 'Batch' &&
+                (e.ctrlKey || (isMacLike && e.metaKey)) && (e.keyCode === 90 || e.keyCode === 89 || (e.shiftKey && e.keyCode === 90))) {
+                var targetGrid = parentsUntil(e.target, 'e-grid');
+                if (!sf.base.isNullOrUndefined(targetGrid) && targetGrid.id === this.element.id) {
+                    e.preventDefault(); // Prevent browser's default undo/redo
+                    this.dotNetRef.invokeMethodAsync('GridKeyDown', {
+                        key: e.key,
+                        code: e.code,
+                        ctrlKey: e.ctrlKey,
+                        shiftKey: e.shiftKey,
+                        altKey: e.altKey,
+                        metaKey: e.metaKey
+                    }, false, false, false, this.editedCellIndex, null, null, false, false);
+                    return;
+                }
+            }
+            var headerCell = e.target.closest('.e-headercell');
+            if (e.shiftKey && e.key === 'Tab' && headerCell) {
+                var findInput = this.element.querySelector('.e-find-input:not([disabled])');
+                var visibleHeaderCells = Array.from(this.element.querySelectorAll('.e-headercell'))
+                    .filter(function (cell) { return cell.offsetParent !== null; });
+                if (findInput && findInput.offsetParent !== null && visibleHeaderCells[0] === headerCell) {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    findInput.focus();
+                    return;
+                }
+            }
             var popupElement = parentsUntil(e.target, 'e-filter-popup');
             var elementTag = e.target.tagName;
             this.toolTipModule.close();
@@ -11841,7 +12561,6 @@ window.sfBlazor.Grid = (function () {
             if (e.key === 'Shift' || e.key === 'Control' || e.key === 'Alt') {
                 e.stopPropagation(); //dont let execute c# keydown handler for meta keys.
             }
-            var isMacLike = navigator.userAgent.indexOf('Mac') !== -1;
             if (e.keyCode === 67 && (e.ctrlKey || (isMacLike && e.metaKey)) && !this.options.isRenderedFromTreeGrid) {
                 this.clipboardModule.copy();
             }
@@ -11913,16 +12632,13 @@ window.sfBlazor.Grid = (function () {
                 }
             }
             if (this.element.querySelector('.e-batchrow')) {
-                //new - for batch editing keys
-                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                //new - for batch editing keys            
                 var keys = ['a', 'control', 'Delete', 'Insert'];
-                // eslint-disable-next-line @typescript-eslint/no-explicit-any
                 var actions = ['altPageUp', 'altPageDown', 'ctrlAltPageDown', 'ctrlAltPageUp', 'ctrlPlusP'];
-                // eslint-disable-next-line @typescript-eslint/no-explicit-any
                 var keyboardNavKeys = ['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown', 'Home', 'End'];
                 if (!sf.base.isNullOrUndefined(e.key) &&
-                    (keys.includes(e.key === 'A' ? 'a' : e.key) || (e.key === 'F2' && !e.shiftKey) || actions.includes(e.action)
-                        || ((e.shiftKey || e.ctrlKey) && keyboardNavKeys.includes(e.key)))) {
+                    (keys.indexOf(e.key === 'A' ? 'a' : e.key) !== -1) || (e.key === 'F2' && !e.shiftKey) || actions.indexOf(e.action) !== -1
+                    || ((e.shiftKey || e.ctrlKey) && keyboardNavKeys.indexOf(e.key) !== -1)) {
                     e.stopPropagation();
                 }
                 if (e.key === 'Tab' || e.key === 'shiftTab' || e.key === 'Enter' || e.key === 'shiftEnter') {
@@ -11967,8 +12683,18 @@ window.sfBlazor.Grid = (function () {
                 this.virtualContentModule.columnVirtualizationKeyDownHandler(e);
             }
         };
+        SfGrid.prototype.contextMenuHandler = function (e) {
+            var mouseEvent = e.detail.contextmenu;
+            if (sf.base.isNullOrUndefined(mouseEvent)) {
+                return;
+            }
+            var gridElement = parentsUntil(mouseEvent.target, 'e-grid');
+            if (gridElement && gridElement.id !== this.element.id) {
+                return;
+            }
+            this.handleContextMenuAction(mouseEvent, gridElement);
+        };
         SfGrid.prototype.mouseDownHandler = function (e) {
-            var _a;
             var _this_1 = this;
             this.preventSaveCellOnDragRelease = false;
             this._mouseDownX = e.clientX;
@@ -11999,6 +12725,10 @@ window.sfBlazor.Grid = (function () {
             if ((e.shiftKey || e.ctrlKey) && !allowShiftSelection(this)) {
                 e.preventDefault(); //prevent user select on shift pressing during selection
             }
+            this.handleContextMenuAction(e, gridElement);
+        };
+        SfGrid.prototype.handleContextMenuAction = function (e, gridElement) {
+            var _a, _b;
             // e.button = 2 for right mouse button click
             // e.button = -1 for long press in touchscreen
             // This is used to handle cases where macOS users perform a "right-click" equivalent
@@ -12013,6 +12743,7 @@ window.sfBlazor.Grid = (function () {
                 || e.target.classList.contains('e-headercontent') || sf.base.closest(e.target, '.e-groupdroparea') || sf.base.closest(e.target, '.e-gridpopup')
                 || sf.base.closest(e.target, '.e-summarycell') || sf.base.closest(e.target, '.e-rhandler')
                 || sf.base.closest(e.target, '.e-filtermenudiv') || sf.base.closest(e.target, '.e-filterbarcell')
+                || sf.base.closest(e.target, '.e-toolbar') || sf.base.closest(e.target, '.e-toolbar-items')
                 || sf.base.closest(e.target, '.e-groupcaption')) {
                 var defaultParams = [null, null, null, null];
                 (_a = this.dotNetRef).invokeMethodAsync.apply(_a, __spreadArray(['MouseDownHandler'], defaultParams, false));
@@ -12037,6 +12768,13 @@ window.sfBlazor.Grid = (function () {
                     cellUid = parentsUntil(e.target, 'e-headercell') ? parentsUntil(e.target, 'e-headercell').getAttribute('data-uid') : null;
                 }
                 else if (parentsUntil(e.target, 'e-content')) {
+                    var targetElement = e.target;
+                    var isScrollbarClick = targetElement != null && !(parentsUntil(targetElement, 'e-rowcell') || parentsUntil(targetElement, 'e-detailcell') || parentsUntil(targetElement, 'e-recordplusexpand') || parentsUntil(targetElement, 'e-recordpluscollapse')) && (e.offsetX > targetElement.clientWidth || e.offsetY > targetElement.clientHeight);
+                    if (isScrollbarClick) {
+                        var defaultParams = [null, null, null, null];
+                        (_b = this.dotNetRef).invokeMethodAsync.apply(_b, __spreadArray(['MouseDownHandler'], defaultParams, false));
+                        return;
+                    }
                     target = 'Content';
                     rowUid = parentsUntil(e.target, 'e-row') ? parentsUntil(e.target, 'e-row').getAttribute('data-uid') : null;
                     cellColIndex = parentsUntil(e.target, 'e-rowcell') ? parentsUntil(e.target, 'e-rowcell').getAttribute('aria-colindex') : null;
@@ -12077,7 +12815,10 @@ window.sfBlazor.Grid = (function () {
                 e.preventDefault();
             }
             var allow = this.isPopUpOpened(e);
-            var inputElement = parentsUntil(e.target, 'e-autocomplete');
+            var target = e.target;
+            var inputElement = parentsUntil(target, 'e-autocomplete');
+            var targetElement = target.hasAttribute('aria-expanded') ? target : parentsUntil(target, 'e-ddl');
+            var isDropdownElement = (targetElement === null || targetElement === void 0 ? void 0 : targetElement.getAttribute('aria-expanded')) === 'true';
             if (!sf.base.isNullOrUndefined(inputElement)) {
                 var id = inputElement.id + '_popup';
                 if (!sf.base.isNullOrUndefined(document.getElementById(id))) {
@@ -12098,10 +12839,11 @@ window.sfBlazor.Grid = (function () {
                     }
                 });
             }
-            if (((e.action === 'enter' && elementTag !== 'TEXTAREA') ||
+            if (((e.action === 'enter' && elementTag !== 'TEXTAREA'
+                && !e.target.classList.contains('e-find-input')) ||
                 (e.action === 'ctrlPlusEnter' && elementTag === 'TEXTAREA')) &&
-                isGridEditForm && this.options.editMode !== 'Batch' && this.options.editMode !== 'Cell' &&
-                ((allow && e.target.getAttribute('aria-expanded') === 'false') || !allow)) {
+                isGridEditForm && this.options.editMode !== 'Batch' &&
+                ((allow && !isDropdownElement) || !allow)) {
                 if (this.options.showAddNewRow && this.options.showColumnChooser) {
                     e.stopPropagation();
                 }
@@ -12144,6 +12886,12 @@ window.sfBlazor.Grid = (function () {
             this.unWireEvents();
             this.frozenDragDropModule.unwireEvents();
             this.virtualContentModule.removeEventListener();
+            if (this.domVirtualScrollCleanup) {
+                this.domVirtualScrollCleanup();
+            }
+            if (this.domVirtualMaxHeightCleanup) {
+                this.domVirtualMaxHeightCleanup();
+            }
             this.addScrollEvents(false);
             this.editedCellIndex = null;
             this.toolTipModule.destroy();
@@ -12202,12 +12950,30 @@ window.sfBlazor.Grid = (function () {
             }
             return gridInitializeResults;
         };
-        SfGrid.prototype.print = function () {
+        SfGrid.prototype.print = function (headerId, footerId) {
             this.removeColGroup();
+            var printContainer = document.createElement('div');
+            if (headerId) {
+                var headerElement = document.getElementById(headerId);
+                if (!sf.base.isNullOrUndefined(headerElement)) {
+                    var headerClone = headerElement.cloneNode(true);
+                    headerClone.classList.add('e-print-header');
+                    printContainer.appendChild(headerClone);
+                }
+            }
+            printContainer.appendChild(this.element.cloneNode(true));
+            if (footerId) {
+                var footerElement = document.getElementById(footerId);
+                if (!sf.base.isNullOrUndefined(footerElement)) {
+                    var footerClone = footerElement.cloneNode(true);
+                    footerClone.classList.add('e-print-footer');
+                    printContainer.appendChild(footerClone);
+                }
+            }
             var printWind = window.open('', 'print', 'height=' + window.outerHeight + ',width=' + window.outerWidth + ',tabbar=no');
             printWind.moveTo(0, 0);
             printWind.resizeTo(screen.availWidth, screen.availHeight);
-            sf.base.print(this.element, printWind);
+            sf.base.print(printContainer, printWind);
         };
         SfGrid.prototype.removeColGroup = function () {
             var depth = this.options.groupCount;
@@ -12292,6 +13058,345 @@ window.sfBlazor.Grid = (function () {
     };
 
     /**
+     * WebMCP Adapter (Browser Side)
+     * -----------------------------
+     * Registers Blazor DataGrid tools with the browser's proposed
+     * `document.modelContext.registerTool()` API (WebMCP).
+     *
+     * Flow:
+     *   1. C# WebMcpAdapter collects tool schemas
+     *   2. C# calls InvokeMethod("sfBlazor.Grid.registerWebMcpTools", dataId, tools, prefix)
+     *   3. This module registers each tool with `document.modelContext.registerTool()`
+     *   4. When an AI agent invokes a tool, the browser forwards the call back to this handler
+     *   5. We serialize the args and call back into .NET via JSInvokable "InvokeWebMcpToolExecute"
+     *
+     * Graceful Degradation:
+     *   - If `document.modelContext` is unavailable (e.g. standard browsers, no agent host),
+     *     this module silently no-ops.
+     *   - All errors are logged but never thrown, so they cannot break the grid.
+     */
+    var __assign = (undefined && undefined.__assign) || function () {
+        __assign = Object.assign || function(t) {
+            for (var s, i = 1, n = arguments.length; i < n; i++) {
+                s = arguments[i];
+                for (var p in s) if (Object.prototype.hasOwnProperty.call(s, p))
+                    t[p] = s[p];
+            }
+            return t;
+        };
+        return __assign.apply(this, arguments);
+    };
+    var __awaiter$1 = (undefined && undefined.__awaiter) || function (thisArg, _arguments, P, generator) {
+        function adopt(value) { return value instanceof P ? value : new P(function (resolve) { resolve(value); }); }
+        return new (P || (P = Promise))(function (resolve, reject) {
+            function fulfilled(value) { try { step(generator.next(value)); } catch (e) { reject(e); } }
+            function rejected(value) { try { step(generator["throw"](value)); } catch (e) { reject(e); } }
+            function step(result) { result.done ? resolve(result.value) : adopt(result.value).then(fulfilled, rejected); }
+            step((generator = generator.apply(thisArg, _arguments || [])).next());
+        });
+    };
+    var __generator$1 = (undefined && undefined.__generator) || function (thisArg, body) {
+        var _ = { label: 0, sent: function() { if (t[0] & 1) throw t[1]; return t[1]; }, trys: [], ops: [] }, f, y, t, g;
+        return g = { next: verb(0), "throw": verb(1), "return": verb(2) }, typeof Symbol === "function" && (g[Symbol.iterator] = function() { return this; }), g;
+        function verb(n) { return function (v) { return step([n, v]); }; }
+        function step(op) {
+            if (f) throw new TypeError("Generator is already executing.");
+            while (g && (g = 0, op[0] && (_ = 0)), _) try {
+                if (f = 1, y && (t = op[0] & 2 ? y["return"] : op[0] ? y["throw"] || ((t = y["return"]) && t.call(y), 0) : y.next) && !(t = t.call(y, op[1])).done) return t;
+                if (y = 0, t) op = [op[0] & 2, t.value];
+                switch (op[0]) {
+                    case 0: case 1: t = op; break;
+                    case 4: _.label++; return { value: op[1], done: false };
+                    case 5: _.label++; y = op[1]; op = [0]; continue;
+                    case 7: op = _.ops.pop(); _.trys.pop(); continue;
+                    default:
+                        if (!(t = _.trys, t = t.length > 0 && t[t.length - 1]) && (op[0] === 6 || op[0] === 2)) { _ = 0; continue; }
+                        if (op[0] === 3 && (!t || (op[1] > t[0] && op[1] < t[3]))) { _.label = op[1]; break; }
+                        if (op[0] === 6 && _.label < t[1]) { _.label = t[1]; t = op; break; }
+                        if (t && _.label < t[2]) { _.label = t[2]; _.ops.push(op); break; }
+                        if (t[2]) _.ops.pop();
+                        _.trys.pop(); continue;
+                }
+                op = body.call(thisArg, _);
+            } catch (e) { op = [6, e]; y = 0; } finally { f = t = 0; }
+            if (op[0] & 5) throw op[1]; return { value: op[0] ? op[1] : void 0, done: true };
+        }
+    };
+    (undefined && undefined.__spreadArray) || function (to, from, pack) {
+        if (pack || arguments.length === 2) for (var i = 0, l = from.length, ar; i < l; i++) {
+            if (ar || !(i in from)) {
+                if (!ar) ar = Array.prototype.slice.call(from, 0, i);
+                ar[i] = from[i];
+            }
+        }
+        return to.concat(ar || Array.prototype.slice.call(from));
+    };
+    /**
+     * Track registered tools per grid instance for cleanup/dispose.
+     * key: gridDataId, value: array of registration handles (version-dependent)
+     */
+    var registeredTools = new Map();
+    /**
+     * Register WebMCP tools with `document.modelContext.registerTool()`.
+     *
+     * The dotnetRef is auto-discovered by looking up the grid instance via
+     * `window.sfBlazor.getCompInstance(dataId)` which is the same lookup pattern
+     * every existing handler in `sf-grid.ts` uses. This keeps the JS-invoke
+     * surface decoupled from internal SfGrid state.
+     *
+     * @param dataId  - The dataId of the grid component (e.g., "SfGrid-123")
+     * @param tools   - Array of tool descriptors sent from C# (Name, Description, InputSchema, etc.)
+     * @param prefix  - The tool-name prefix to avoid collisions across multiple grids (e.g., "sfgridqz2q34iovpgg").
+     *                  The full qualified name becomes `${prefix}_${tool.name}` (e.g., "sfgridqz2q34iovpgg_getVisibleColumns").
+     *                  Do NOT include a trailing underscore - that is appended here. The C# dispatcher
+     *                  splits on the first `_` to recover the base tool name.
+     */
+    function registerWebMcpTools(dataId, tools, prefix) {
+        var _a;
+        try {
+            var documentModelContext = document.modelContext;
+            // Silent no-op: when document.modelContext is missing (no MCP host), bail gracefully
+            if (!document || sf.base.isNullOrUndefined(documentModelContext)) {
+                // Helpful diagnostic for dev mode only
+                if (typeof console !== 'undefined' && typeof console.__webmcpDebug !== 'undefined') {
+                    console.debug('[WebMCP] document.modelContext not available — skipping tool registration');
+                }
+                return;
+            }
+            if (sf.base.isNullOrUndefined(tools) || tools.length === 0) {
+                return;
+            }
+            // Unregister any prior registrations for this grid (idempotent re-registration)
+            unregisterWebMcpTools(dataId);
+            var names = [];
+            var modelCtx = documentModelContext;
+            for (var _i = 0, tools_1 = tools; _i < tools_1.length; _i++) {
+                var tool = tools_1[_i];
+                try {
+                    var toolName = typeof tool.name === 'string' ? tool.name : '';
+                    // The C# dispatcher splits on the first '_' to recover the base tool name.
+                    // Always emit `${prefix}_${tool.name}` so the dispatcher's split is unambiguous.
+                    // Strip any trailing '_' the caller may have supplied to keep the boundary clean.
+                    var cleanPrefix = prefix.endsWith('_') ? prefix.slice(0, -1) : prefix;
+                    var fullName = cleanPrefix.length > 0
+                        ? "".concat(cleanPrefix, "_").concat(toolName)
+                        : toolName;
+                    // Lazy-closure handler: looks up the dotnetRef fresh each call so that
+                    // re-init scenarios where the dotnetRef gets replaced still work.
+                    var execute = createToolHandler(dataId, fullName);
+                    // Build the ModelContextTool object. Note the spec uses `execute` (not
+                    // `handler`) for the invocation function. Browser implementations vary
+                    // in their argument shape, so we try the single-argument form first
+                    // (current Chromium WebMCP IDL: registerTool(ModelContextTool tool)) and
+                    // fall back to the two-argument form (name, tool) used in earlier drafts.
+                    var toolDescriptor = {
+                        name: fullName,
+                        description: tool.description || '',
+                        inputSchema: tool.inputSchema || {},
+                        outputSchema: tool.outputSchema || {},
+                        annotations: tool.annotations || {},
+                        execute: execute,
+                        // Alias kept for older proposed-spec implementations that expect `handler`
+                        handler: execute
+                    };
+                    if (typeof modelCtx.registerTool === 'function') {
+                        // Try the modern single-argument signature first
+                        try {
+                            modelCtx.registerTool(__assign({}, toolDescriptor));
+                        }
+                        catch (singleArgEx) {
+                            // Fall back to the older two-argument signature: (name, tool)
+                            try {
+                                var rest = __assign({}, toolDescriptor);
+                                delete rest.name;
+                                modelCtx.registerTool(fullName, rest);
+                            }
+                            catch (_b) {
+                                // Both signatures failed; surface the original single-arg error so
+                                // the developer sees the canonical WebMCP message.
+                                throw singleArgEx;
+                            }
+                        }
+                        names.push(fullName);
+                    }
+                    else if (typeof ((_a = modelCtx.tools) === null || _a === void 0 ? void 0 : _a.register) === 'function') {
+                        // Alternative shape (proposal stage): document.modelContext.tools.register()
+                        modelCtx.tools.register(fullName, execute, {
+                            description: tool.description || '',
+                            inputSchema: tool.inputSchema || {},
+                            outputSchema: tool.outputSchema || {}
+                        });
+                        names.push(fullName);
+                    }
+                }
+                catch (perToolEx) {
+                    // Per-tool failures must not abort registration of remaining tools
+                    if (typeof console !== 'undefined') {
+                        console.warn("[WebMCP] Failed to register tool '".concat(tool.name, "':"), perToolEx);
+                    }
+                }
+            }
+            registeredTools.set(dataId, names);
+        }
+        catch (ex) {
+            // Top-level guard: never throw out of registration
+            if (typeof console !== 'undefined') {
+                console.warn('[WebMCP] Tool registration failed:', ex);
+            }
+        }
+    }
+    /**
+     * Unregister all tools associated with a given grid dataId.
+     * Called when the grid is disposed or re-registering.
+     *
+     * @param dataId - The grid's dataId
+     */
+    function unregisterWebMcpTools(dataId) {
+        var names = registeredTools.get(dataId);
+        if (!names || names.length === 0) {
+            return;
+        }
+        try {
+            var modelCtx = document.modelContext;
+            if (modelCtx && typeof modelCtx.unregisterTool === 'function') {
+                for (var _i = 0, names_1 = names; _i < names_1.length; _i++) {
+                    var name_1 = names_1[_i];
+                    try {
+                        modelCtx.unregisterTool(name_1);
+                    }
+                    catch (perEx) {
+                        // Best-effort: log and continue
+                        if (typeof console !== 'undefined') {
+                            console.warn("[WebMCP] Failed to unregister tool '".concat(name_1, "':"), perEx);
+                        }
+                    }
+                }
+            }
+        }
+        finally {
+            registeredTools.delete(dataId);
+        }
+    }
+    /**
+     * Build the handler function that the browser calls when the agent invokes a tool.
+     * The handler packs the args into a JSON string and forwards to .NET.
+     *
+     * The dotnetRef is resolved at invocation time (not captured in closure) by querying
+     * the grid instance via `window.sfBlazor.getCompInstance(dataId)`. This pattern
+     * matches the rest of `sf-grid.ts` and ensures re-initialization scenarios work.
+     */
+    function createToolHandler(dataId, fullToolName) {
+        return function (inputArgs) {
+            var _a, _b, _c;
+            return __awaiter$1(this, void 0, void 0, function () {
+                var gridInstance, dotnetRef, argsDict, argsJson, responseJson, ex_1;
+                return __generator$1(this, function (_d) {
+                    switch (_d.label) {
+                        case 0:
+                            _d.trys.push([0, 2, , 3]);
+                            gridInstance = (_b = (_a = window.sfBlazor) === null || _a === void 0 ? void 0 : _a.getCompInstance) === null || _b === void 0 ? void 0 : _b.call(_a, dataId);
+                            dotnetRef = gridInstance === null || gridInstance === void 0 ? void 0 : gridInstance.dotNetRef;
+                            if (!dotnetRef) {
+                                throw new Error("Grid instance or dotnetRef not available for dataId '".concat(dataId, "'. ") +
+                                    "Ensure the grid has finished initialization before invoking tools.");
+                            }
+                            argsDict = normalizeArgs(inputArgs);
+                            argsJson = JSON.stringify(argsDict);
+                            return [4 /*yield*/, dotnetRef.invokeMethodAsync('InvokeWebMcpToolExecute', fullToolName, argsJson)];
+                        case 1:
+                            responseJson = _d.sent();
+                            // Parse the response and unwrap the MCP content
+                            if (!responseJson) {
+                                return [2 /*return*/, { content: [{ type: 'text', text: '' }], isError: true }];
+                            }
+                            return [2 /*return*/, JSON.parse(responseJson)];
+                        case 2:
+                            ex_1 = _d.sent();
+                            if (typeof console !== 'undefined') {
+                                console.error("[WebMCP] Error in handler for ".concat(fullToolName, ":"), ex_1);
+                            }
+                            // Return a structured error so the agent can recover gracefully
+                            return [2 /*return*/, {
+                                    content: [
+                                        {
+                                            type: 'text',
+                                            text: JSON.stringify({
+                                                errorCode: 1002,
+                                                errorName: 'ExecutionFailed',
+                                                message: "Handler for '".concat(fullToolName, "' failed: ").concat((_c = ex_1 === null || ex_1 === void 0 ? void 0 : ex_1.message) !== null && _c !== void 0 ? _c : String(ex_1))
+                                            })
+                                        }
+                                    ],
+                                    isError: true
+                                }];
+                        case 3: return [2 /*return*/];
+                    }
+                });
+            });
+        };
+    }
+    /**
+     * Normalize agent tool args into a flat dictionary for JSON serialization.
+     */
+    function normalizeArgs(input) {
+        if (input == null) {
+            return {};
+        }
+        if (typeof input !== 'object') {
+            return { value: input };
+        }
+        if (Array.isArray(input)) {
+            return { value: input };
+        }
+        var objInput = input;
+        // Wrapped forms
+        if (!sf.base.isNullOrUndefined(objInput.arguments) && typeof objInput.arguments === 'object') {
+            return __assign({}, objInput.arguments);
+        }
+        if (!sf.base.isNullOrUndefined(objInput.params) && typeof objInput.params === 'object') {
+            return __assign({}, objInput.params);
+        }
+        // Default: shallow-clone
+        return __assign({}, objInput);
+    }
+
+    var __awaiter = (undefined && undefined.__awaiter) || function (thisArg, _arguments, P, generator) {
+        function adopt(value) { return value instanceof P ? value : new P(function (resolve) { resolve(value); }); }
+        return new (P || (P = Promise))(function (resolve, reject) {
+            function fulfilled(value) { try { step(generator.next(value)); } catch (e) { reject(e); } }
+            function rejected(value) { try { step(generator["throw"](value)); } catch (e) { reject(e); } }
+            function step(result) { result.done ? resolve(result.value) : adopt(result.value).then(fulfilled, rejected); }
+            step((generator = generator.apply(thisArg, _arguments || [])).next());
+        });
+    };
+    var __generator = (undefined && undefined.__generator) || function (thisArg, body) {
+        var _ = { label: 0, sent: function() { if (t[0] & 1) throw t[1]; return t[1]; }, trys: [], ops: [] }, f, y, t, g;
+        return g = { next: verb(0), "throw": verb(1), "return": verb(2) }, typeof Symbol === "function" && (g[Symbol.iterator] = function() { return this; }), g;
+        function verb(n) { return function (v) { return step([n, v]); }; }
+        function step(op) {
+            if (f) throw new TypeError("Generator is already executing.");
+            while (g && (g = 0, op[0] && (_ = 0)), _) try {
+                if (f = 1, y && (t = op[0] & 2 ? y["return"] : op[0] ? y["throw"] || ((t = y["return"]) && t.call(y), 0) : y.next) && !(t = t.call(y, op[1])).done) return t;
+                if (y = 0, t) op = [op[0] & 2, t.value];
+                switch (op[0]) {
+                    case 0: case 1: t = op; break;
+                    case 4: _.label++; return { value: op[1], done: false };
+                    case 5: _.label++; y = op[1]; op = [0]; continue;
+                    case 7: op = _.ops.pop(); _.trys.pop(); continue;
+                    default:
+                        if (!(t = _.trys, t = t.length > 0 && t[t.length - 1]) && (op[0] === 6 || op[0] === 2)) { _ = 0; continue; }
+                        if (op[0] === 3 && (!t || (op[1] > t[0] && op[1] < t[3]))) { _.label = op[1]; break; }
+                        if (op[0] === 6 && _.label < t[1]) { _.label = t[1]; t = op; break; }
+                        if (t && _.label < t[2]) { _.label = t[2]; _.ops.push(op); break; }
+                        if (t[2]) _.ops.pop();
+                        _.trys.pop(); continue;
+                }
+                op = body.call(thisArg, _);
+            } catch (e) { op = [6, e]; y = 0; } finally { f = t = 0; }
+            if (op[0] & 5) throw op[1]; return { value: op[0] ? op[1] : void 0, done: true };
+        }
+    };
+    /**
      * Blazor grid interop handler
      */
     // tslint:disable
@@ -12300,6 +13405,9 @@ window.sfBlazor.Grid = (function () {
             sf.base.enableBlazorMode();
             new SfGrid(dataId, element, options, dotnetRef);
             var gridInstance = window.sfBlazor.getCompInstance(dataId);
+            if (sf.base.isNullOrUndefined(gridInstance)) {
+                return;
+            }
             if (gridInstance.options.showAddNewRow && focusEditableCellsParams != null) {
                 var editableCellField = focusEditableCellsParams.editableCellField || '';
                 var editableIsAdd = focusEditableCellsParams.isAdd || false;
@@ -12311,7 +13419,7 @@ window.sfBlazor.Grid = (function () {
         contentReady: function (dataId, options, action, isResetData) {
             var gridInstance = window.sfBlazor.getCompInstance(dataId);
             var contentReadyResults;
-            if (!sf.base.isNullOrUndefined(gridInstance.element) && !sf.base.isNullOrUndefined(gridInstance.element.blazor__instance)) {
+            if (!sf.base.isNullOrUndefined(gridInstance) && !sf.base.isNullOrUndefined(gridInstance.element) && !sf.base.isNullOrUndefined(gridInstance.element.blazor__instance)) {
                 var instance = gridInstance.element.blazor__instance;
                 instance.setOptions(options, instance.options);
                 instance.options = options;
@@ -12331,14 +13439,14 @@ window.sfBlazor.Grid = (function () {
         },
         refreshPivotRowHeight: function (dataId) {
             var gridInstance = window.sfBlazor.getCompInstance(dataId);
-            if (!sf.base.isNullOrUndefined(gridInstance.element) && !sf.base.isNullOrUndefined(gridInstance.element.blazor__instance)) {
+            if (!sf.base.isNullOrUndefined(gridInstance) && !sf.base.isNullOrUndefined(gridInstance.element) && !sf.base.isNullOrUndefined(gridInstance.element.blazor__instance)) {
                 var instance = gridInstance.element.blazor__instance;
                 instance.freezeModule.refreshFreeze({ case: 'textwrap' });
             }
         },
         customFilterDialog: function (dataId, dlgID, isExcel) {
             var gridInstance = window.sfBlazor.getCompInstance(dataId);
-            if (!sf.base.isNullOrUndefined(gridInstance.element) && !sf.base.isNullOrUndefined(gridInstance.element.blazor__instance)) {
+            if (!sf.base.isNullOrUndefined(gridInstance) && !sf.base.isNullOrUndefined(gridInstance.element) && !sf.base.isNullOrUndefined(gridInstance.element.blazor__instance)) {
                 var dialogElement = document.querySelector('#' + dlgID);
                 if (gridInstance.options.isRenderedFromTreeGrid && sf.base.isNullOrUndefined(dialogElement)) {
                     dialogElement = document.getElementById(dlgID);
@@ -12360,6 +13468,9 @@ window.sfBlazor.Grid = (function () {
         },
         setCustomFilterDialogPadding: function (element, field) {
             var gridInstance = window.sfBlazor.getCompInstance(element);
+            if (sf.base.isNullOrUndefined(gridInstance) || sf.base.isNullOrUndefined(gridInstance.options)) {
+                return;
+            }
             var setPadding = document.querySelector('#' + field);
             if (gridInstance.options.isRenderedFromTreeGrid && sf.base.isNullOrUndefined(setPadding)) {
                 setPadding = document.getElementById(field);
@@ -12368,7 +13479,7 @@ window.sfBlazor.Grid = (function () {
         },
         searchClear: function (dataId, inputId, inputValue) {
             var gridInstance = window.sfBlazor.getCompInstance(dataId);
-            if (!sf.base.isNullOrUndefined(gridInstance.element) && !sf.base.isNullOrUndefined(gridInstance.element.blazor__instance)) {
+            if (!sf.base.isNullOrUndefined(gridInstance) && !sf.base.isNullOrUndefined(gridInstance.element) && !sf.base.isNullOrUndefined(gridInstance.element.blazor__instance)) {
                 var inputElement = gridInstance.element.querySelector('#' + inputId);
                 if (gridInstance.options.isRenderedFromTreeGrid && sf.base.isNullOrUndefined(inputElement)) {
                     inputElement = document.getElementById(inputId);
@@ -12384,7 +13495,7 @@ window.sfBlazor.Grid = (function () {
         },
         updateTableWidth: function (dataId, columns) {
             var gridInstance = window.sfBlazor.getCompInstance(dataId);
-            if (!sf.base.isNullOrUndefined(gridInstance.element) && !sf.base.isNullOrUndefined(gridInstance.element.blazor__instance)) {
+            if (!sf.base.isNullOrUndefined(gridInstance) && !sf.base.isNullOrUndefined(gridInstance.element) && !sf.base.isNullOrUndefined(gridInstance.element.blazor__instance)) {
                 var instance = gridInstance.element.blazor__instance;
                 instance.options.columns = columns;
                 if (instance.options.allowResizing && instance.options.isResizedGrid) {
@@ -12396,21 +13507,21 @@ window.sfBlazor.Grid = (function () {
         },
         preventResizeAction: function (dataId, isCancel) {
             var gridInstance = window.sfBlazor.getCompInstance(dataId);
-            if (!sf.base.isNullOrUndefined(gridInstance.element) && !sf.base.isNullOrUndefined(gridInstance.element.blazor__instance)) {
+            if (!sf.base.isNullOrUndefined(gridInstance) && !sf.base.isNullOrUndefined(gridInstance.element) && !sf.base.isNullOrUndefined(gridInstance.element.blazor__instance)) {
                 var instance = gridInstance.element.blazor__instance;
                 instance.resizeModule.preventResizeAction(isCancel);
             }
         },
         preventFreezeLineMoving: function (dataId, isCancel) {
             var gridInstance = window.sfBlazor.getCompInstance(dataId);
-            if (!sf.base.isNullOrUndefined(gridInstance.element) && !sf.base.isNullOrUndefined(gridInstance.element.blazor__instance)) {
+            if (!sf.base.isNullOrUndefined(gridInstance) && !sf.base.isNullOrUndefined(gridInstance.element) && !sf.base.isNullOrUndefined(gridInstance.element.blazor__instance)) {
                 var instance = gridInstance.element.blazor__instance;
                 instance.frozenDragDropModule.preventFreezeLineMoving(isCancel);
             }
         },
         freezeLineMovedActions: function (dataId, freezeLineMovingClientOptions) {
             var gridInstance = window.sfBlazor.getCompInstance(dataId);
-            if (!sf.base.isNullOrUndefined(gridInstance.element) && !sf.base.isNullOrUndefined(gridInstance.element.blazor__instance)) {
+            if (!sf.base.isNullOrUndefined(gridInstance) && !sf.base.isNullOrUndefined(gridInstance.element) && !sf.base.isNullOrUndefined(gridInstance.element.blazor__instance)) {
                 var instance = gridInstance.element.blazor__instance;
                 instance.options.actualFrozenColumns = freezeLineMovingClientOptions.actualFrozenColumns;
                 instance.options.columns = freezeLineMovingClientOptions.columns;
@@ -12425,7 +13536,7 @@ window.sfBlazor.Grid = (function () {
         },
         frozenHeight: function (dataId, options) {
             var gridInstance = window.sfBlazor.getCompInstance(dataId);
-            if (!sf.base.isNullOrUndefined(gridInstance.element) && !sf.base.isNullOrUndefined(gridInstance.element.blazor__instance)) {
+            if (!sf.base.isNullOrUndefined(gridInstance) && !sf.base.isNullOrUndefined(gridInstance.element) && !sf.base.isNullOrUndefined(gridInstance.element.blazor__instance)) {
                 var instance = gridInstance.element.blazor__instance;
                 instance.freezeModule.setFrozenHeight();
                 if (options.allowTextWrap) {
@@ -12441,7 +13552,7 @@ window.sfBlazor.Grid = (function () {
         },
         updateVirtualColumns: function (dataId, virtualizedColumns) {
             var gridInstance = window.sfBlazor.getCompInstance(dataId);
-            if (!sf.base.isNullOrUndefined(gridInstance.element) && !sf.base.isNullOrUndefined(gridInstance.element.blazor__instance)) {
+            if (!sf.base.isNullOrUndefined(gridInstance) && !sf.base.isNullOrUndefined(gridInstance.element) && !sf.base.isNullOrUndefined(gridInstance.element.blazor__instance)) {
                 var instance = gridInstance.element.blazor__instance;
                 instance.options.virtualizedColumns = virtualizedColumns;
                 if (instance.options.allowResizing && instance.options.frozenColumns === 0 && instance.getContent().querySelector('table').style.width !== '') {
@@ -12452,14 +13563,14 @@ window.sfBlazor.Grid = (function () {
         },
         updateOptions: function (dataId, options) {
             var gridInstance = window.sfBlazor.getCompInstance(dataId);
-            if (!sf.base.isNullOrUndefined(gridInstance.element) && !sf.base.isNullOrUndefined(gridInstance.element.blazor__instance)) {
+            if (!sf.base.isNullOrUndefined(gridInstance) && !sf.base.isNullOrUndefined(gridInstance.element) && !sf.base.isNullOrUndefined(gridInstance.element.blazor__instance)) {
                 var instance = gridInstance.element.blazor__instance;
                 instance.setOptions(options, instance.options);
             }
         },
         virtualHeight: function (dataId, options, totalItemCount) {
             var gridInstance = window.sfBlazor.getCompInstance(dataId);
-            if (!sf.base.isNullOrUndefined(gridInstance.element) && !sf.base.isNullOrUndefined(gridInstance.element.blazor__instance)) {
+            if (!sf.base.isNullOrUndefined(gridInstance) && !sf.base.isNullOrUndefined(gridInstance.element) && !sf.base.isNullOrUndefined(gridInstance.element.blazor__instance)) {
                 var instance = gridInstance.element.blazor__instance;
                 instance.options = options;
                 instance.options.totalItemCount = totalItemCount;
@@ -12469,7 +13580,7 @@ window.sfBlazor.Grid = (function () {
         },
         lazyGroupExpand: function (dataId, options) {
             var gridInstance = window.sfBlazor.getCompInstance(dataId);
-            if (!sf.base.isNullOrUndefined(gridInstance.element) && !sf.base.isNullOrUndefined(gridInstance.element.blazor__instance)) {
+            if (!sf.base.isNullOrUndefined(gridInstance) && !sf.base.isNullOrUndefined(gridInstance.element) && !sf.base.isNullOrUndefined(gridInstance.element.blazor__instance)) {
                 var instance = gridInstance.element.blazor__instance;
                 instance.setOptions(options, instance.options);
                 instance.options = options;
@@ -12485,7 +13596,7 @@ window.sfBlazor.Grid = (function () {
         },
         viewRefresh: function (dataId, columns) {
             var gridInstance = window.sfBlazor.getCompInstance(dataId);
-            if (!sf.base.isNullOrUndefined(gridInstance.element) && !sf.base.isNullOrUndefined(gridInstance.element.blazor__instance)) {
+            if (!sf.base.isNullOrUndefined(gridInstance) && !sf.base.isNullOrUndefined(gridInstance.element) && !sf.base.isNullOrUndefined(gridInstance.element.blazor__instance)) {
                 var widthService = new ColumnWidthService(gridInstance);
                 if (gridInstance.options.enableColumnVirtualization) {
                     columns = gridInstance.options.virtualizedColumns;
@@ -12500,7 +13611,7 @@ window.sfBlazor.Grid = (function () {
         },
         virtualDisconnect: function (dataId, options) {
             var gridInstance = window.sfBlazor.getCompInstance(dataId);
-            if (!sf.base.isNullOrUndefined(gridInstance.element) && !sf.base.isNullOrUndefined(gridInstance.element.blazor__instance)
+            if (!sf.base.isNullOrUndefined(gridInstance) && !sf.base.isNullOrUndefined(gridInstance.element) && !sf.base.isNullOrUndefined(gridInstance.element.blazor__instance)
                 && !sf.base.isNullOrUndefined(gridInstance.element.blazor__instance.virtualContentModule)) {
                 gridInstance.element.blazor__instance.options.enableVirtualization = options.enableVirtualization;
                 gridInstance.element.blazor__instance.virtualContentModule.observer.disconnect();
@@ -12508,33 +13619,33 @@ window.sfBlazor.Grid = (function () {
         },
         reorderColumns: function (dataId, fromFName, toFName) {
             var gridInstance = window.sfBlazor.getCompInstance(dataId);
-            if (!sf.base.isNullOrUndefined(gridInstance.element) && !sf.base.isNullOrUndefined(gridInstance.element.blazor__instance)) {
+            if (!sf.base.isNullOrUndefined(gridInstance) && !sf.base.isNullOrUndefined(gridInstance.element) && !sf.base.isNullOrUndefined(gridInstance.element.blazor__instance)) {
                 gridInstance.element.blazor__instance.reorderModule.reorderColumns(fromFName, toFName);
             }
         },
         reorderColumnByIndex: function (dataId, fromIndex, toIndex) {
             var gridInstance = window.sfBlazor.getCompInstance(dataId);
-            if (!sf.base.isNullOrUndefined(gridInstance.element) && !sf.base.isNullOrUndefined(gridInstance.element.blazor__instance)) {
+            if (!sf.base.isNullOrUndefined(gridInstance) && !sf.base.isNullOrUndefined(gridInstance.element) && !sf.base.isNullOrUndefined(gridInstance.element.blazor__instance)) {
                 gridInstance.element.blazor__instance.reorderModule.reorderColumnByIndex(fromIndex, toIndex);
             }
         },
         reorderColumnByTargetIndex: function (dataId, fieldName, toIndex) {
             var gridInstance = window.sfBlazor.getCompInstance(dataId);
-            if (!sf.base.isNullOrUndefined(gridInstance.element) && !sf.base.isNullOrUndefined(gridInstance.element.blazor__instance)) {
+            if (!sf.base.isNullOrUndefined(gridInstance) && !sf.base.isNullOrUndefined(gridInstance.element) && !sf.base.isNullOrUndefined(gridInstance.element.blazor__instance)) {
                 gridInstance.element.blazor__instance.reorderModule.reorderColumnByTargetIndex(fieldName, toIndex);
             }
         },
         renderColumnChooser: function (dataId) {
             var gridInstance = window.sfBlazor.getCompInstance(dataId);
             var positions = ['0', '0'];
-            if (!sf.base.isNullOrUndefined(gridInstance.element) && !sf.base.isNullOrUndefined(gridInstance.element.blazor__instance)) {
+            if (!sf.base.isNullOrUndefined(gridInstance) && !sf.base.isNullOrUndefined(gridInstance.element) && !sf.base.isNullOrUndefined(gridInstance.element.blazor__instance)) {
                 positions = gridInstance.element.blazor__instance.columnChooserModule.renderColumnChooser();
             }
             return positions;
         },
         renderColumnMenu: function (dataId, uid, isFilter, key) {
             var gridInstance = window.sfBlazor.getCompInstance(dataId);
-            if (!sf.base.isNullOrUndefined(gridInstance.element) && !sf.base.isNullOrUndefined(gridInstance.element.blazor__instance)) {
+            if (!sf.base.isNullOrUndefined(gridInstance) && !sf.base.isNullOrUndefined(gridInstance.element) && !sf.base.isNullOrUndefined(gridInstance.element.blazor__instance)) {
                 return gridInstance.element.blazor__instance.columnMenuModule.renderColumnMenu(uid, isFilter, key);
             }
             else {
@@ -12543,39 +13654,61 @@ window.sfBlazor.Grid = (function () {
         },
         renderAdaptiveMenuItems: function (dataId) {
             var gridInstance = window.sfBlazor.getCompInstance(dataId);
+            if (sf.base.isNullOrUndefined(gridInstance) || sf.base.isNullOrUndefined(gridInstance.element)) {
+                return;
+            }
             var columnMenuElement = document.getElementsByClassName("e-".concat(gridInstance.element.id, "-column-menu"))[0];
             var element = !sf.base.isNullOrUndefined(columnMenuElement) ? columnMenuElement.getElementsByTagName('ul')[0] : null;
             var e = document.getElementById(gridInstance.element.id + '_responsivetoolbaritems');
             var btnOffset = e.getBoundingClientRect();
             var left = btnOffset.left + scrollX;
+            var right = btnOffset.right + scrollX;
             var top = btnOffset.bottom + scrollY;
             var popupOffset = element.getBoundingClientRect();
             var docElement = document.documentElement;
+            var popupWidth = popupOffset.width;
             if (btnOffset.bottom + popupOffset.height > docElement.clientHeight) {
                 if (top - btnOffset.height - popupOffset.height > docElement.clientTop) {
                     top = top - btnOffset.height - popupOffset.height;
                 }
             }
-            if (btnOffset.left + popupOffset.width > docElement.clientWidth) {
-                if (btnOffset.right - popupOffset.width > docElement.clientLeft) {
-                    left = (left + btnOffset.width) - popupOffset.width;
+            if (gridInstance.options.enableRtl && !sf.base.Browser.isDevice) {
+                if (right + popupWidth < docElement.clientWidth) {
+                    right -= popupOffset.width;
                 }
+                columnMenuElement.style.right = "".concat(Math.max(0, Math.ceil(right)), "px");
             }
-            left = e.getAttribute('data-index') === '0' ? left - element.getBoundingClientRect().width + popupOffset.width : left - element.getBoundingClientRect().width + btnOffset.width - getScrollBarWidth();
-            columnMenuElement.style.left = Math.ceil(left + 1) + 'px';
+            else if (gridInstance.options.enableRtl && sf.base.Browser.isDevice) {
+                right = docElement.clientWidth - right;
+                if (btnOffset.right - popupOffset.width < docElement.clientLeft) {
+                    right = right + btnOffset.width - popupOffset.width;
+                }
+                columnMenuElement.style.right = Math.ceil(right + 1) + 'px';
+            }
+            else {
+                if (btnOffset.left + popupOffset.width > docElement.clientWidth) {
+                    if (btnOffset.right - popupOffset.width > docElement.clientLeft) {
+                        left = (left + btnOffset.width) - popupOffset.width;
+                    }
+                }
+                if (!sf.base.Browser.isDevice) {
+                    left = e.getAttribute('data-index') === '0' ? left - element.getBoundingClientRect().width + popupOffset.width : left - element.getBoundingClientRect().width + btnOffset.width - getScrollBarWidth();
+                }
+                columnMenuElement.style.left = Math.ceil(left + 1) + 'px';
+            }
             columnMenuElement.style.top = Math.ceil(top + 1) + 'px';
         },
         filterPopupRender: function filterPopupRender(dataId, dlgID, uid, type, isColumnMenu) {
             var gridInstance = window.sfBlazor.getCompInstance(dataId);
             var positions = ['0', '0'];
-            if (!sf.base.isNullOrUndefined(gridInstance.element) && !sf.base.isNullOrUndefined(gridInstance.element.blazor__instance)) {
+            if (!sf.base.isNullOrUndefined(gridInstance) && !sf.base.isNullOrUndefined(gridInstance.element) && !sf.base.isNullOrUndefined(gridInstance.element.blazor__instance)) {
                 positions = gridInstance.element.blazor__instance.filterModule.filterPopupRender(dlgID, uid, type, isColumnMenu);
             }
             return positions;
         },
         clientHeight: function clientHeight(dataId) {
             var gridInstance = window.sfBlazor.getCompInstance(dataId);
-            if (!sf.base.isNullOrUndefined(gridInstance.element) && !sf.base.isNullOrUndefined(gridInstance.element.blazor__instance)) {
+            if (!sf.base.isNullOrUndefined(gridInstance) && !sf.base.isNullOrUndefined(gridInstance.element) && !sf.base.isNullOrUndefined(gridInstance.element.blazor__instance)) {
                 return Math.max(gridInstance.element.blazor__instance.content.clientHeight, window.innerHeight || 0);
             }
             return 0;
@@ -12584,7 +13717,7 @@ window.sfBlazor.Grid = (function () {
             if (isOverscan === void 0) { isOverscan = false; }
             if (isBottomAdd === void 0) { isBottomAdd = false; }
             var gridInstance = window.sfBlazor.getCompInstance(dataId);
-            if (!sf.base.isNullOrUndefined(gridInstance.element) && !sf.base.isNullOrUndefined(gridInstance.element.blazor__instance) &&
+            if (!sf.base.isNullOrUndefined(gridInstance) && !sf.base.isNullOrUndefined(gridInstance.element) && !sf.base.isNullOrUndefined(gridInstance.element.blazor__instance) &&
                 !sf.base.isNullOrUndefined(gridInstance.element.blazor__instance.virtualContentModule)) {
                 gridInstance.element.blazor__instance.virtualContentModule.updateTransform(xPosition, yPosition, isOverscan, isBottomAdd);
             }
@@ -12592,7 +13725,7 @@ window.sfBlazor.Grid = (function () {
         autoFitColumns: function (dataId, columns, fieldNames, isAutoFit, isColumnResized) {
             if (isColumnResized === void 0) { isColumnResized = false; }
             var gridInstance = window.sfBlazor.getCompInstance(dataId);
-            if (!sf.base.isNullOrUndefined(gridInstance.element) && !sf.base.isNullOrUndefined(gridInstance.element.blazor__instance)) {
+            if (!sf.base.isNullOrUndefined(gridInstance) && !sf.base.isNullOrUndefined(gridInstance.element) && !sf.base.isNullOrUndefined(gridInstance.element.blazor__instance)) {
                 var instance = gridInstance.element.blazor__instance;
                 if (isAutoFit && !sf.base.isNullOrUndefined(instance.resizeModule)) {
                     instance.options.columns = columns;
@@ -12606,7 +13739,7 @@ window.sfBlazor.Grid = (function () {
         },
         autoFit: function (dataId) {
             var gridInstance = window.sfBlazor.getCompInstance(dataId);
-            if (!sf.base.isNullOrUndefined(gridInstance.element) && !sf.base.isNullOrUndefined(gridInstance.element.blazor__instance)) {
+            if (!sf.base.isNullOrUndefined(gridInstance) && !sf.base.isNullOrUndefined(gridInstance.element) && !sf.base.isNullOrUndefined(gridInstance.element.blazor__instance)) {
                 var instance = gridInstance.element.blazor__instance;
                 instance.resizeModule.autoFit();
                 instance.scrollModule.setPadding();
@@ -12614,7 +13747,7 @@ window.sfBlazor.Grid = (function () {
         },
         refreshColumnIndex: function (dataId, columns) {
             var gridInstance = window.sfBlazor.getCompInstance(dataId);
-            if (!sf.base.isNullOrUndefined(gridInstance.element) && !sf.base.isNullOrUndefined(gridInstance.element.blazor__instance)) {
+            if (!sf.base.isNullOrUndefined(gridInstance) && !sf.base.isNullOrUndefined(gridInstance.element) && !sf.base.isNullOrUndefined(gridInstance.element.blazor__instance)) {
                 var instance = gridInstance.element.blazor__instance;
                 instance.options.columns = columns;
                 instance.virtualContentModule.refreshColumnIndexes();
@@ -12641,7 +13774,7 @@ window.sfBlazor.Grid = (function () {
             }
             var expandCollapseCell = cell.classList.contains('e-recordplusexpand') || cell.classList.contains('e-recordpluscollapse');
             var isTemplateCell = isSelectionMethodInvoked || ((keyCombination == null && action == null) ? !cell.classList.contains('e-templatecell') : true);
-            if (!sf.base.isNullOrUndefined(gridInstance.element) && !sf.base.isNullOrUndefined(gridInstance.element.blazor__instance)
+            if (!sf.base.isNullOrUndefined(gridInstance) && !sf.base.isNullOrUndefined(gridInstance.element) && !sf.base.isNullOrUndefined(gridInstance.element.blazor__instance)
                 && !sf.base.isNullOrUndefined(cell) && isTemplateCell) {
                 var instance = gridInstance.element.blazor__instance;
                 var _a = instance.options, enableVirtualization = _a.enableVirtualization, enableColumnVirtualization = _a.enableColumnVirtualization;
@@ -12660,7 +13793,7 @@ window.sfBlazor.Grid = (function () {
         scrollToFocusedCell: function (dataId) {
             var gridInstance = window.sfBlazor.getCompInstance(dataId);
             var element = document.activeElement;
-            if (!element) {
+            if (!element || sf.base.isNullOrUndefined(gridInstance) || sf.base.isNullOrUndefined(gridInstance.element)) {
                 return; // Ensure the focused element exists
             }
             var grid = gridInstance.element;
@@ -12711,20 +13844,33 @@ window.sfBlazor.Grid = (function () {
          * @returns {void}
          * @hidden
          */
-        applyPrefillToInput: function (dataId, elementId, value) {
+        applyPrefillToInput: function (dataId, elementId, value, cellUid, isFromNumericEdit) {
             try {
-                var gridInstance = window.sfBlazor.getCompInstance(dataId);
-                if (!sf.base.isNullOrUndefined(gridInstance) && !sf.base.isNullOrUndefined(gridInstance.element)) {
-                    var inputElement_1 = gridInstance.element.querySelector('#' + elementId);
+                var gridInstance_1 = window.sfBlazor.getCompInstance(dataId);
+                if (!sf.base.isNullOrUndefined(gridInstance_1) && !sf.base.isNullOrUndefined(gridInstance_1.element)) {
+                    var inputElement_1 = gridInstance_1.element.querySelector('#' + elementId);
+                    if (sf.base.isNullOrUndefined(inputElement_1) && cellUid !== null && cellUid.trim() !== "") {
+                        inputElement_1 = gridInstance_1.element.querySelector("td[data-uid=\"".concat(cellUid, "\"] input:not([type=\"hidden\"]"));
+                    }
                     if (!sf.base.isNullOrUndefined(inputElement_1)) {
                         setTimeout(function () {
                             inputElement_1.value = value;
                             // Trigger the input event so the component (SfDatePicker/SfNumericTextBox/SfTextBox)
                             // becomes aware of the change and can update its internal state.
                             inputElement_1.dispatchEvent(new Event('input', { bubbles: true }));
+                            if (isFromNumericEdit) {
+                                var timeout = 10;
+                                if (gridInstance_1.options.isWebAssembly) {
+                                    timeout = 50;
+                                }
+                                setTimeout(function () {
+                                    inputElement_1.setSelectionRange(1, 1);
+                                }, timeout);
+                            }
                         }, 0);
                     }
                 }
+                // eslint-disable-next-line @typescript-eslint/no-unused-vars
             }
             catch (e) {
                 // Swallow errors silently - prefill is a UX enhancement, not a critical operation.
@@ -12761,7 +13907,7 @@ window.sfBlazor.Grid = (function () {
         },
         focusDetailTemplateElements: function (dataId, keyCombination, isDetailTemplateCell) {
             var gridInstance = window.sfBlazor.getCompInstance(dataId);
-            if (sf.base.isNullOrUndefined(gridInstance.element) && sf.base.isNullOrUndefined(gridInstance.element.blazor__instance) && sf.base.isNullOrUndefined(parentsUntil(document.activeElement, 'e-grid'))) {
+            if (sf.base.isNullOrUndefined(gridInstance) && sf.base.isNullOrUndefined(gridInstance.element) && sf.base.isNullOrUndefined(gridInstance.element.blazor__instance) && sf.base.isNullOrUndefined(parentsUntil(document.activeElement, 'e-grid'))) {
                 return;
             }
             var childGrid = document.activeElement.querySelector('.e-grid');
@@ -12783,6 +13929,9 @@ window.sfBlazor.Grid = (function () {
         },
         updateFilterBarCell: function (dataId, filteredFields, filteredActualValue) {
             var gridInstance = window.sfBlazor.getCompInstance(dataId);
+            if (sf.base.isNullOrUndefined(gridInstance) || sf.base.isNullOrUndefined(gridInstance.element)) {
+                return;
+            }
             var filterRow = gridInstance.element.querySelector('.e-filterbar');
             if (sf.base.isNullOrUndefined(filterRow)) {
                 return;
@@ -12796,6 +13945,9 @@ window.sfBlazor.Grid = (function () {
         },
         focusFilterBar: function (dataId, keyCombination, isFilterTemplate, index) {
             var gridInstance = window.sfBlazor.getCompInstance(dataId);
+            if (sf.base.isNullOrUndefined(gridInstance) || sf.base.isNullOrUndefined(gridInstance.element)) {
+                return;
+            }
             var filterRow = gridInstance.element.querySelector('.e-filterbar');
             if (!sf.base.isNullOrUndefined(gridInstance.element) && !sf.base.isNullOrUndefined(gridInstance.element.blazor__instance)
                 && !sf.base.isNullOrUndefined(filterRow)) {
@@ -12868,7 +14020,8 @@ window.sfBlazor.Grid = (function () {
                             }
                         }
                         else if (!sf.base.isNullOrUndefined(filterBar) && filterBar.length > 0) {
-                            filterBar[filterBar.length - 1].focus();
+                            var filterBarList = filterBar;
+                            filterBarList[filterBarList.length - 1].focus();
                         }
                     }
                 }
@@ -12894,7 +14047,7 @@ window.sfBlazor.Grid = (function () {
         focusAddForm: function (dataId, keyCombination) {
             var gridInstance = window.sfBlazor.getCompInstance(dataId);
             var showAddNewRow = gridInstance.element.querySelector('.e-showAddNewRow');
-            if (!sf.base.isNullOrUndefined(gridInstance.element) && !sf.base.isNullOrUndefined(gridInstance.element.blazor__instance)
+            if (!sf.base.isNullOrUndefined(gridInstance) && !sf.base.isNullOrUndefined(gridInstance.element) && !sf.base.isNullOrUndefined(gridInstance.element.blazor__instance)
                 && !sf.base.isNullOrUndefined(showAddNewRow)) {
                 if (keyCombination === 'Tab') {
                     if (document.activeElement.classList.contains('e-headercell')) {
@@ -12941,7 +14094,7 @@ window.sfBlazor.Grid = (function () {
         },
         focusFirstGroupHeader: function (dataId) {
             var gridInstance = window.sfBlazor.getCompInstance(dataId);
-            if (!sf.base.isNullOrUndefined(gridInstance.element) && !sf.base.isNullOrUndefined(gridInstance.element.blazor__instance)) {
+            if (!sf.base.isNullOrUndefined(gridInstance) && !sf.base.isNullOrUndefined(gridInstance.element) && !sf.base.isNullOrUndefined(gridInstance.element.blazor__instance)) {
                 var firstGroupHeader = gridInstance.element.querySelector('.e-groupheadercell');
                 if (!sf.base.isNullOrUndefined(firstGroupHeader)) {
                     firstGroupHeader.focus();
@@ -12951,7 +14104,7 @@ window.sfBlazor.Grid = (function () {
         focusExcelInput: function (dataId, celluid) {
             var gridInstance = window.sfBlazor.getCompInstance(dataId);
             var excelPopup = document.querySelector('#' + celluid + '_excelDlg');
-            if (!sf.base.isNullOrUndefined(gridInstance.element) && !sf.base.isNullOrUndefined(gridInstance.element.blazor__instance)
+            if (!sf.base.isNullOrUndefined(gridInstance) && !sf.base.isNullOrUndefined(gridInstance.element) && !sf.base.isNullOrUndefined(gridInstance.element.blazor__instance)
                 && !sf.base.isNullOrUndefined(excelPopup)) {
                 setTimeout(function () {
                     var searchElement = excelPopup.querySelector('#' + gridInstance.element.id + '_SearchBox');
@@ -12963,14 +14116,14 @@ window.sfBlazor.Grid = (function () {
         },
         refreshOnDataChange: function (dataId) {
             var gridInstance = window.sfBlazor.getCompInstance(dataId);
-            if (!sf.base.isNullOrUndefined(gridInstance.element) && !sf.base.isNullOrUndefined(gridInstance.element.blazor__instance) &&
+            if (!sf.base.isNullOrUndefined(gridInstance) && !sf.base.isNullOrUndefined(gridInstance.element) && !sf.base.isNullOrUndefined(gridInstance.element.blazor__instance) &&
                 !sf.base.isNullOrUndefined(gridInstance.element.blazor__instance.virtualContentModule)) {
                 gridInstance.element.blazor__instance.virtualContentModule.refreshOnDataChange();
             }
         },
         updateAutofillPosition: function (dataId, cellindex, index) {
             var gridInstance = window.sfBlazor.getCompInstance(dataId);
-            if (!sf.base.isNullOrUndefined(gridInstance.element) && !sf.base.isNullOrUndefined(gridInstance.element.blazor__instance)) {
+            if (!sf.base.isNullOrUndefined(gridInstance) && !sf.base.isNullOrUndefined(gridInstance.element) && !sf.base.isNullOrUndefined(gridInstance.element.blazor__instance)) {
                 var _this = gridInstance.element.blazor__instance;
                 return _this.selectionModule.updateAutofillPosition(cellindex, index);
             }
@@ -12980,7 +14133,7 @@ window.sfBlazor.Grid = (function () {
         },
         createBorder: function (dataId, rowIndex, cellIndex) {
             var gridInstance = window.sfBlazor.getCompInstance(dataId);
-            if (!sf.base.isNullOrUndefined(gridInstance.element) && !sf.base.isNullOrUndefined(gridInstance.element.blazor__instance)) {
+            if (!sf.base.isNullOrUndefined(gridInstance) && !sf.base.isNullOrUndefined(gridInstance.element) && !sf.base.isNullOrUndefined(gridInstance.element.blazor__instance)) {
                 var _this = gridInstance.element.blazor__instance;
                 return _this.selectionModule.createBorder(rowIndex, cellIndex);
             }
@@ -13013,6 +14166,9 @@ window.sfBlazor.Grid = (function () {
         focusChild: function (dataId, rowuid, celluid, cellColIndex) {
             if (cellColIndex === void 0) { cellColIndex = -1; }
             var gridInstance = window.sfBlazor.getCompInstance(dataId);
+            if (sf.base.isNullOrUndefined(gridInstance) || sf.base.isNullOrUndefined(gridInstance.element)) {
+                return;
+            }
             var cell = getCellByRowUidAndColIndex(gridInstance.element, rowuid, cellColIndex);
             cell = cell == null ? gridInstance.element.querySelector('[data-uid=\'' + celluid + '\']') : cell;
             var childElements = cell.firstElementChild.children;
@@ -13050,17 +14206,59 @@ window.sfBlazor.Grid = (function () {
                 document.body.removeChild(link);
             }
         },
+        /**
+         * WebMCP tool registration.
+         * Called by the C# side via InvokeMethod("sfBlazor.Grid.registerWebMcpTools", ...).
+         * Registers the tools with `document.modelContext.registerTool()` so AI agents
+         * can invoke them. Silently no-ops when document.modelContext is unavailable
+         * (standard browsers, no MCP host).
+         *
+         * @param dataId  The grid's dataId (e.g., "SfGrid-123")
+         * @param tools   Array of tool descriptors (Name, Description, InputSchema, etc.)
+         * @param prefix  Tool-name prefix for multi-instance scenarios (e.g., "sfgridqz2q34iovpg").
+         *                Forwarded by value - the `_` separator between prefix and tool name
+         *                is added by the WebMCP adapter, not by this caller.
+         */
+        registerWebMcpTools: function (dataId, tools, prefix) {
+            try {
+                registerWebMcpTools(dataId, tools, prefix);
+            }
+            catch (ex) {
+                if (typeof console !== 'undefined') {
+                    console.warn('[WebMCP] Failed to execute registerWebMcpTools:', ex);
+                }
+            }
+        },
+        /**
+         * WebMCP tool unregistration.
+         * Called when a grid is disposed to free browser-side resources.
+         *
+         * @param dataId The grid's dataId
+         */
+        unregisterWebMcpTools: function (dataId) {
+            try {
+                unregisterWebMcpTools(dataId);
+            }
+            catch (ex) {
+                if (typeof console !== 'undefined') {
+                    console.warn('[WebMCP] Failed to execute unregisterWebMcpTools:', ex);
+                }
+            }
+        },
         destroy: function (dataId, isRerendered) {
             // eslint-disable-next-line @typescript-eslint/no-explicit-any
             var gridInstance = window.sfBlazor.getCompInstance(dataId);
-            if (!sf.base.isNullOrUndefined(gridInstance.element) && !sf.base.isNullOrUndefined(gridInstance.element.blazor__instance)) {
+            if (!sf.base.isNullOrUndefined(gridInstance) && !sf.base.isNullOrUndefined(gridInstance.element) && !sf.base.isNullOrUndefined(gridInstance.element.blazor__instance)) {
                 gridInstance.element.blazor__instance.destroy(isRerendered);
             }
+            // unregister WebMCP tools when the grid is destroyed
+            // to prevent the browser from holding references to a vanished grid's handlers.
+            this.unregisterWebMcpTools(dataId);
         },
         validation: function (dataId, results, isAdd, newRowPosition) {
             // eslint-disable-next-line @typescript-eslint/no-explicit-any
             var gridInstance = window.sfBlazor.getCompInstance(dataId);
-            if (!sf.base.isNullOrUndefined(gridInstance.element) && !sf.base.isNullOrUndefined(gridInstance.element.blazor__instance)) {
+            if (!sf.base.isNullOrUndefined(gridInstance) && !sf.base.isNullOrUndefined(gridInstance.element) && !sf.base.isNullOrUndefined(gridInstance.element.blazor__instance)) {
                 if (!sf.base.isNullOrUndefined(newRowPosition) && newRowPosition !== '' && gridInstance.options.newRowPosition !== newRowPosition) {
                     gridInstance.options.newRowPosition = newRowPosition;
                 }
@@ -13088,7 +14286,7 @@ window.sfBlazor.Grid = (function () {
                 return;
             }
             var complexElement = gridInstance.element.querySelector(complexField);
-            if (sf.base.isNullOrUndefined(complexElement) && this.options.editMode === 'Cell' && (cellUid !== null && cellUid.trim() !== "")) {
+            if (sf.base.isNullOrUndefined(complexElement) && gridInstance.options.editMode === 'Cell' && (cellUid !== null && cellUid.trim() !== "")) {
                 complexElement = gridInstance.element.querySelector("td[data-uid=\"".concat(cellUid, "\"] input:not([type=\"hidden\"]"));
             }
             if (field !== '' && complexElement === null && complexField.includes('___')) {
@@ -13107,7 +14305,13 @@ window.sfBlazor.Grid = (function () {
         },
         CurrentPageFocus: function (dataId, key, currentPage) {
             var pagerInstance = window.sfBlazor.getCompInstance(dataId);
+            if (sf.base.isNullOrUndefined(pagerInstance) || sf.base.isNullOrUndefined(pagerInstance.element)) {
+                return;
+            }
             var numericContainer = pagerInstance.element.querySelector('.e-numericcontainer');
+            if (sf.base.isNullOrUndefined(numericContainer)) {
+                return;
+            }
             if (key === 'PreviousPage' || numericContainer.querySelectorAll('.e-link:last-child')[0].innerText !== currentPage) {
                 numericContainer.querySelector('.e-link').focus();
             }
@@ -13117,6 +14321,9 @@ window.sfBlazor.Grid = (function () {
         },
         pagerFocus: function (dataId, key) {
             var pagerInstance = window.sfBlazor.getCompInstance(dataId);
+            if (sf.base.isNullOrUndefined(pagerInstance) || sf.base.isNullOrUndefined(pagerInstance.element)) {
+                return;
+            }
             var pagerContainer = pagerInstance.element.querySelector('.e-gridpager').querySelector('.e-pagercontainer');
             var numericContainer = pagerContainer.querySelector('.e-numericcontainer');
             var firstPage = pagerContainer.querySelector('.e-firstpage.e-pager-default');
@@ -13233,45 +14440,82 @@ window.sfBlazor.Grid = (function () {
             element.querySelector('.e-frozencontent').style.height =
                 element.querySelector('.e-movablecontent').offsetHeight - getScrollBarWidth() + 'px';
         },
-        printGrid: function (dataId) {
+        printGrid: function (dataId, headerId, footerId) {
             var gridInstance = window.sfBlazor.getCompInstance(dataId);
-            if (!sf.base.isNullOrUndefined(gridInstance.element) && !sf.base.isNullOrUndefined(gridInstance.element.blazor__instance)) {
-                gridInstance.element.blazor__instance.print();
+            if (!sf.base.isNullOrUndefined(gridInstance) && !sf.base.isNullOrUndefined(gridInstance.element) && !sf.base.isNullOrUndefined(gridInstance.element.blazor__instance)) {
+                gridInstance.element.blazor__instance.print(headerId, footerId);
             }
         },
         updateMediaColumns: function (dataId, mediaColumnsUid) {
             var gridInstance = window.sfBlazor.getCompInstance(dataId);
-            if (!sf.base.isNullOrUndefined(gridInstance.element) && !sf.base.isNullOrUndefined(gridInstance.element.blazor__instance)) {
+            if (!sf.base.isNullOrUndefined(gridInstance) && !sf.base.isNullOrUndefined(gridInstance.element) && !sf.base.isNullOrUndefined(gridInstance.element.blazor__instance)) {
                 gridInstance.element.blazor__instance.columnChooserModule.updateMediaColumns(mediaColumnsUid);
             }
         },
         copyToClipBoard: function (dataId, withHeader) {
             var gridInstance = window.sfBlazor.getCompInstance(dataId);
-            if (!sf.base.isNullOrUndefined(gridInstance.element) && !sf.base.isNullOrUndefined(gridInstance.element.blazor__instance)) {
+            if (!sf.base.isNullOrUndefined(gridInstance) && !sf.base.isNullOrUndefined(gridInstance.element) && !sf.base.isNullOrUndefined(gridInstance.element.blazor__instance)) {
                 gridInstance.element.blazor__instance.clipboardModule.copy(withHeader);
             }
         },
         preventCopyToClipBoard: function (dataId, cancelValue, value, action) {
             var gridInstance = window.sfBlazor.getCompInstance(dataId);
+            if (sf.base.isNullOrUndefined(gridInstance)) {
+                return;
+            }
             var gridclipBoardElement = gridInstance.clipboardModule;
             if (!sf.base.isNullOrUndefined(gridInstance.element) && !sf.base.isNullOrUndefined(gridInstance.element.blazor__instance)) {
                 if (action === 'Copy') {
                     gridclipBoardElement.clipBoardData(cancelValue, value);
                 }
-                else if (action === 'Paste') {
-                    gridclipBoardElement.pasteAction(value, gridclipBoardElement.getSelectedRowCellIndexes()[0].rowIndex, gridclipBoardElement.getSelectedRowCellIndexes()[0].cellIndexes[0], cancelValue);
+                else if (action === 'Paste' && !cancelValue) {
+                    var selectedCells = gridclipBoardElement.getSelectedRowCellIndexes();
+                    if (selectedCells && selectedCells.length > 0) {
+                        gridclipBoardElement.pasteBatch(selectedCells, value);
+                    }
                 }
             }
         },
-        preventPasteAction: function (dataId, rowIndex, columnField, value, columnIndex, cancelValue) {
-            var gridInstance = window.sfBlazor.getCompInstance(dataId);
-            if (!sf.base.isNullOrUndefined(gridInstance.element) && !sf.base.isNullOrUndefined(gridInstance.element.blazor__instance)) {
-                gridInstance.element.blazor__instance.clipboardModule.pasteData(rowIndex, columnField, value, columnIndex, cancelValue);
-            }
+        pasteFromClipboard: function (dataId) {
+            var _a;
+            return __awaiter(this, void 0, void 0, function () {
+                var gridInstance, selectedCells, text;
+                return __generator(this, function (_c) {
+                    switch (_c.label) {
+                        case 0:
+                            _c.trys.push([0, 3, , 4]);
+                            gridInstance = window.sfBlazor.getCompInstance(dataId);
+                            if (sf.base.isNullOrUndefined(gridInstance) || sf.base.isNullOrUndefined(gridInstance.clipboardModule)) {
+                                return [2 /*return*/];
+                            }
+                            selectedCells = gridInstance.clipboardModule.getSelectedRowCellIndexes();
+                            if (!(selectedCells === null || selectedCells === void 0 ? void 0 : selectedCells.length)) {
+                                return [2 /*return*/];
+                            }
+                            if (!((_a = navigator.clipboard) === null || _a === void 0 ? void 0 : _a.readText)) {
+                                return [2 /*return*/];
+                            }
+                            return [4 /*yield*/, navigator.clipboard.readText()];
+                        case 1:
+                            text = _c.sent();
+                            if (!text) {
+                                return [2 /*return*/];
+                            }
+                            return [4 /*yield*/, gridInstance.clipboardModule.pasteBatch(selectedCells, text)];
+                        case 2:
+                            _c.sent();
+                            return [3 /*break*/, 4];
+                        case 3:
+                            _c.sent();
+                            return [3 /*break*/, 4];
+                        case 4: return [2 /*return*/];
+                    }
+                });
+            });
         },
         setMediaColumns: function setMediaColumns(dataId, isResetPersistData) {
             var gridInstance = window.sfBlazor.getCompInstance(dataId);
-            if (!sf.base.isNullOrUndefined(gridInstance.element) && !sf.base.isNullOrUndefined(gridInstance.element.blazor__instance)) {
+            if (!sf.base.isNullOrUndefined(gridInstance) && !sf.base.isNullOrUndefined(gridInstance.element) && !sf.base.isNullOrUndefined(gridInstance.element.blazor__instance)) {
                 gridInstance.element.blazor__instance.columnChooserModule.setMediaColumns(isResetPersistData);
             }
         },
@@ -13345,8 +14589,11 @@ window.sfBlazor.Grid = (function () {
             return navigator.userAgent.indexOf('Mac OS') !== -1;
         },
         updateClonedMaskTranslates: function (dataId) {
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
             var gridInstance = window.sfBlazor.getCompInstance(dataId);
+            if (sf.base.isNullOrUndefined(gridInstance) || sf.base.isNullOrUndefined(gridInstance.element)
+                || sf.base.isNullOrUndefined(gridInstance.element.blazor__instance)) {
+                return;
+            }
             var gObj = gridInstance.element.blazor__instance;
             var gridContent = gObj.getContent();
             var maskedTable = gridContent.querySelector('.e-masked-table');
@@ -13355,9 +14602,8 @@ window.sfBlazor.Grid = (function () {
             maskedTable.style.transform = 'translate(0px,' + scrollTop + 'px)';
         },
         refreshScrollLeftPosition: function refreshScrollLeftPosition(dataId) {
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
             var gridInstance = window.sfBlazor.getCompInstance(dataId);
-            if (!sf.base.isNullOrUndefined(gridInstance.element) && !sf.base.isNullOrUndefined(gridInstance.element.blazor__instance)) {
+            if (!sf.base.isNullOrUndefined(gridInstance) && !sf.base.isNullOrUndefined(gridInstance.element) && !sf.base.isNullOrUndefined(gridInstance.element.blazor__instance)) {
                 var gObj = gridInstance.element.blazor__instance;
                 var scrollContent = gObj.getContent();
                 var scrollLeft = scrollContent.scrollLeft;
@@ -13374,6 +14620,10 @@ window.sfBlazor.Grid = (function () {
             if (isAddBottom === void 0) { isAddBottom = false; }
             if (isFromAddForm === void 0) { isFromAddForm = false; }
             var gridInstance = window.sfBlazor.getCompInstance(dataId);
+            if (sf.base.isNullOrUndefined(gridInstance) || sf.base.isNullOrUndefined(gridInstance.element)
+                || sf.base.isNullOrUndefined(gridInstance.element.blazor__instance)) {
+                return;
+            }
             var gObj = gridInstance.element.blazor__instance;
             var scrollContent = gObj.getContent();
             var prevScrollTop = scrollContent.scrollTop;
@@ -13422,17 +14672,19 @@ window.sfBlazor.Grid = (function () {
         lazyLoadGridHeight: function (dataId) {
             var gridInstance = window.sfBlazor.getCompInstance(dataId);
             var height = 0;
-            if (!sf.base.isNullOrUndefined(gridInstance.getContent())) {
+            if (!sf.base.isNullOrUndefined(gridInstance) && !sf.base.isNullOrUndefined(gridInstance.getContent())) {
                 height = gridInstance.getContent().offsetHeight;
             }
             return height;
         },
         resetExpandCollapseAllScroll: function (dataId, requestType) {
             var gridInstance = window.sfBlazor.getCompInstance(dataId);
-            gridInstance.options.requestType = requestType;
-            if (!sf.base.isNullOrUndefined(gridInstance)) {
-                gridInstance.infiniteScrollModule.resetInfniniteScrollPositions();
+            if (sf.base.isNullOrUndefined(gridInstance) || sf.base.isNullOrUndefined(gridInstance.options)
+                || sf.base.isNullOrUndefined(gridInstance.infiniteScrollModule)) {
+                return;
             }
+            gridInstance.options.requestType = requestType;
+            gridInstance.infiniteScrollModule.resetInfniniteScrollPositions();
         },
         updateResizeCursor: function (dataId) {
             var gridInstance = window.sfBlazor.getCompInstance(dataId);
@@ -13446,8 +14698,8 @@ window.sfBlazor.Grid = (function () {
                 return gridInstance.getContentCell(gridInstance.element, top, left);
             }
         },
-        focusNextFrame: function (dataId) {
-            window.sfBlazor.getCompInstance(dataId);
+        focusNextFrame: function () {
+            // const gridInstance = window.sfBlazor.getCompInstance(dataId);
             return new Promise(function (resolve) {
                 requestAnimationFrame(function () {
                     requestAnimationFrame(function () { return resolve(true); });
@@ -13456,6 +14708,9 @@ window.sfBlazor.Grid = (function () {
         },
         forceUpdateTranslate: function (dataId, translateY) {
             var gridInstance = window.sfBlazor.getCompInstance(dataId);
+            if (sf.base.isNullOrUndefined(gridInstance)) {
+                return;
+            }
             var gridElement = gridInstance.element;
             if (!sf.base.isNullOrUndefined(gridElement)) {
                 var gridBlazorInstance = gridElement.blazor__instance;
@@ -13476,6 +14731,40 @@ window.sfBlazor.Grid = (function () {
                         contentTable.style.width = headerTable.offsetWidth + 'px';
                         _this.isResetDataTriggered = true;
                     }
+                }
+            }
+        },
+        scrollActiveMatch: function (dataId, index, isVirtual, columnIndex) {
+            var gridInstance = window.sfBlazor.getCompInstance(dataId);
+            if (!sf.base.isNullOrUndefined(gridInstance) && !sf.base.isNullOrUndefined(gridInstance.element)
+                && !sf.base.isNullOrUndefined(gridInstance.element.blazor__instance) && !sf.base.isNullOrUndefined(gridInstance.scrollModule)) {
+                var gridContent_1 = gridInstance.getContent();
+                if (!sf.base.isNullOrUndefined(gridContent_1)) {
+                    var currentActive_1 = gridContent_1.querySelectorAll('.e-find-highlight-active')[0];
+                    var rowHeight = gridInstance.getRowHeight();
+                    if (!sf.base.isNullOrUndefined(currentActive_1) && !isVirtual) {
+                        var gridActiveRow = parentsUntil(currentActive_1, 'e-row');
+                        if (!sf.base.isNullOrUndefined(gridActiveRow) && !gridInstance.options.enableColumnVirtualization) {
+                            gridContent_1.scrollTop = gridActiveRow.offsetTop - (gridContent_1.clientHeight / 2) + (gridActiveRow.clientHeight / 2);
+                        }
+                        else {
+                            gridContent_1.scrollTop = index * rowHeight;
+                        }
+                    }
+                    if (isVirtual) {
+                        gridContent_1.scrollTop = index * rowHeight;
+                    }
+                    setTimeout(function () {
+                        if (gridInstance.options.enableColumnVirtualization) {
+                            var columnOffsets = gridInstance.virtualContentModule.vHelper.cOffsets;
+                            gridContent_1.scrollLeft = columnOffsets[columnIndex - 1];
+                        }
+                        else {
+                            if (!sf.base.isNullOrUndefined(currentActive_1)) {
+                                gridInstance.scrollModule.scrollActiveCellHorizontally(currentActive_1, gridInstance.getContent(), gridInstance);
+                            }
+                        }
+                    }, 100);
                 }
             }
         },
@@ -13508,7 +14797,7 @@ window.sfBlazor.Grid = (function () {
                 console.warn('Error detecting device mode:', error);
             }
             return false;
-        }
+        },
     };
 
     return Grid;

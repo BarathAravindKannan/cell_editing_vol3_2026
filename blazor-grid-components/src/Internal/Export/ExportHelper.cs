@@ -34,17 +34,15 @@ namespace Syncfusion.Blazor.Grids.Internal
                 }
                 query = Grid?.DataModule?.GenerateQuery(AllPages).RequiresCount();
                 query!.Queries.LazyLoad = false;
-                if(Grid != null && Grid.DataManager.Adaptor.Equals(Adaptors.CustomAdaptor) && AllPages && query.Queries.Aggregates == null)
+                if (Grid != null && Grid.DataManager!.Adaptor.Equals(Adaptors.CustomAdaptor) && AllPages && query.Queries.Aggregates == null)
                 {
                     query.Queries.RequiresCounts = false;
                 }
                 bool IsQueryGenerated = true;
                 List<int> QueryStartIndexes = new List<int>();
-                bool foreignKeyHandle = false;
                 var isForeignKeyAction = (Grid != null && Grid.ForeignKeyModule!.isNeedForeignKeyAction());
                 if (isForeignKeyAction && Grid?.ForeignKeyModule != null)
                 {
-                    foreignKeyHandle = true;
                     await Grid.ForeignKeyModule.GetForeignKeyData<T>(null!, true).ConfigureAwait(true);
                 }
 
@@ -72,7 +70,7 @@ namespace Syncfusion.Blazor.Grids.Internal
                 }
 
                 DataResult dataResult = (DataResult)Grid!.Data!;
-                DataReadyArgs<T> eventArgs = new DataReadyArgs<T>() { Data = (IEnumerable<object>)dataResult.Result, Grid = GridModel, Query = query };
+                DataReadyArgs<T> eventArgs = new DataReadyArgs<T>() { Data = (IEnumerable<object>?)dataResult.Result, Grid = GridModel, Query = query };
                 GridModel.EventAggregator.Trigger("DataReady", eventArgs);
                 dataResult.Result = eventArgs.Data;
                 dataResult.Aggregates = eventArgs.Aggregates != null ? eventArgs.Aggregates : dataResult.Aggregates;
@@ -129,8 +127,9 @@ namespace Syncfusion.Blazor.Grids.Internal
 
         internal static void GetSummaryAndCount(List<GridColumn> Columns, Group<T> context, GridAggregateColumn summaryColumn, bool isHideColumnInclude, bool isTemplateColumnInclude, bool isCustomCommandColumnInclude, ref object SummaryValue, ref int count)
         {
-            IDictionary<string, object> aggregates = (IDictionary<string, object>)context.Aggregates;
+            IDictionary<string, object> aggregates = (IDictionary<string, object>)(context.Aggregates ?? new Dictionary<string, object>());
             string GroupKeyValue = summaryColumn.Field + " " + "-" + " " + summaryColumn.Type!.ToString();
+            if(aggregates != null)
             foreach (var SummaryData in aggregates)
             {
                 if (SummaryData.Key == GroupKeyValue)
@@ -224,26 +223,34 @@ namespace Syncfusion.Blazor.Grids.Internal
             return CurrentCellIndex;
         }
 
-        internal static int GetColSpan(GridColumn Column, int Count, SfGrid<T> GridModel)
+        internal static int GetColSpan(GridColumn column, int count, SfGrid<T> gridModel, bool includeTemplate = true, bool includeHidden = true, bool includeCommand = true)
         {
-            List<GridColumn> cols = (List<GridColumn>)Column.Columns!;
+            if (column == null)
+            {
+                return count;
+            }
+                
+            List<GridColumn> cols = column.Columns!;
 
             if (cols != null && cols.Count != 0)
             {
                 for (var i = 0; i < cols.Count; i++)
                 {
-                    Count = ExportHelper<T>.GetColSpan(cols[i], Count, GridModel);
+                    count = ExportHelper<T>.GetColSpan(cols[i], count, gridModel, includeTemplate, includeHidden, includeCommand);
                 }
             }
             else
             {
-                if (Column.Visible && IsGroupVisible(Column, GridModel))
+                bool includeHiddenColumn = includeHidden || column.Visible;
+                bool includeTemplateColumn = includeTemplate || column.Template == null;
+                bool includeCommandColumn = includeCommand || column.Commands == null;
+                if (includeHiddenColumn && includeTemplateColumn && includeCommandColumn && column.Type != ColumnType.CheckBox && IsGroupVisible(column, gridModel))
                 {
-                    Count++;
+                    count++;
                 }
             }
 
-            return Count;
+            return count;
         }
         internal static bool IsGroupVisible(GridColumn Col, SfGrid<T> GridModel)
         {
@@ -256,46 +263,59 @@ namespace Syncfusion.Blazor.Grids.Internal
             return Value;
         }
 
-        internal static int MeasureColumnDepth(List<GridColumn> Columns)
+        internal static int MeasureColumnDepth(List<GridColumn> columns, bool includeTemplate = true, bool includeHidden = true, bool includeCommand = true, SfGrid<T>? gridModel = null)
         {
-            var Max = 0;
-            for (var i = 0; i < Columns?.Count; i++)
+            var max = 0;
+            for (var i = 0; i < columns?.Count; i++)
             {
-                var depth = ExportHelper<T>.CheckDepth(Columns[i], 0);
-                if (Max < depth)
+                var depth = ExportHelper<T>.CheckDepth(columns[i], 0, includeTemplate, includeHidden, includeCommand, gridModel);
+                if (max < depth)
                 {
-                    Max = depth;
+                    max = depth;
                 }
             }
 
-            return Max;
+            return max;
         }
 
-        internal static int CheckDepth(GridColumn Col, int Index)
+        internal static int CheckDepth(GridColumn col, int index, bool includeTemplate = true, bool includeHidden = true, bool includeCommand = true, SfGrid<T>? gridModel = null)
         {
-            var Max = Index;
-            List<int> Indices = new List<int>();
-            if (Col.Columns != null)
+            if (col == null)
             {
-                Index++;
-                for (var i = 0; i < ((List<GridColumn>)Col.Columns).Count; i++)
-                {
-                    var Cols = (List<GridColumn>)Col.Columns;
-                    Indices.Add(ExportHelper<T>.CheckDepth(Cols[i], Index));
-                }
-
-                for (var j = 0; j < Indices.Count; j++)
-                {
-                    if (Max < Indices[j])
-                    {
-                        Max = Indices[j];
-                    }
-                }
-
-                Index = Max;
+                return -1;
             }
 
-            return Index;
+            var childColumns = col.Columns;
+            if (childColumns == null || childColumns.Count == 0)
+            {
+                if (includeTemplate && includeHidden && includeCommand)
+                    return index;
+
+                bool exportable = (includeHidden || col.Visible) && col.Type != ColumnType.CheckBox && (includeTemplate || col.Template == null) && (includeCommand || col.Commands == null) && (gridModel == null || IsGroupVisible(col, gridModel));
+                return exportable ? index : -1;
+            }
+
+            var max = index;
+            List<int> indices = new List<int>();
+            index++;
+            for (var i = 0; i < childColumns.Count; i++)
+            {
+                indices.Add(ExportHelper<T>.CheckDepth(childColumns[i], index, includeTemplate, includeHidden, includeCommand, gridModel));
+            }
+            for (var j = 0; j < indices.Count; j++)
+            {
+                if (max < indices[j])
+                {
+                    max = indices[j];
+                }
+            }
+
+            return max;
+        }
+
+        internal static bool ShouldSkipLeafColumn(GridColumn innerCol, bool isTemplateColumnInclude, bool isCustomCommandColumnInclude)
+        {
+            return innerCol.Columns == null && ((innerCol.Template != null && !isTemplateColumnInclude) || (innerCol.Commands != null && !isCustomCommandColumnInclude));
         }
 
         internal static object FormatDConverstion(string columnFormat, object value, Type? valueType)

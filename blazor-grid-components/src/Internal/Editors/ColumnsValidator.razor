@@ -41,7 +41,7 @@
         Type? modelType = identifier.Model?.GetType();
         PropertyInfo? type = modelType?.GetProperty(fieldName);
         object? value = (bool)(modelType?.BaseType?.Name?.Equals("ComponentBase", StringComparison.Ordinal) ?? false) 
-            ? ReflectionExtension.GetValue(identifier.Model, fieldName) 
+            ? ReflectionExtension.GetValue(identifier.Model!, fieldName) 
             : Parent?.PropHelper?.GetObject(fieldName, identifier.Model!);
 
         string? originalField = null;
@@ -77,8 +77,7 @@
             FieldName = originalField ?? fieldName,
             Uid = uid
         };
-
-        Validator?.TryValidate(value, type?.PropertyType, context, result);
+        Validator?.TryValidate(value!, type?.PropertyType!, context, result);
         FieldIdentifier complexFieldIdentifier = default;
         if (fieldName.Contains("."))
         {
@@ -87,7 +86,7 @@
         }
         if (result.IsValid)      
         {       
-        _store?.Clear(identifier);
+            _store?.Clear(identifier);
             if(fieldName.Contains("."))
             {
                 _store?.Clear(complexFieldIdentifier);
@@ -97,10 +96,9 @@
         {
             result.FieldName = fieldName.Contains(".") ? complexFieldIdentifier.FieldName : result.FieldName;
             var storeIdentifier = (fieldName.Contains(".") && modelType?.Name != "ExpandoObject" && modelType?.BaseType?.Name != "DynamicObject") 
-                ? complexFieldIdentifier 
+                ? complexFieldIdentifier
                 : identifier;
-
-            _store?.Add(storeIdentifier, result.Message);
+            _store?.Add(storeIdentifier, result.Message!);
         }
         OnValidated?.Invoke(result);
     }

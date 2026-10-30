@@ -39,7 +39,7 @@
                             {
                                 Parent.SetColumnValueType();
                             }
-                            FilterValue = isJsonElement ? SfBaseUtils.ChangeType(Col?.Value, column?.ValueType) : !string.IsNullOrEmpty(Col?.RawInputValue) ? Col.RawInputValue : Col?.Value!;
+                            FilterValue = isJsonElement ? SfBaseUtils.ChangeType(Col?.Value!, column?.ValueType!) : !string.IsNullOrEmpty(Col?.RawInputValue) ? Col.RawInputValue : Col?.Value!;
                             ActualValue = Col?.ActualValue!;
                             FieldName = Col?.Field!;
                             Predicate = Col?.Predicate!;

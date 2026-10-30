@@ -1,7 +1,6 @@
 import { SfGrid } from './sf-grid-fn';
 import { parentsUntil } from './util';
 import { isNullOrUndefined, EventHandler, MouseEventArgs, closest, Browser } from '@syncfusion/ej2-base';
-import { calculateRelativeBasedPosition } from '@syncfusion/ej2-popups';
 
 /**
  * The `Filter` module is used to set the Filter Dialog position dynamically.
@@ -25,10 +24,10 @@ export class Filter {
      * @returns {void}
      * @hidden
      */
-    public filterPopupRender(dlgID: string, ColUid: string, type: string, isColumnMenu: boolean): any {
+    public filterPopupRender(dlgID: string, ColUid: string, type: string, isColumnMenu: boolean): (string | number)[] {
         const dlgelement: HTMLElement = this.parent.element.querySelector('#' + dlgID);
-        let leftValue: any = 0;
-        let topValue: any = 0;
+        let leftValue: string | number = 0;
+        let topValue: string | number = 0;
         if (!isNullOrUndefined(dlgelement)) {
             if (isColumnMenu) {
                 EventHandler.add(dlgelement, 'mousedown', this.mouseDownHandler, this);

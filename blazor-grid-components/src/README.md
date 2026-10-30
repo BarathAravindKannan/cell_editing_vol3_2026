@@ -4,6 +4,16 @@ High-performance DataGrid for Blazor applications. Display, edit, and manage tab
 
 ![Blazor DataGrid](https://raw.githubusercontent.com/SyncfusionExamples/nuget-img/master/blazor/blazor-datagrid.png)
 
+>**Using this package with an AI coding agent**
+>
+>Before generating Syncfusion code, ask your AI coding agent to run the Syncfusion setup using the following prompt:
+>
+>`Set up this project for Syncfusion before generating code. Fetch and follow the official instructions at https://ai.syncfusion.com, then report the detected platform, installed skill pack, MCP status, and any required licensing action.`
+>
+>The setup detects your project's platform and loads the appropriate Syncfusion skill pack. No Syncfusion account or MCP key is required to install or read Syncfusion agent skills.
+>
+>**Platform reference:** [https://ai.syncfusion.com/blazor/llms.txt](https://ai.syncfusion.com/blazor/llms.txt)
+
 ## Key Features
 
 - Fast rendering with virtualization and row/column virtualization
@@ -18,6 +28,15 @@ High-performance DataGrid for Blazor applications. Display, edit, and manage tab
 
 - .NET 8.0 or later (Blazor Server, Blazor Web App, Blazor WebAssembly, Blazor Hybrid)
 - See full requirements: [System Requirements](https://blazor.syncfusion.com/documentation/system-requirements?utm_source=nuget&utm_medium=listing&utm_campaign=blazor-datagrid-nuget)
+
+## Installation
+
+Install the DataGrid package and the themes package, which provides the stylesheets referenced below:
+
+```
+dotnet add package Syncfusion.Blazor.Grid
+dotnet add package Syncfusion.Blazor.Themes
+```
 
 ## Add Stylesheet and Script References
 
@@ -84,6 +103,14 @@ builder.Services.AddSyncfusionBlazor();
 - [Community forums](https://www.syncfusion.com/forums/blazor-components?utm_source=nuget&utm_medium=listing&utm_campaign=blazor-datagrid-nuget)
 - [Feature requests](https://www.syncfusion.com/feedback/blazor-components?utm_source=nuget&utm_medium=listing&utm_campaign=blazor-datagrid-nuget)
 
+### Other Popular Blazor Components
+  
+Explore other popular Syncfusion Blazor components curated from UI components, standalone SDKs, and document solution suites.
+ 
+| UI components | Standalone UI SDK's | Document Processing |
+| -- | -- | -- |
+|[Blazor Map](https://www.syncfusion.com/blazor-components/blazor-map)<br/> [Blazor File Manager](https://www.syncfusion.com/blazor-components/blazor-file-manager)<br/> [Blazor TreeGrid](https://www.syncfusion.com/blazor-components/blazor-tree-grid)<br/> [Blazor Pivot Table](https://www.syncfusion.com/blazor-components/blazor-pivot-table) | [Blazor Gantt Chart](https://www.syncfusion.com/gantt-sdk/blazor-gantt-chart)<br/> [Blazor Diagram](https://www.syncfusion.com/diagram-sdk/blazor-diagram)<br/> [Blazor Scheduler](https://www.syncfusion.com/scheduler-sdk/blazor-scheduler)<br/> [Blazor RichTextEditor](https://www.syncfusion.com/rich-text-editor-sdk/blazor-rich-text-editor) | [Blazor DOCX Editor](https://www.syncfusion.com/docx-editor-sdk/blazor-docx-editor)<br/> [Blazor PDF Viewer](https://www.syncfusion.com/pdf-viewer-sdk/blazor-pdf-viewer)<br/> [Blazor Spreadsheet Editor](https://www.syncfusion.com/spreadsheet-editor-sdk/blazor-spreadsheet-editor) |
+
 ## License
 
 This is a commercial product and requires a paid license for possession or use. Review the [Syncfusion® EULA](https://www.syncfusion.com/eula/es/?utm_source=nuget&utm_medium=listing&utm_campaign=blazor-datagrid-nuget).
@@ -93,7 +120,7 @@ This is a commercial product and requires a paid license for possession or use. 
 
 ## About Syncfusion®
 
-Syncfusion® provides 1600+ UI components and frameworks for web, mobile, and desktop development across multiple platforms:
+Syncfusion provides 1600+ UI components and frameworks for web, mobile, and desktop development across multiple platforms:
 
 **Web:** [Blazor](https://www.syncfusion.com/blazor-components?utm_source=nuget&utm_medium=listing&utm_campaign=blazor-datagrid-nuget) | [ASP.NET Core](https://www.syncfusion.com/aspnet-core-ui-controls?utm_source=nuget&utm_medium=listing&utm_campaign=blazor-datagrid-nuget) | [ASP.NET MVC](https://www.syncfusion.com/aspnet-mvc-ui-controls?utm_source=nuget&utm_medium=listing&utm_campaign=blazor-datagrid-nuget) | [JavaScript](https://www.syncfusion.com/javascript-ui-controls?utm_source=nuget&utm_medium=listing&utm_campaign=blazor-datagrid-nuget) | [Angular](https://www.syncfusion.com/angular-ui-components?utm_source=nuget&utm_medium=listing&utm_campaign=blazor-datagrid-nuget) | [React](https://www.syncfusion.com/react-ui-components?utm_source=nuget&utm_medium=listing&utm_campaign=blazor-datagrid-nuget) | [Vue](https://www.syncfusion.com/vue-ui-components?utm_source=nuget&utm_medium=listing&utm_campaign=blazor-datagrid-nuget)
 

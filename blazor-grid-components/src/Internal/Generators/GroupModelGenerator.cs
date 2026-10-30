@@ -39,7 +39,7 @@ namespace Syncfusion.Blazor.Grids.Internal
         public List<Row<object>> GroupGeneratorRows(IEnumerable<GroupedDataParams>? groupData)
         {
             var rows = new List<Row<object>>();
-            var currentGroupedDataCaptionRowMap = Parent.VirtualScrollModule.CurrentGroupedDataCaptionRowMap;
+            var currentGroupedDataCaptionRowMap = Parent.VirtualScrollModule?.CurrentGroupedDataCaptionRowMap;
             Parent.VirtualScrollModule!.UpdateColumnVisibility();
             if (groupData != null)
             {
@@ -89,7 +89,7 @@ namespace Syncfusion.Blazor.Grids.Internal
         public void CheckAndGenerateFooterRows(Group<T> parentGroup, List<Row<object>> rows, int indent, int rowIndex, string parentUid, bool visible = false)
         {
             var visibleColumns = GridUtils.GetColumns(Parent).Where(col => col.Visible).Select(col => col.Field).ToArray();
-            if(visibleColumns == null || visibleColumns.Count() == 0)
+            if(visibleColumns == null || visibleColumns.Length == 0)
                 return;
             Parent.Aggregates?.ForEach(aggregate =>
             {
@@ -313,7 +313,7 @@ namespace Syncfusion.Blazor.Grids.Internal
                 {
                     GetGroupedRecords(index + 1, groupedData?.Items!, groupedData?.Level!, parentId, index + 1, Rows.Count, captionRow.Uid!);
                 }
-                if (Parent.Aggregates?.Count > 0 && (Parent.GroupModule.IsLazyExpandAll || !Parent.GroupSettings!.EnableLazyLoading))
+                if (Parent.Aggregates?.Count > 0 && (Parent.GroupModule!.IsLazyExpandAll || !Parent.GroupSettings!.EnableLazyLoading))
                 {
                     CheckAndGenerateFooterRows((data as Group<T>)!, Rows, level, 0, captionRow.Uid!, captionRow.IsExpand);
                 }
@@ -358,7 +358,8 @@ namespace Syncfusion.Blazor.Grids.Internal
             {
                 row.Visible = _isStatePersistence ? GetRowVisibility(parentUid!, row.Visible) : row.Visible;
             }
-            row.Cells = GetCaptionRowCells(field, indent, data);
+            row.Cells = GetCaptionRowCells(field!, indent, data);
+
             if (isExpand != null)
             {
                 row.IsExpand = (bool)isExpand;
@@ -459,7 +460,7 @@ namespace Syncfusion.Blazor.Grids.Internal
                 var aggregates = (data as Group<T>)?.Aggregates as IDictionary<string, object>;
                 Dictionary<string, GridAggregateColumn> aggCols = new Dictionary<string, GridAggregateColumn>();
                 Dictionary<string, GridAggregateColumn> footerCols = new Dictionary<string, GridAggregateColumn>();
-                bool isGroupCaptionTemplateNonNull = Parent.Aggregates.Any(aggregate => aggregate.Columns!.Any(column => column.GroupCaptionTemplate != null));
+                bool isGroupCaptionTemplateNonNull = Parent.Aggregates.Any(aggregate => aggregate.Columns?.Any(column => column.GroupCaptionTemplate != null) == true);
 
                 if (isCaption && isGroupCaptionTemplateNonNull)
                 {
@@ -479,7 +480,7 @@ namespace Syncfusion.Blazor.Grids.Internal
                             var value = aggregates?[$"{aggCols[visibleColumns![j].Field].Field} - {aggCols[visibleColumns[j].Field].Type}"];
                             if (aggCols[visibleColumns![j]!.Field].Format != null)
                             {
-                                value = DataUtil.GetFormattedValue(value, aggCols[visibleColumns[j].Field].Format);
+                                value = DataUtil.GetFormattedValue(value!, aggCols[visibleColumns[j].Field].Format!);
                             }
 
                             aggrCells.Add(GenerateCaptionSummary(visibleColumns[j], aggCols[visibleColumns[j].Field], null!, CellType.CaptionSummary, value!));
@@ -510,7 +511,7 @@ namespace Syncfusion.Blazor.Grids.Internal
                                 var value = aggregates?[$"{footerCols[visibleColumns![j].Field].Field} - {footerCols[visibleColumns[j].Field].Type}"];
                                 if (footerCols[visibleColumns![j].Field].Format != null)
                                 {
-                                    value = DataUtil.GetFormattedValue(value, footerCols[visibleColumns[j].Field].Format);
+                                    value = DataUtil.GetFormattedValue(value!, footerCols[visibleColumns[j].Field].Format!);
                                 }
 
                                 aggrCells.Add(GenerateFooterSummary(visibleColumns[j], footerCols[visibleColumns[j].Field], null!, CellType.CaptionSummary, value!));
@@ -571,7 +572,7 @@ namespace Syncfusion.Blazor.Grids.Internal
             {
                 row.Visible = (bool)isVisible;
             }
-            else if(IsValidChildRow(parentUid, row.ParentUid) && Parent.GroupStates.Count == 0 && !Parent.GroupModule.IsLazyExpandAll) //parentUid is caption row uid
+            else if(IsValidChildRow(parentUid, row.ParentUid) && Parent.GroupStates.Count == 0 && !Parent.GroupModule!.IsLazyExpandAll) //parentUid is caption row uid
             {
                 row.Visible = row.IsExpand;
             }

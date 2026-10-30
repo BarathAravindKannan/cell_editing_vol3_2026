@@ -1,6 +1,7 @@
 ﻿using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Components.Web;
 using System;
+using System.Globalization;
 using System.Linq;
 
 namespace Syncfusion.Blazor.Grids.Internal
@@ -35,7 +36,7 @@ namespace Syncfusion.Blazor.Grids.Internal
 
             // Add styles and attributes
             builder.AddAttribute(sequence++, "data-sf-style", GridRowBase<TRow>.ExpandGetStyle(row, cell));
-            builder.AddAttribute(sequence++, "tabindex", ValidateTabIndex(row, cell));
+            builder.AddAttribute(sequence++, "tabindex", ValidateTabIndex(row, cell).ToString(CultureInfo.InvariantCulture));
             builder.AddAttribute(sequence++, "data-uid", cell.Uid);
             builder.AddAttribute(sequence++, "aria-expanded", row?.IsExpand.ToString().ToLower(System.Globalization.CultureInfo.CurrentCulture));
 
@@ -60,6 +61,7 @@ namespace Syncfusion.Blazor.Grids.Internal
             if (row?.IsExpand == true)
             {
                 builder.OpenElement(sequence++, "a");
+                builder.AddAttribute(sequence++, "role", "button");
                 builder.AddAttribute(sequence++, "class", "e-icons e-gdiagonaldown e-icon-gdownarrow");
                 builder.AddAttribute(sequence++, "title", "expanded");
                 builder.CloseElement();
@@ -67,6 +69,7 @@ namespace Syncfusion.Blazor.Grids.Internal
             else
             {
                 builder.OpenElement(sequence++, "a");
+                builder.AddAttribute(sequence++, "role", "button");
                 builder.AddAttribute(sequence++, "class", "e-icons e-gnextforward e-icon-grightarrow");
                 builder.AddAttribute(sequence++, "title", "collapsed");
                 builder.CloseElement();

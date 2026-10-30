@@ -1,4 +1,4 @@
-﻿@using Syncfusion.Blazor.Data
+@using Syncfusion.Blazor.Data
 @using System.Globalization;
 @using Microsoft.AspNetCore.Components.Web;
 @using Syncfusion.Blazor.Navigations
@@ -28,7 +28,7 @@
                 {
                     var firstFilterOperator = Fcol.Operator.ToString().ToLower(CultureInfo.InvariantCulture);
                     FirstFoperator = SelectedFoperator == "customfilter" || (SelectedFoperator == "between" && Fcount != 1) || SelectedFoperator == null ? firstFilterOperator : SelectedFoperator;
-                    var firstFilterValue = (SelectedFoperator != null && firstFilterOperator != SelectedFoperator) ? null : Fcol.Value?.GetType().Name == "JsonElement" ? SfBaseUtils.ChangeType(Fcol.Value, Column?.ValueType) : Fcol.Value;
+                    var firstFilterValue = (SelectedFoperator != null && firstFilterOperator != SelectedFoperator) ? null : Fcol.Value?.GetType().Name == "JsonElement" ? SfBaseUtils.ChangeType(Fcol.Value, Column?.ValueType!) : Fcol.Value;
                     FirstValue = SelectedFoperator == "customfilter" || (SelectedFoperator == "between" && Fcount != 1) ? Fcol.Value! : firstFilterValue!;
                     Fpredicate = Fcol.Predicate!;
                     FmatchCase = Fcol.MatchCase;
@@ -39,7 +39,7 @@
                 {
                     var secondFilterOperator = Fcol.Operator.ToString().ToLower(CultureInfo.InvariantCulture);
                     SecondFoperator = SelectedFoperator == "customfilter" || (SelectedFoperator == "between") || SelectedFoperator == null ? secondFilterOperator : null;
-                    SecondValue = SecondFoperator == null ? null! : (Fcol.Value?.GetType().Name == "JsonElement" ? SfBaseUtils.ChangeType(Fcol.Value, Column?.ValueType)! : Fcol.Value!);
+                    SecondValue = SecondFoperator == null ? null! : (Fcol.Value?.GetType().Name == "JsonElement" ? SfBaseUtils.ChangeType(Fcol.Value, Column?.ValueType!)! : Fcol.Value!);
                     if (Column?.FilterTemplate != null)
                         Filter<TContent>.UpdateFilterModel(ModelInstance2!, Fcol, SecondValue, Column.ValueType);
                 }
@@ -216,8 +216,8 @@
 
                                         @if (Column.Type == ColumnType.String)
                                         {
-                                            DataManager filterDataManager = Column.IsForeignColumn() ? Column.DataManager : Parent.DataManager;
-                                            IEnumerable<object>? Json = filterDataManager.Json != null ? Column.IsForeignColumn() ? DataUtil.GetDistinct(filterDataManager.Json, Column.ForeignKeyValue) : (IEnumerable<object>)DataUtil.GetDistinct<TContent>(filterDataManager.Json.Cast<TContent>(), Column.Field) : null!;
+                                            DataManager filterDataManager = (Column.IsForeignColumn() ? Column.DataManager : Parent.DataManager) ?? new DataManager();
+                                            IEnumerable<object>? Json = filterDataManager?.Json != null ? Column.IsForeignColumn() ? DataUtil.GetDistinct(filterDataManager.Json, Column.ForeignKeyValue ?? "") : (IEnumerable<object>)DataUtil.GetDistinct<TContent>(filterDataManager.Json.Cast<TContent>(), Column.Field) : null!;
 
                                             if (Column.IsForeignColumn() && Column.IsGridForeignColumn)
                                             {
@@ -238,7 +238,7 @@
                                             {
                                                 var StringIndex = firstDropdownChangedIndex != -1 ? firstDropdownChangedIndex : !string.IsNullOrEmpty(FirstFoperator) ? StringDropDown?.FindIndex(e => e.Value == FirstFoperator) : StringDropDown?.FindIndex(e => e.Value == SelectedFoperator);
                                                 <SfAutoComplete aria-label="@(Localizer.GetText(GridLocaleKeys.FilterValue))" @ref="FirstAutoComplete" @key="@(($"{Column.Field}-xlfl-frstvalue"))" Enabled="@GetClass(StringIndex, StringDropDown!)" ID="@(($"{Column.Field}-xlfl-frstvalue"))" Query="@Parent.Query" Autofill=enableAutoFill Placeholder="@(Localizer.GetText(GridLocaleKeys.CustomFilterPlaceHolder))" TItem="TContent" TValue="string" Value=@(FirstValue?.ToString()) @attributes=autoCompleteAttributes>
-                                                    <SfDataManager Headers=@filterDataManager.Headers GraphQLAdaptorOptions="@filterDataManager.GraphQLAdaptorOptions" HttpClientInstance="@filterDataManager.HttpClientInstance" Url=@filterDataManager.Url Json="@Json" AdaptorInstance="@filterDataManager.AdaptorInstance" Adaptor="@filterDataManager.Adaptor" Offline="@filterDataManager.Offline">
+                                                    <SfDataManager Headers=@filterDataManager?.Headers GraphQLAdaptorOptions="@filterDataManager!.GraphQLAdaptorOptions" HttpClientInstance="@filterDataManager.HttpClientInstance" Url=@filterDataManager.Url Json="@Json" AdaptorInstance="@filterDataManager.AdaptorInstance" Adaptor="@filterDataManager.Adaptor" Offline="@filterDataManager.Offline">
                                                         @filterDataManager.ChildContent
                                                     </SfDataManager>
                                                     <AutoCompleteFieldSettings Value="@(Column.IsForeignColumn() ? Column.ForeignKeyValue : Column.Field)"></AutoCompleteFieldSettings>
@@ -249,7 +249,7 @@
                                             {
                                                 var StringIndex = firstDropdownChangedIndex != -1 ? firstDropdownChangedIndex : !string.IsNullOrEmpty(FirstFoperator) ? StringDropDown?.FindIndex(e => e.Value == FirstFoperator) : StringDropDown?.FindIndex(e => e.Value == SelectedFoperator);
                                                 <SfAutoComplete aria-label="@(Localizer.GetText(GridLocaleKeys.FilterValue))" @ref="FirstAutoComplete" @key="@(($"{Column.Field}-xlfl-frstvalue"))" Enabled="@GetClass(StringIndex, StringDropDown!)" ID="@(($"{Column.Field}-xlfl-frstvalue"))" Query="@Parent.Query" Autofill=enableAutoFill Placeholder="@(Localizer.GetText(GridLocaleKeys.CustomFilterPlaceHolder))" TItem="TContent" TValue="string" Value=@(FirstValue?.ToString()) @attributes=autoCompleteAttributes>
-                                                    <SfDataManager Headers=@filterDataManager.Headers GraphQLAdaptorOptions="@filterDataManager.GraphQLAdaptorOptions" HttpClientInstance="@filterDataManager.HttpClientInstance" Url=@filterDataManager.Url Json="@Json" AdaptorInstance="@filterDataManager.AdaptorInstance" Adaptor="@filterDataManager.Adaptor" Offline="@filterDataManager.Offline">
+                                                    <SfDataManager Headers=@filterDataManager?.Headers GraphQLAdaptorOptions="@filterDataManager!.GraphQLAdaptorOptions" HttpClientInstance="@filterDataManager.HttpClientInstance" Url=@filterDataManager.Url Json="@Json" AdaptorInstance="@filterDataManager.AdaptorInstance" Adaptor="@filterDataManager.Adaptor" Offline="@filterDataManager.Offline">
                                                         @filterDataManager.ChildContent
                                                     </SfDataManager>
                                                     <AutoCompleteFieldSettings Value="@(Column.IsForeignColumn() ? Column.ForeignKeyValue : Column.Field)"></AutoCompleteFieldSettings>
@@ -326,7 +326,7 @@
                                     else if (Column.ValueType != null)
                                     {
                                         var SecondNumIndex = secondDropdownChangedIndex != -1 ? secondDropdownChangedIndex : !string.IsNullOrEmpty(SecondFoperator) ? (int?)NumberDropDown?.FindIndex(e => e.Value == SecondFoperator) : (SelectedFoperator == "between" ? (int?)NumberDropDown?.FindIndex(e => e.Value == "lessthanorequal") : null);
-                                        SecondValue = SecondAutoComplete != null ? SecondAutoComplete.Value! : SecondValue?.GetType().Name == "JsonElement" ? SfBaseUtils.ChangeType(FirstValue, Column.ValueType)! : SecondValue!;
+                                        SecondValue = SecondAutoComplete != null ? SecondAutoComplete.Value! : SecondValue?.GetType().Name == "JsonElement" ? SfBaseUtils.ChangeType(FirstValue!, Column.ValueType)! : SecondValue!;
 
                                         @if (Column.Type == ColumnType.Integer || Column.Type == ColumnType.Double || Column.Type == ColumnType.Long || Column.Type == ColumnType.Decimal)
                                         {
@@ -377,8 +377,8 @@
                                         @if (Column.Type == ColumnType.String)
                                         {
                                             
-                                            DataManager filterDataManager = Column.IsForeignColumn() ? Column.DataManager : Parent.DataManager;
-                                            IEnumerable<object>? Json = filterDataManager.Json != null ? Column.IsForeignColumn() ? DataUtil.GetDistinct(filterDataManager.Json, Column.ForeignKeyValue) : (IEnumerable<object>)DataUtil.GetDistinct<TContent>(filterDataManager.Json.Cast<TContent>(), Column.Field) : null!;
+                                            DataManager filterDataManager = (Column.IsForeignColumn() ? Column.DataManager : Parent.DataManager) ?? new DataManager();
+                                            IEnumerable<object>? Json = filterDataManager?.Json != null ? Column.IsForeignColumn() ? DataUtil.GetDistinct(filterDataManager.Json, Column.ForeignKeyValue ?? "") : (IEnumerable<object>)DataUtil.GetDistinct<TContent>(filterDataManager.Json.Cast<TContent>(), Column.Field) : null!;
 
                                             if (Column.IsForeignColumn() && Column.IsGridForeignColumn)
                                             {
@@ -399,7 +399,7 @@
                                             {
                                                 var SecondStringIndex = secondDropdownChangedIndex != -1 ? secondDropdownChangedIndex : !string.IsNullOrEmpty(SecondFoperator) ? (int?)StringDropDown?.FindIndex(e => e.Value == SecondFoperator) : null;
                                                 <SfAutoComplete aria-label="@(Localizer.GetText(GridLocaleKeys.FilterValue))" @ref="SecondAutoComplete" @key="Column.Uid" Enabled="@GetClass(SecondStringIndex, StringDropDown!)" ID="@(($"strui-{Column.Uid}"))" Query="@Parent.Query" Autofill=enableAutoFill Placeholder="@(Localizer.GetText(GridLocaleKeys.CustomFilterPlaceHolder))" TItem="TContent" TValue="string" Value=@(SecondValue?.ToString()) @attributes=autoCompleteAttributes>
-                                                    <SfDataManager HttpClientInstance="@filterDataManager.HttpClientInstance" GraphQLAdaptorOptions="@filterDataManager.GraphQLAdaptorOptions" Headers=@filterDataManager.Headers Url=@filterDataManager.Url Json="@Json" AdaptorInstance="@filterDataManager.AdaptorInstance" Adaptor="@filterDataManager.Adaptor" Offline="@filterDataManager.Offline">
+                                                    <SfDataManager HttpClientInstance="@filterDataManager!.HttpClientInstance" GraphQLAdaptorOptions="@filterDataManager.GraphQLAdaptorOptions" Headers=@filterDataManager.Headers Url=@filterDataManager.Url Json="@Json" AdaptorInstance="@filterDataManager.AdaptorInstance" Adaptor="@filterDataManager.Adaptor" Offline="@filterDataManager.Offline">
                                                         @filterDataManager.ChildContent
                                                     </SfDataManager>
                                                     <AutoCompleteFieldSettings Value="@(Column.IsForeignColumn() ? Column.ForeignKeyValue : Column.Field)"></AutoCompleteFieldSettings>
@@ -410,7 +410,7 @@
                                             {
                                                 var SecondStringIndex = secondDropdownChangedIndex != -1 ? secondDropdownChangedIndex : !string.IsNullOrEmpty(SecondFoperator) ? (int?)StringDropDown?.FindIndex(e => e.Value == SecondFoperator) : null;
                                                 <SfAutoComplete aria-label="@(Localizer.GetText(GridLocaleKeys.FilterValue))" @ref="SecondAutoComplete" @key="Column.Uid" Enabled="@GetClass(SecondStringIndex, StringDropDown!)" ID="@(($"strui-{Column.Uid}"))" Query="@Parent.Query" Autofill=enableAutoFill Placeholder="@(Localizer.GetText(GridLocaleKeys.CustomFilterPlaceHolder))" TItem="TContent" TValue="string" Value=@(SecondValue?.ToString()) @attributes=autoCompleteAttributes>
-                                                    <SfDataManager HttpClientInstance="@filterDataManager.HttpClientInstance" GraphQLAdaptorOptions="@filterDataManager.GraphQLAdaptorOptions" Headers=@filterDataManager.Headers Url=@filterDataManager.Url Json="@Json" AdaptorInstance="@filterDataManager.AdaptorInstance" Adaptor="@filterDataManager.Adaptor" Offline="@filterDataManager.Offline">
+                                                    <SfDataManager HttpClientInstance="@filterDataManager!.HttpClientInstance" GraphQLAdaptorOptions="@filterDataManager.GraphQLAdaptorOptions" Headers=@filterDataManager.Headers Url=@filterDataManager.Url Json="@Json" AdaptorInstance="@filterDataManager.AdaptorInstance" Adaptor="@filterDataManager.Adaptor" Offline="@filterDataManager.Offline">
                                                         @filterDataManager.ChildContent
                                                     </SfDataManager>
                                                     <AutoCompleteFieldSettings Value="@(Column.IsForeignColumn() ? Column.ForeignKeyValue : Column.Field)"></AutoCompleteFieldSettings>
@@ -437,7 +437,7 @@
 }
 else if (Parent.EnableAdaptiveUI && isSubMenuItemSelected)
 {
-    <SfDialog @ref="CustomFilterDialog" ID="@(($"{Column?.Field}-xlflmenu"))" AllowPrerender="true" MinHeight="100%" Width="100%" Height="100%" HtmlAttributes="@Border" CssClass="sf-grid-dlg e-xlflmenu e-resfilterdiv e-responsive-dialog e-resfilter  e-bigger e-dlg-fullscreen" Target="@(($"#{Parent.ID}"))" @bind-Visible="@isSubMenuItemSelected" EnableRtl="Parent.EnableRtl">
+    <SfDialog @ref="CustomFilterDialog" ID="@(($"{Column?.Field}-xlflmenu"))" AllowPrerender="true" MinHeight="372px" Width="100%" Height="100%" HtmlAttributes="@Border" CssClass="sf-grid-dlg e-xlflmenu e-resfilterdiv e-responsive-dialog e-resfilter  e-bigger e-dlg-fullscreen" Target="@(($"#{Parent.ID}"))" @bind-Visible="@isSubMenuItemSelected" EnableRtl="Parent.EnableRtl">
         <DialogEvents Created="RenderedCustomFilter" OnOpen="AdaptiveCustomFilterDialog"></DialogEvents>
         <DialogTemplates>
             <Header>
@@ -513,7 +513,7 @@ else if (Parent.EnableAdaptiveUI && isSubMenuItemSelected)
                                     else
                                     {
                                         var NumberIndex = firstDropdownChangedIndex != -1 ? firstDropdownChangedIndex : (!string.IsNullOrEmpty(FirstFoperator) && (FirstFoperator != "between")) ? NumberDropDown?.FindIndex(e => e.Value == FirstFoperator) : (SelectedFoperator == "between" ? NumberDropDown?.FindIndex(e => e.Value == "greaterthanorequal") : NumberDropDown?.FindIndex(e => e.Value == SelectedFoperator));
-                                        FirstValue = FirstAutoComplete != null ? FirstAutoComplete.Value! : FirstValue?.GetType().Name == "JsonElement" ? SfBaseUtils.ChangeType(FirstValue, Column.ValueType)! : FirstValue!;
+                                        FirstValue = FirstAutoComplete != null ? FirstAutoComplete.Value! : FirstValue?.GetType().Name == "JsonElement" ? SfBaseUtils.ChangeType(FirstValue, Column.ValueType!)! : FirstValue!;
                                         _isInteger = (Parent.FilterModule != null && Parent.FilterModule.IntConvertedList.ContainsKey(Column.ValueType!));
                                         _isLong = (Parent.FilterModule != null && Parent.FilterModule.LongConvertedList.ContainsKey(Column.ValueType!));
 
@@ -563,8 +563,8 @@ else if (Parent.EnableAdaptiveUI && isSubMenuItemSelected)
 
                                         @if (Column.Type == ColumnType.String)
                                         {
-                                            DataManager filterDataManager = Column.IsForeignColumn() ? Column.DataManager : Parent.DataManager;
-                                            IEnumerable<object>? Json = filterDataManager.Json != null ? Column.IsForeignColumn() ? DataUtil.GetDistinct(filterDataManager.Json, Column.ForeignKeyValue) : (IEnumerable<object>)DataUtil.GetDistinct<TContent>((IEnumerable<TContent>)filterDataManager.Json, Column.Field) : null;
+                                            DataManager filterDataManager = (Column.IsForeignColumn() ? Column.DataManager : Parent.DataManager) ?? new DataManager();
+                                            IEnumerable<object>? Json = filterDataManager?.Json != null ? Column.IsForeignColumn() ? DataUtil.GetDistinct(filterDataManager.Json, Column.ForeignKeyValue ?? "") : (IEnumerable<object>)DataUtil.GetDistinct<TContent>((IEnumerable<TContent>)filterDataManager.Json, Column.Field) : null;
 
                                             if (Column.IsForeignColumn() && Column.IsGridForeignColumn)
                                             {
@@ -585,7 +585,7 @@ else if (Parent.EnableAdaptiveUI && isSubMenuItemSelected)
                                             {
                                                 var StringIndex = firstDropdownChangedIndex != -1 ? firstDropdownChangedIndex : !string.IsNullOrEmpty(FirstFoperator) ? StringDropDown?.FindIndex(e => e.Value == FirstFoperator) : StringDropDown?.FindIndex(e => e.Value == SelectedFoperator);
                                                 <SfAutoComplete aria-label="@(Localizer.GetText(GridLocaleKeys.FilterValue))" @ref="FirstAutoComplete" @key="@(($"{Column.Field}-xlfl-frstvalue"))" Enabled="@GetClass(StringIndex, StringDropDown!)" ID="@(($"{Column.Field}-xlfl-frstvalue"))" Query="@Parent.Query" Autofill=enableAutoFill Placeholder="@(Localizer.GetText(GridLocaleKeys.CustomFilterPlaceHolder))" TItem="TContent" TValue="string" Value=@(FirstValue?.ToString()) @attributes=autoCompleteAttributes>
-                                                    <SfDataManager HttpClientInstance="@filterDataManager.HttpClientInstance" GraphQLAdaptorOptions="@filterDataManager.GraphQLAdaptorOptions" Headers=@filterDataManager.Headers Url=@filterDataManager.Url Json="@Json" AdaptorInstance="@filterDataManager.AdaptorInstance" Adaptor="@filterDataManager.Adaptor" Offline="@filterDataManager.Offline">
+                                                    <SfDataManager HttpClientInstance="@filterDataManager!.HttpClientInstance" GraphQLAdaptorOptions="@filterDataManager.GraphQLAdaptorOptions" Headers=@filterDataManager.Headers Url=@filterDataManager.Url Json="@Json" AdaptorInstance="@filterDataManager.AdaptorInstance" Adaptor="@filterDataManager.Adaptor" Offline="@filterDataManager.Offline">
                                                         @filterDataManager.ChildContent
                                                     </SfDataManager>
                                                     <AutoCompleteFieldSettings Value="@(Column.IsForeignColumn() ? Column.ForeignKeyValue : Column.Field)"></AutoCompleteFieldSettings>
@@ -650,7 +650,7 @@ else if (Parent.EnableAdaptiveUI && isSubMenuItemSelected)
                                 <div class="e-xlfl-valuediv">
                                     @if (Column.FilterTemplate != null)
                                     {
-                                        SecondValue = SecondValue?.GetType().Name == "JsonElement" ? SfBaseUtils.ChangeType(FirstValue, Column.ValueType)! : SecondValue!;
+                                        SecondValue = SecondValue?.GetType().Name == "JsonElement" ? SfBaseUtils.ChangeType(FirstValue!, Column.ValueType!)! : SecondValue!;
                                         ModelInstance2!.GetType().GetProperty("Uid")?.SetValue(ModelInstance2, Column.Uid);
                                         string? filterOperator = GetSecondColumnFilterOperator();
                                         ModelInstance2.GetType()?.GetProperty("Operator")?.SetValue(ModelInstance2, Filter<TContent>.GetFilterOperator(filterOperator!));
@@ -659,7 +659,7 @@ else if (Parent.EnableAdaptiveUI && isSubMenuItemSelected)
                                     else
                                     {
                                         var SecondNumIndex = secondDropdownChangedIndex != -1 ? secondDropdownChangedIndex : !string.IsNullOrEmpty(SecondFoperator) ? (int?)NumberDropDown?.FindIndex(e => e.Value == SecondFoperator) : (SelectedFoperator == "between" ? (int?)NumberDropDown?.FindIndex(e => e.Value == "lessthanorequal") : null);
-                                        SecondValue = SecondAutoComplete != null ? SecondAutoComplete.Value! : SecondValue?.GetType().Name == "JsonElement" ? SfBaseUtils.ChangeType(FirstValue, Column.ValueType)! : SecondValue!;
+                                        SecondValue = SecondAutoComplete != null ? SecondAutoComplete.Value! : SecondValue?.GetType().Name == "JsonElement" ? SfBaseUtils.ChangeType(FirstValue!, Column.ValueType!)! : SecondValue!;
 
                                         @if (Column.Type == ColumnType.Integer || Column.Type == ColumnType.Double || Column.Type == ColumnType.Long || Column.Type == ColumnType.Decimal)
                                         {
@@ -709,8 +709,8 @@ else if (Parent.EnableAdaptiveUI && isSubMenuItemSelected)
                                         @if (Column.Type == ColumnType.String)
                                         {
 
-                                            DataManager filterDataManager = Column.IsForeignColumn() ? Column.DataManager : Parent.DataManager;
-                                            IEnumerable<object>? Json = filterDataManager.Json != null ? Column.IsForeignColumn() ? DataUtil.GetDistinct(filterDataManager.Json, Column.ForeignKeyValue) : (IEnumerable<object>)DataUtil.GetDistinct<TContent>((IEnumerable<TContent>)filterDataManager.Json, Column.Field) : null!;
+                                            DataManager filterDataManager = (Column.IsForeignColumn() ? Column.DataManager : Parent.DataManager) ?? new DataManager();
+                                            IEnumerable<object>? Json = filterDataManager?.Json != null ? Column.IsForeignColumn() ? DataUtil.GetDistinct(filterDataManager.Json, Column.ForeignKeyValue ?? "") : (IEnumerable<object>)DataUtil.GetDistinct<TContent>((IEnumerable<TContent>)filterDataManager.Json, Column.Field) : null!;
 
                                             if (Column.IsForeignColumn() && Column.IsGridForeignColumn)
                                             {
@@ -731,7 +731,7 @@ else if (Parent.EnableAdaptiveUI && isSubMenuItemSelected)
                                             {
                                                 var SecondStringIndex = secondDropdownChangedIndex != -1 ? secondDropdownChangedIndex : !string.IsNullOrEmpty(SecondFoperator) ? (int?)StringDropDown?.FindIndex(e => e.Value == SecondFoperator) : null;
                                                 <SfAutoComplete aria-label="@(Localizer.GetText(GridLocaleKeys.FilterValue))" @ref="SecondAutoComplete" @key="Column.Uid" Enabled="@GetClass(SecondStringIndex, StringDropDown!)" ID="@(($"strui-{Column.Uid}"))" Query="@Parent.Query" Autofill=enableAutoFill Placeholder="@(Localizer.GetText(GridLocaleKeys.CustomFilterPlaceHolder))" TItem="TContent" TValue="string" Value=@(SecondValue?.ToString()) @attributes=autoCompleteAttributes>
-                                                    <SfDataManager HttpClientInstance="@filterDataManager.HttpClientInstance" GraphQLAdaptorOptions="@filterDataManager.GraphQLAdaptorOptions" Headers=@filterDataManager.Headers Url=@filterDataManager.Url Json="@Json" AdaptorInstance="@filterDataManager.AdaptorInstance" Adaptor="@filterDataManager.Adaptor" Offline="@filterDataManager.Offline">
+                                                    <SfDataManager HttpClientInstance="@filterDataManager!.HttpClientInstance" GraphQLAdaptorOptions="@filterDataManager.GraphQLAdaptorOptions" Headers=@filterDataManager.Headers Url=@filterDataManager.Url Json="@Json" AdaptorInstance="@filterDataManager.AdaptorInstance" Adaptor="@filterDataManager.Adaptor" Offline="@filterDataManager.Offline">
                                                         @filterDataManager.ChildContent
                                                     </SfDataManager>
                                                     <AutoCompleteFieldSettings Value="@(Column.IsForeignColumn() ? Column.ForeignKeyValue : Column.Field)"></AutoCompleteFieldSettings>
@@ -911,7 +911,8 @@ else if (Parent.EnableAdaptiveUI && isSubMenuItemSelected)
                 {nameof(model.Format),model.Format},
                 {nameof(model.ShowClearButton),model.ShowClearButton},
                 { nameof(model.TimeFormat), model.TimeFormat },
-                { nameof(model.FirstDayOfWeek), model.FirstDayOfWeek }
+                { nameof(model.FirstDayOfWeek), model.FirstDayOfWeek },
+                { nameof(model.InputFormats), model.InputFormats }
             };
         }
         else if (Column?.FilterEditorSettings is TimeFilterParams timeParam && timeParam.TimePickerParams != null)
@@ -927,7 +928,8 @@ else if (Parent.EnableAdaptiveUI && isSubMenuItemSelected)
                 {nameof(model.Step),model.Step},
                 { nameof(model.Format), model.Format },
                 { nameof(model.Min), model.Min },
-                { nameof(model.Max), model.Max }
+                { nameof(model.Max), model.Max },
+                { nameof(model.InputFormats), model.InputFormats }
             };
         }
         else if (Column?.FilterEditorSettings is DateFilterParams dateParam && dateParam.DatePickerParams != null)
@@ -941,7 +943,8 @@ else if (Parent.EnableAdaptiveUI && isSubMenuItemSelected)
                 {nameof(model.ShowClearButton),model.ShowClearButton},
                 {nameof(model.Format),model.Format},
                 {nameof(model.FirstDayOfWeek),model.FirstDayOfWeek},
-                {nameof(model.HtmlAttributes),model.HtmlAttributes}
+                {nameof(model.HtmlAttributes),model.HtmlAttributes},
+                {nameof(model.InputFormats),model.InputFormats}
             };
         }
         else if (Column?.FilterEditorSettings is NumericFilterParams numericParam && numericParam.NumericTextBoxParams != null)
@@ -1057,7 +1060,7 @@ else if (Parent.EnableAdaptiveUI && isSubMenuItemSelected)
     private void CloseHandler()
     {
         Parent?.Notify("OpenAdaptiveCheckBoxDialog", null!);
-        this.contextMenu?.OpenAsync();
+        this.contextMenu?.OpenAsync(null, null);
         SubMenuRef?.Close();
         IsSubMenuDialog = false;
     }
@@ -1123,7 +1126,7 @@ else if (Parent.EnableAdaptiveUI && isSubMenuItemSelected)
     /// </remarks>
     private async Task FirstCustomFilterQuery(Syncfusion.Blazor.DropDowns.FilteringEventArgs args)
     {
-        FirstAutoComplete!.FilterOperator = FirstStringOperatorDropDown?.Value;
+        FirstAutoComplete!.FilterOperator = FirstStringOperatorDropDown?.Value!;
     }
 
     /// <summary>
@@ -1138,7 +1141,7 @@ else if (Parent.EnableAdaptiveUI && isSubMenuItemSelected)
     /// </remarks>
     private async void SecondCustomFilterQuery(Syncfusion.Blazor.DropDowns.FilteringEventArgs args)
     {
-        SecondAutoComplete!.FilterOperator = SecondStringOperatorDropDown?.Value;
+        SecondAutoComplete!.FilterOperator = SecondStringOperatorDropDown?.Value!;
     }
     #endregion
 
@@ -1179,7 +1182,7 @@ else if (Parent.EnableAdaptiveUI && isSubMenuItemSelected)
                 if (splits.Contains("DataItem"))
                 {
                     var propInfo = item?.GetType().GetProperty(treeComplexColumn != "" ? treeComplexColumn : complexColumn);
-                    data = ReflectionExtension.TryCreateInstance(propInfo?.PropertyType);
+                    data = ReflectionExtension.TryCreateInstance(propInfo?.PropertyType!);
                     treeComplexData = CloneUtils.Clone(data, propInfo!.GetType());
                 }
                 if (data is DynamicObject)
@@ -1232,9 +1235,9 @@ else if (Parent.EnableAdaptiveUI && isSubMenuItemSelected)
                     if (treeComplexColumn != "")
                     {
                         var propInfo = item?.GetType().GetProperty(treeComplexColumn);
-                        var tempObj = ReflectionExtension.TryCreateInstance(propInfo?.PropertyType);
+                        var tempObj = ReflectionExtension.TryCreateInstance(propInfo?.PropertyType!);
                         var prop = tempObj?.GetType().GetProperty(complexColumn);
-                        treeComplexData = ReflectionExtension.TryCreateInstance(prop?.PropertyType);
+                        treeComplexData = ReflectionExtension.TryCreateInstance(prop?.PropertyType!);
                         ReflectionExtension.SetValue(treeComplexData, column, filterValue);
                         ReflectionExtension.SetValue(tempObj, complexColumn, treeComplexData);
                         ReflectionExtension.SetValue(complexData, treeComplexColumn, tempObj);
@@ -1325,7 +1328,7 @@ else if (Parent.EnableAdaptiveUI && isSubMenuItemSelected)
     /// </remarks>
     internal async void OnSubMenuCreated()
     {
-        await this.SubMenuRef!.OpenAsync();
+        await this.SubMenuRef!.OpenAsync(null, null);
     }
 
     #endregion
@@ -1366,7 +1369,7 @@ else if (Parent.EnableAdaptiveUI && isSubMenuItemSelected)
         isSubMenuItemSelected = false;
         Parent!.EventAggregator.Trigger("CloseAdaptiveDialog", null!);
         Parent.FilterModule!.FilterIconIsClicked = false;
-        Parent.EventAggregator.Trigger("FilterComponentUpdate", null!);
+        Parent.EventAggregator?.Trigger("FilterComponentUpdate", null!);
 
     }
 
@@ -1446,7 +1449,7 @@ else if (Parent.EnableAdaptiveUI && isSubMenuItemSelected)
         };
 
 #pragma warning disable BL0005
-        if (!(Parent?.EnableAdaptiveUI == true))
+        if (!(Parent?.EnableAdaptiveUI == true) || (Parent?.EnableAdaptiveUI == true && Parent.AdaptiveUIMode.Equals(AdaptiveMode.Mobile) && !Parent.SyncfusionService.IsDeviceMode))
         {
             MenuItems.Add(new MenuItem { Text = Localizer.GetText(GridLocaleKeys.ClearFilter), Disabled = !isFiltered, IconCss = isFiltered ? "e-icons e-excl-filter-icon e-filtered" : "e-icons e-excl-filter-icon" });
         }
@@ -1482,13 +1485,10 @@ else if (Parent.EnableAdaptiveUI && isSubMenuItemSelected)
 
     /// <summary>
     /// Handles the menu close event to update sub-menu dialog state and validate parent item.
-    /// </summary>
-    /// <param name="Args">The menu event arguments from Syncfusion context menu.</param>
-    /// <summary>
     /// Handles context menu before-close event.
     /// Prevents closing of menus without valid parent items and manages submenu state.
     /// </summary>
-    /// <param name="Args">The menu event arguments containing parent item information and cancellation flag.</param>
+    /// <param name="Args">The menu event arguments from the Syncfusion context menu, containing parent item information and cancellation flag.</param>
     /// <remarks>
     /// This method:
     /// 1. Resets IsSubMenuDialog flag only when NOT in adaptive UI mode
@@ -1534,7 +1534,7 @@ else if (Parent.EnableAdaptiveUI && isSubMenuItemSelected)
     /// </remarks>
     internal async void OnMenuCreated()
     {
-        await this.contextMenu!.OpenAsync();
+        await this.contextMenu!.OpenAsync(null, null);
     }
 
     /// <summary>
@@ -1672,8 +1672,8 @@ else if (Parent.EnableAdaptiveUI && isSubMenuItemSelected)
             Parent.FilterModule!.FilterIconIsClicked = false;
             Parent.FilterModule.ExcelDialog = true;
             FirstAutoComplete?.Dispose();
-            Parent.EventAggregator.Trigger("CloseAdaptiveDialog", null!);
-            Parent.EventAggregator.Trigger("CloseColumnMenuAdaptiveDialog", null!);
+            Parent.EventAggregator?.Trigger("CloseAdaptiveDialog", null!);
+            Parent.EventAggregator?.Trigger("CloseColumnMenuAdaptiveDialog", null!);
             await Parent.FilterModule.FilterDialogInstance?.HideAsync()!;
             await Parent.FilterSettings.UpdateProperties("Columns", Parent.FilterSettings.Columns);
             await Parent.FilterModule.FilterByColumn(this.Column?.Field!, Filter<TContent>.GetOperator(filterOperator!), value!, null, MatchCaseCheckBox?.Checked, Parent.FilterSettings.IgnoreAccent, null, null, Column?.Uid);
@@ -1719,8 +1719,8 @@ else if (Parent.EnableAdaptiveUI && isSubMenuItemSelected)
             if (Parent.FilterModule != null)
                 Parent.FilterModule.FilterIconIsClicked = false;
             SecondAutoComplete?.Dispose();
-            Parent.EventAggregator.Trigger("CloseAdaptiveDialog", null!);
-            Parent.EventAggregator.Trigger("CloseColumnMenuAdaptiveDialog", null!);
+            Parent.EventAggregator?.Trigger("CloseAdaptiveDialog", null!);
+            Parent.EventAggregator?.Trigger("CloseColumnMenuAdaptiveDialog", null!);
             await Parent.FilterModule!.FilterDialogInstance?.HideAsync()!;
             await Parent.FilterSettings.UpdateProperties("Columns", Parent.FilterSettings.Columns!);
             var filteringArgs = new Syncfusion.Blazor.Grids.FilteringEventArgs()
@@ -1732,11 +1732,11 @@ else if (Parent.EnableAdaptiveUI && isSubMenuItemSelected)
             isDialogClosed = true;
             Parent.FilterModule.ExcelDialog = false;
         }
-        Parent.EventAggregator.Trigger("CloseAdaptiveDialog", null!);
-        Parent.EventAggregator.Trigger("CloseColumnMenuAdaptiveDialog", null!);
+        Parent.EventAggregator?.Trigger("CloseAdaptiveDialog", null!);
+        Parent.EventAggregator?.Trigger("CloseColumnMenuAdaptiveDialog", null!);
         await Parent.FilterModule.FilterDialogInstance?.HideAsync()!;
         Parent.FilterModule.FilterIconIsClicked = false;
-        Parent.EventAggregator.Trigger("FilterComponentUpdate", null!);
+        Parent.EventAggregator?.Trigger("FilterComponentUpdate", null!);
         Parent.FilterModule.ExcelDialog = false;
     }
 
@@ -1804,7 +1804,7 @@ else if (Parent.EnableAdaptiveUI && isSubMenuItemSelected)
         {
             Parent.FilterModule.IsSubMenuClick = false;
             Parent.FilterModule.FilterIconIsClicked = false;
-            Parent.EventAggregator.Trigger("FilterComponentUpdate", null!);
+            Parent.EventAggregator?.Trigger("FilterComponentUpdate", null!);
             Parent.FilterModule.ExcelDialog = false;
         }
     }
@@ -1823,21 +1823,31 @@ else if (Parent.EnableAdaptiveUI && isSubMenuItemSelected)
     ///
     /// Ensures proper resource cleanup before dialog closure.
     /// </remarks>
-    internal async void Closed(BeforeCloseEventArgs args)
+    internal async Task Closed(BeforeCloseEventArgs args)
     {
-        if (!isDialogClosed && Parent?.FilterModule != null)
+        try
         {
-            args.Cancel = true;
-            isDialogClosed = true;
-            Parent.FilterModule!.FilterIconIsClicked = false;
-            FirstStringOperatorDropDown?.Dispose();
-            SecondStringOperatorDropDown?.Dispose();
-            FirstNumberOperatorDropDown?.Dispose();
-            SecondNumberOperatorDropDown?.Dispose();
-            FirstBoolDropDown?.Dispose();
-            SecondBoolDropDown?.Dispose();
-            Parent.EventAggregator.Trigger("FilterComponentUpdate", null!);
-            Parent.FilterModule.ExcelDialog = false;
+            if (!isDialogClosed && Parent?.FilterModule != null && Column?.Uid != null)
+            {
+                args.Cancel = true;
+                isDialogClosed = true;
+                // CRITICAL: Reset toggle state when dialog closes
+                Parent.FilterModule.ResetColumnDialogState(Column.Uid);
+                Parent.FilterModule.FilterIconIsClicked = false;
+                FirstStringOperatorDropDown?.Dispose();
+                SecondStringOperatorDropDown?.Dispose();
+                FirstNumberOperatorDropDown?.Dispose();
+                SecondNumberOperatorDropDown?.Dispose();
+                FirstBoolDropDown?.Dispose();
+                SecondBoolDropDown?.Dispose();
+                Parent.EventAggregator?.Trigger("FilterComponentUpdate", null!);
+                Parent.FilterModule.ExcelDialog = false;
+            }
+        }
+        catch (Exception ex)
+        {
+            // Log exception to prevent race conditions with component disposal
+            System.Diagnostics.Debug.WriteLine($"Error in Closed: {ex.Message}");
         }
     }
 
@@ -2042,7 +2052,7 @@ else if (Parent.EnableAdaptiveUI && isSubMenuItemSelected)
                 IsSubMenuDialog = false;
                 isDialogClosed = true;
                 this.SubMenuRef?.Close();
-                Parent.EventAggregator.Trigger("CloseAdaptiveDialog", null!);
+                Parent.EventAggregator?.Trigger("CloseAdaptiveDialog", null!);
                 await Parent.FilterModule.FilterDialogInstance?.HideAsync()!;
             }
         }
@@ -2050,7 +2060,7 @@ else if (Parent.EnableAdaptiveUI && isSubMenuItemSelected)
         {
             isDialogClosed = true;
             Parent.FilterModule!.FilterIconIsClicked = false;
-            Parent.EventAggregator.Trigger("FilterComponentUpdate", null!);
+            Parent.EventAggregator?.Trigger("FilterComponentUpdate", null!);
             await Parent.FilterModule.RemoveFilterColumnByField(this.Column?.Field!, this.Column?.Uid!);
         }
     }

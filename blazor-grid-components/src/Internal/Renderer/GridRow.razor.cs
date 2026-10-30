@@ -94,6 +94,10 @@ namespace Syncfusion.Blazor.Grids.Internal
             var rowIndex = RowParameters!.Row!.Index;
             var dragStopIndex = Parent!.DragStopIndex;
 
+            if (Parent!.FindHightLightModule!.IsStateChangeRefresh)
+            {
+                Parent!.FindHightLightModule!.IsStateChangeRefresh = false;
+            }
             if (rowIndex == dragStopIndex && Parent.HasDragSelectionCompleted)
             {
                 Parent.HasDragSelectionCompleted = false;
@@ -430,6 +434,7 @@ namespace Syncfusion.Blazor.Grids.Internal
             Row<object>? row = args as Row<object>;
             if (row != null && RowParameters!.Row != null && row.Uid!.Equals(RowParameters.Row.Uid, StringComparison.Ordinal) || IsDummyRowNeeded())
             {
+                Parent!.FindHightLightModule!.IsStateChangeRefresh = true;  // Mark that this refresh is from row state change
                 OnParametersSetAsync().ConfigureAwait(false);
                 InvokeAsync(() => StateHasChanged());
             }
@@ -453,6 +458,7 @@ namespace Syncfusion.Blazor.Grids.Internal
             if (disposing)
             {
                 Parent?.EventAggregator?.Remove("RowStateChanged", InvokeStateChange);
+                Parent?.FindHightLightModule?.ActiveMatchLocationTracker.Clear();
                 propertyHelper.Dispose();
             }
         }

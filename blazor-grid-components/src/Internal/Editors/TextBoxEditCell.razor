@@ -35,9 +35,10 @@
     internal void ValueChange(Syncfusion.Blazor.Inputs.ChangedEventArgs args)
     {
         Value = args.Value;
-        if (Parent!.EditModule != null)
-        Parent.EditModule.SetValue<string>(args.Value, Column!.Field);
-
-}
+        if (Parent?.EditModule is not null && !string.IsNullOrWhiteSpace(Column?.Field))
+        {
+            Parent.EditModule.SetValue<string>(args.Value, Column.Field);
+        }
+    }
 }
 

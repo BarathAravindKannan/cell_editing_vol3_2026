@@ -98,7 +98,8 @@ else
                 { nameof(model.Readonly), model.Readonly },
                 { nameof(model.ShowClearButton), model.ShowClearButton },
                 { nameof(model.Format), model.Format },
-                { nameof(model.FirstDayOfWeek), model.FirstDayOfWeek }
+                { nameof(model.FirstDayOfWeek), model.FirstDayOfWeek },
+                { nameof(model.InputFormats), model.InputFormats }
             };
         }
         if (Column != null && Column.EditorSettings is DateTimeEditCellParams<DateTime> dateTimeParam && dateTimeParam.Params != null)
@@ -112,7 +113,8 @@ else
                 { nameof(model.ShowClearButton), model.ShowClearButton },
                 { nameof(model.Format), model.Format },
                 { nameof(model.TimeFormat), model.TimeFormat },
-                { nameof(model.FirstDayOfWeek), model.FirstDayOfWeek }
+                { nameof(model.FirstDayOfWeek), model.FirstDayOfWeek },
+                { nameof(model.InputFormats), model.InputFormats }
             };
         }
 

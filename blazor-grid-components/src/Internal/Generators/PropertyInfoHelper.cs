@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Reflection;
 using System.Dynamic;
@@ -28,7 +28,11 @@ namespace Syncfusion.Blazor.Grids.Internal
         {
             if (string.IsNullOrEmpty(nameSpace))
             {
-                return from!;
+                if (from is null)
+                {
+                    throw new ArgumentNullException(nameof(from));
+                }
+                return from;
             }
 
             return this.GetValue(from, nameSpace);

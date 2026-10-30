@@ -165,6 +165,10 @@ else if (IsToolbarMenuIconClicked)
         IsFilterClicked = true;
         if(Parent != null && Parent.FilterModule != null)
         {
+            // CRITICAL FIX: Reset the specific column's dialog state when clearing its filter
+            // Without this, clicking the filter icon for a cleared column won't reopen the dialog
+            Parent.FilterModule.ResetColumnDialogState(column.Uid);
+            
             await Parent.FilterModule.RemoveFilterColumnByField(column?.Field ?? string.Empty);
         }
 
@@ -198,6 +202,16 @@ else if (IsToolbarMenuIconClicked)
         IsFilterClicked = true;
         if(Parent != null)
         {
+            // CRITICAL FIX: Reset all filter dialog states when clearing filters
+            // When ClearFiltering is called, we must reset all column-specific dialog states
+            // to allow filters to be reopened. Without this, users cannot reopen filter dialogs
+            // for any column after clearing filters in adaptive mode.
+            if(Parent.FilterModule != null)
+            {
+                Parent.FilterModule.OpenFilterColumnUid = null;
+                Parent.FilterModule.ColumnToggleStates.Clear();
+            }
+            
             await Parent.ClearFilteringAsync();
         }
 
@@ -215,7 +229,7 @@ else if (IsToolbarMenuIconClicked)
     {
         if (Parent?.SortModule != null)
         {
-            Directions[uid] = Parent.SortModule.GetNextSortDirection(direction);
+            Directions[uid] = Sort<TContent>.GetNextSortDirection(direction);
         }
     }
 
@@ -256,6 +270,9 @@ else if (IsToolbarMenuIconClicked)
         if(Parent.FilterModule != null)
         {
             Parent.FilterModule.IsAdaptiveSort = false;
+            // CRITICAL: Reset IsAdaptiveFilter state to allow dialog to reopen on next click
+            // Without this, the filter icon click is not recognized after filter application
+            Parent.FilterModule.IsAdaptiveFilter = false;
         }
 
         Parent.EventAggregator.Trigger("FilterComponentUpdate", null!);
@@ -296,6 +313,15 @@ else if (IsToolbarMenuIconClicked)
         var item = this.getKeyFromId(args?.Item?.Id?.ToString()!); // temp
         switch (item)
         {
+            case "Find":
+                if (Parent != null && Parent.FindHightLightModule != null)
+                {
+                    Parent.FindHightLightModule.IsFindClickedInAdaptive = true;
+                    Parent.FindHightLightModule.RenderFindInput = true;
+                    Parent.EventAggregator.Trigger("RefreshSearchHighlight", null!);
+                    Parent.EventAggregator.Trigger("ToolbarStateChanged", null!);
+                }
+                break;
             case "PdfExport":
                 await this.Parent?.ExportToPdfAsync()!;
                 break;
@@ -325,22 +351,39 @@ else if (IsToolbarMenuIconClicked)
     {
         MenuItems.Clear();
         var items = ((IEnumerable<Object>)Parent!.Toolbar!)!;
-        foreach(var item in items)
+        foreach (var item in items)
         {
             var DefaultItem = item?.ToString();
             var itemStr = (DefaultItem)?.ToLower();
             var localeName = $"{itemStr?.Substring(0, 1)?.ToUpper()}{itemStr?.Substring(1)}";
 #pragma warning disable BL0005
-            if(PreItems.Any(dItem => dItem == DefaultItem))
+            if (PreItems.Any(dItem => dItem == DefaultItem))
             {
-                MenuItems.Add(new MenuItem { Text = Parent?.Localizer?.GetText($"Grid_{localeName}"), IconCss = $"e-{itemStr} e-icons e-btn-icon", Id = generateID(DefaultItem!) });
+                if (DefaultItem == "Find")
+                {
+                    MenuItems.Add(new MenuItem
+                    {
+                        Text = Parent?.Localizer?.GetText(GridLocaleKeys.FindHighLightARIA) ?? string.Empty,
+                        IconCss = "e-menu-icon e-find-icon e-icons e-btn-icon",
+                        Id = generateID(DefaultItem!)
+                    });
+                }
+                else
+                {
+                    MenuItems.Add(new MenuItem
+                    {
+                        Text = Parent?.Localizer?.GetText($"Grid_{localeName}") ?? string.Empty,
+                        IconCss = $"e-{itemStr} e-icons e-btn-icon",
+                        Id = generateID(DefaultItem!)
+                    });
+                }
             }
 #pragma warning restore BL0005
         }
         return MenuItems;
     }
 
-    private List<string> PreItems = new List<string>() { "ColumnChooser", "PdfExport", "ExcelExport", "CsvExport", "Print" };
+    private List<string> PreItems = new List<string>() { "Find", "ColumnChooser", "PdfExport", "ExcelExport", "CsvExport", "Print" };
 
     private string generateID(string item, string append = "")
     {

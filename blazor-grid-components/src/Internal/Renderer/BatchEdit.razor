@@ -117,15 +117,11 @@
             {
                 Parent.EditModule.KeyPressed = false;
             }
-            await this.Parent.InvokeMethod("sfBlazor.Grid.focusCell", Parent.DataId,
-                    Parent.EditModule?.OriginalCell?.Column?.Field, Parent.EditModule?.IsAdd, false, Cell?.Uid);
-            if (Parent?.EditSettings?.Mode == EditMode.Cell && Parent?.EditModule?.OriginalCell?.PrefillChar != null)
+            if (Cell?.Column?.EditType != EditType.NumericEdit || (Cell?.Column?.EditType == EditType.NumericEdit && Cell?.Column?.EditTemplate != null))
             {
-                string prefillValue = Parent.EditModule.OriginalCell.PrefillChar;
-                string FieldName = Parent.EditModule.OriginalCell.Column?.Field ?? string.Empty;
-                await Parent.InvokeMethod("sfBlazor.Grid.applyPrefillToInput", Parent.DataId, FieldName, prefillValue).ConfigureAwait(true);
-                // Clear the prefill character so it is not re-applied on subsequent renders.
-                Parent.EditModule.OriginalCell.PrefillChar = null;
+                await this.Parent.InvokeMethod("sfBlazor.Grid.focusCell", Parent.DataId,
+                    Parent.EditModule?.OriginalCell?.Column?.Field!, Parent.EditModule?.IsAdd!, false, Cell?.Uid!);
+                await Parent.EditModule!.InvokeApplyPrefillToInput();
             }
         }
     }

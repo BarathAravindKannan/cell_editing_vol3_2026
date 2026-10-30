@@ -23,7 +23,7 @@ namespace Syncfusion.Blazor.Grids.Internal
 
         public override RuntimeMethodHandle MethodHandle => throw new NotImplementedException();
 
-        public override string Name => FieldName!;
+        public override string Name => FieldName ?? string.Empty;
 
         public override Type ReflectedType => FieldType!;
 
@@ -185,7 +185,7 @@ namespace Syncfusion.Blazor.Grids.Internal
         /// <summary>
         /// Gets the name of the property.
         /// </summary>
-        public override string Name => FieldName!;
+        public override string Name => FieldName ?? string.Empty;
 
         /// <summary>
         /// Returns the hash code for this instance.

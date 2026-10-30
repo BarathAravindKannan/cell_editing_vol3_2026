@@ -84,7 +84,8 @@ export class CustomToolTip {
 
     public close(): void {
         if (this.toolTipElement) {
-            const prevTarget: HTMLElement = this.parent.element.querySelector('[aria-describedby="' + this.ctrlId + '_content' + '"]');
+            let prevTarget: HTMLElement = this.parent.element.querySelector('[aria-describedby="' + this.ctrlId + '_content' + '"]');
+            prevTarget = isNullOrUndefined(prevTarget) ? this.parent.element.querySelector('[data-tooltip-id="' + this.ctrlId + '_content' + '"]') : prevTarget;
             if (!isNullOrUndefined(prevTarget)) {
                 prevTarget.removeAttribute('aria-describedby');
                 prevTarget.removeAttribute('data-tooltip-id');
@@ -120,6 +121,9 @@ export class CustomToolTip {
         document.body.removeChild(ctable);
         if (element.firstElementChild) {
             const childElement: HTMLElement = element.firstElementChild as HTMLElement;
+            if (childElement instanceof HTMLFormElement) {
+                return false;
+            }
             if (childElement.offsetWidth === childElement.scrollWidth) {
                 const clonedElement: HTMLElement = childElement.cloneNode(true) as HTMLElement;
                 Object.assign(clonedElement.style, {

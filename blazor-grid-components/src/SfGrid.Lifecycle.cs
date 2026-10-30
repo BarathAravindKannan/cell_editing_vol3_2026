@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using Syncfusion.Blazor.Internal;
 using Syncfusion.Blazor.Data;
 using Syncfusion.Blazor.Grids.Internal;
+using Syncfusion.Blazor.Grids.Actions;
 using System.Linq;
 using System.Runtime.CompilerServices;
 
@@ -17,6 +18,7 @@ namespace Syncfusion.Blazor.Grids
 
         internal bool _rowIndexPropertyChanged { get; set; }
 
+        private bool _isUndoRedoManagerInitialized;
 
         /// <summary>
         /// Initializes the grid component, sets up hybrid initialization, and configures all required modules.
@@ -40,6 +42,7 @@ namespace Syncfusion.Blazor.Grids
             PageModule = new Paging<TValue>(this);
             FreezeModule = new Freeze<TValue>(this);
             FocusModule = new FocusHandler<TValue>(this);
+            FindHightLightModule = new FindHighlight<TValue>(this);
             RowReorderModule = new RowReorder<TValue>(this);
             _jsAdaptor = new GridJSInteropAdaptor<TValue>(this);
             PropHelper = new PropertyInfoHelper<TValue>();
@@ -74,16 +77,16 @@ namespace Syncfusion.Blazor.Grids
                           
                             if (!_cachedAttributes.ContainsKey("data-sf-style"))
                             {
-                                _cachedAttributes["data-sf-style"] = item.Value?.ToString();
+                                _cachedAttributes["data-sf-style"] = item.Value?.ToString() ?? "";
                             }
                             else
                             {
-                                _cachedAttributes["data-sf-style"] += item.Value?.ToString();
+                                _cachedAttributes["data-sf-style"] += item.Value?.ToString() ?? "";
                             }
                         }
                         else
                         {
-                            _cachedAttributes.AddOrUpdateItem(item.Key, item.Value);
+                            _cachedAttributes.AddOrUpdateItem(item.Key, item.Value!);
                         }
                     }
                 }
@@ -91,8 +94,8 @@ namespace Syncfusion.Blazor.Grids
 	    var query = _query ?? new Query();
             if (!object.ReferenceEquals(DataSource, _dataSource))
             {
-                UpdateObservableEvents(nameof(DataSource), _dataSource, true);
-                UpdateObservableEvents(nameof(DataSource), DataSource);
+                UpdateObservableEvents(nameof(DataSource), _dataSource!, true);
+                UpdateObservableEvents(nameof(DataSource), DataSource!);
             }
 
             await OnHybridParametersSet().ConfigureAwait(true);
@@ -100,7 +103,7 @@ namespace Syncfusion.Blazor.Grids
             // For query, forced comparison is made to avoid Hierarchy grid issue.
             if (PropertyChanges.ContainsKey("Query"))
             {
-                if (Query.IsEqual(query, Query))
+                if (Query.IsEqual(query, Query ?? new Query()))
                 {
                     PropertyChanges.Remove("Query");
                 }
@@ -134,11 +137,6 @@ namespace Syncfusion.Blazor.Grids
                 RowReorderModule.RowReorderIndentWidth = string.Empty;
             }
 
-            if (PropertyChanges.ContainsKey("AllowRowDragAndDrop") && RowReorderModule != null)
-            {
-                RowReorderModule.RowReorderIndentWidth = string.Empty;
-            }
-
             // Handle server side property change or external property change
             if (PropertyChanges.Count > 0)
             {
@@ -146,6 +144,10 @@ namespace Syncfusion.Blazor.Grids
                 if(VirtualScrollModule != null)
                 {
                     VirtualScrollModule.IsDataSourceChanged = IsRendered && PropertyChanges.ContainsKey("DataSource");
+                }
+                if (IsFindToolbarEnabled() && !PropertyChanges.ContainsKey("SelectedRowIndex"))
+                {
+                    await ResetFindAsync().ConfigureAwait(true);
                 }
                 bool headerRef = PropertyChanges.ContainsKey("AllowGrouping")
                     || PropertyChanges.ContainsKey("GroupSettings")
@@ -158,6 +160,45 @@ namespace Syncfusion.Blazor.Grids
                 if(PropertyChanges.ContainsKey("FilterSettings") && PropertyChanges.ContainsKey("ShowFilterBarOperator"))
                 {
                     EventAggregator.Trigger("FilterBarComponentUpdate", null!);
+                }
+                if (PropertyChanges.ContainsKey(nameof(EnableRtl)))
+                {
+                    if (PagerRef != null)
+                    {
+                        PagerRef.EnableRtl = EnableRtl;
+                        await PagerRef.RefreshAsync().ConfigureAwait(true);
+                    }
+                }
+                if (PropertyChanges.ContainsKey("EnableUndoRedo") && PropertyChanges.ContainsKey(nameof(IGrid.EditSettings)))
+                {
+                    if(EditSettings?.EnableUndoRedo == true && UndoRedoManager == null)
+                    {
+                        await InitializeUndoRedoModule().ConfigureAwait(true);
+                    }
+                    if (EditSettings != null && UndoRedoManager != null)
+                    {
+                        bool shouldEnable = EditSettings.EnableUndoRedo && EditSettings.Mode == EditMode.Batch;
+                        if (shouldEnable)
+                        {
+                            UndoRedoManager.Enable(EditSettings.UndoRedoLimit);
+                            EventAggregator?.Trigger("UndoRedoStackChanged", null!);
+
+                        }
+                        else if (!shouldEnable)
+                        {
+                            UndoRedoManager.Disable();
+                            EventAggregator?.Trigger("UndoRedoStackChanged", null!);
+                        }
+                    }
+                }
+                else if (PropertyChanges.ContainsKey("UndoRedoLimit") && PropertyChanges.ContainsKey(nameof(IGrid.EditSettings)))
+                {
+           
+                    if (EditSettings != null && UndoRedoManager != null
+                        && EditSettings.EnableUndoRedo && EditSettings.Mode == EditMode.Batch)
+                    {
+                        UndoRedoManager.UpdateMaxStackSize(EditSettings.UndoRedoLimit);
+                    }
                 }
                 RefreshColumnHeader = headerRef;
                 var keys = PropertyChanges.Keys.Select(x => x).ToList();
@@ -186,7 +227,7 @@ namespace Syncfusion.Blazor.Grids
                 {
                     _isColumnWidthChanged = true;
                 }
-                if (PropertyChanges.ContainsKey("GroupSettings") && GroupSettings?.Columns?.Length > 0 && GroupModule?.IndentWidth != "" && !PropertyChanges.ContainsKey("PersistGroupState"))
+                if (PropertyChanges.ContainsKey("GroupSettings") && GroupSettings?.Columns?.Length > 0 && !string.IsNullOrEmpty(GroupModule?.IndentWidth) && !PropertyChanges.ContainsKey("PersistGroupState"))
                 {
                     GroupModule!.IndentWidth = "";
                 }
@@ -230,6 +271,14 @@ namespace Syncfusion.Blazor.Grids
         /// <param name="firstRender">Indicates whether this is the first render of the component.</param>
         protected override async Task OnAfterRenderAsync(bool firstRender)
         {
+            await InitializeUndoRedoModule().ConfigureAwait(true);
+            // Initialize WebMCP adapter on first render if enabled.
+            // The adapter is cheap (no JS until triggered); tools registration happens in
+            // OnAfterScriptRendered where JS interop is guaranteed to be ready.
+            if (firstRender && EnableWebMcp && _webMcpAdapter == null)
+            {
+                _webMcpAdapter = new WebMcpAdapter<TValue>(this);
+            }
             if (isGridModelRefresh)
             {
                 isGridModelRefresh = false;
@@ -323,6 +372,39 @@ namespace Syncfusion.Blazor.Grids
                 FocusEditableCellArgs!
             }).ConfigureAwait(true);
 
+            // Now that JS is initialized and the dotnetRef is registered
+            // with the browser, register the WebMCP tools with document.modelContext.
+            // This MUST happen AFTER sfBlazor.Grid.initialize so the JS-side
+            // getCompInstance(dataId).dotNetRef lookup succeeds and the browser
+            // callback can route back into InvokeWebMcpToolExecute.
+            if (EnableWebMcp && _webMcpAdapter != null && _jsAdaptor != null)
+            {
+                try
+                {
+                    var customTool = WebMcpSettings?.ChildTools?.FirstOrDefault(
+                        tool => tool != null &&
+                            tool.Command == GridWebMcpToolCommand.Custom);
+                    var hasExecuteHandler =
+                        GridEvents?.OnWebMcpExecute.HasDelegate == true;
+                    if (customTool != null && !hasExecuteHandler)
+                    {
+                        throw new InvalidOperationException(
+                            $"Custom WebMCP tool '{customTool.Name}' requires a GridEvents.OnWebMcpExecute handler.");
+                    }
+                    await _webMcpAdapter.RegisterWebMcpToolsAsync().ConfigureAwait(true);
+                }
+                catch (Microsoft.JSInterop.JSException ex)
+                {
+                    // Never let a WebMCP failure break grid initialization.
+                    // The browser side guard in webmcp-adapter.ts also handles errors.
+                    System.Diagnostics.Debug.WriteLine($"[WebMCP] Tool registration skipped: {ex.Message}");
+                }
+                catch (System.OperationCanceledException)
+                {
+                    // Expected during teardown — swallow silently.
+                }
+            }
+
             if (initializeResults != null)
             {
                 if (IsMacDevice == null)
@@ -339,6 +421,13 @@ namespace Syncfusion.Blazor.Grids
                     VirtualScrollModule.RHeight = (int)initializeResults.RowHeight;
                     EventAggregator.Trigger("VirtualComponentUpdate", null!);
                 }
+                
+                // Task 01: Sync RHeight for DOM virtualization
+                if (EnableDomVirtualization && initializeResults.RowHeight != null && VirtualScrollModule != null)
+                {
+                    VirtualScrollModule.RHeight = (int)initializeResults.RowHeight;
+                    EventAggregator.Trigger("DomVirtualComponentUpdate", null!);
+                }
             }
 
             Reset = IsSetPersistDataCalled;
@@ -354,7 +443,7 @@ namespace Syncfusion.Blazor.Grids
                 if (VirtualScrollModule != null &&(!VirtualScrollModule.NeedClientAction || (VirtualScrollModule.NeedClientAction && EnablePersistence)))
                 {
                     await DataProcess().ConfigureAwait(true);
-                    var foreignkeyColumns = Columns != null ? ForeignKey<TValue>.GetForeignKeyColumns(Columns) : null;
+                    var foreignkeyColumns = Columns != null ? ForeignKey<TValue>.GetForeignKeyColumnsAsync(Columns) : null;
                     if (EnablePersistence && (_isPersistAutoFit || _isColumnResized))
                     {
                         await InvokeMethod("sfBlazor.Grid.autoFitColumns", new object[] { DataId, Columns!, _targetColumns, _isPersistAutoFit, _isColumnResized }).ConfigureAwait(true);
@@ -362,7 +451,7 @@ namespace Syncfusion.Blazor.Grids
                     else if (Columns != null && Columns.Any(col => col.AutoFit && col.Visible) && (foreignkeyColumns?.Count > 0 || (Aggregates?.Count > 0)))
                     {
                         var fields = Columns.Where(col => col.AutoFit && col.Visible).Select(col => col.Field).ToArray();
-                        await AutoFitColumnsAsync(fields);
+                        await AutoFitColumnsAsync(fields).ConfigureAwait(true);
                     }
                 }
             }
@@ -499,7 +588,7 @@ namespace Syncfusion.Blazor.Grids
                 (_dataSource != null && DataSource != null &&
                 ((!_dataSource.Any() && DataSource.Any()) || (_dataSource.Any() && !DataSource.Any())))) // Handles delayed data assigning.
             {
-                PropertyChanges.TryAdd(nameof(DataSource), DataSource);
+                PropertyChanges.TryAdd(nameof(DataSource), DataSource!);
                 DataSource = _dataSource = DataSource!;
             }
 
@@ -571,12 +660,13 @@ namespace Syncfusion.Blazor.Grids
 
             Width = _width = await UpdateProperty(nameof(Width), Width, _width!).ConfigureAwait(true);
             AutoSpan = _autoSpan = await UpdateProperty(nameof(AutoSpan), AutoSpan, _autoSpan).ConfigureAwait(true);
+            EnableWebMcp = _enableWebMcp = await UpdateProperty(nameof(EnableWebMcp), EnableWebMcp, _enableWebMcp).ConfigureAwait(true);
             AutoFit = _autoFit = await UpdateProperty(nameof(AutoFit), AutoFit, _autoFit).ConfigureAwait(true);
             KeySettings = _keySettings = await UpdateProperty(nameof(KeySettings), KeySettings, _keySettings!).ConfigureAwait(true);
 			AllowFreezeLineMoving = _allowFreezeLineMoving = await UpdateProperty(nameof(AllowFreezeLineMoving), AllowFreezeLineMoving, _allowFreezeLineMoving).ConfigureAwait(true);
             EnableStickyHeader = _enableStickyHeader = await UpdateProperty(nameof(EnableStickyHeader), EnableStickyHeader, _enableStickyHeader).ConfigureAwait(true);
             SetDataManager<TValue>(DataSource);
-            if (DataManager.Adaptor.Equals(Adaptors.BlazorAdaptor) && DataSource == null && !DataManager.DataAdaptor.IsRemote() && DataManager.Json == null) 
+            if (DataManager!.Adaptor.Equals(Adaptors.BlazorAdaptor) && DataSource == null && !DataManager.DataAdaptor!.IsRemote() && DataManager.Json == null)
             {
 #pragma warning disable BL0005 // Component parameter should not be set outside of its component.
                 DataManager.Json = new List<object>();

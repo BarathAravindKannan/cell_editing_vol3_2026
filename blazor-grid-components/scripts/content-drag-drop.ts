@@ -11,7 +11,7 @@ export class ContentDragDrop {
      * @param {DropEventArgs} e - The event arguments for the drop event.
      * @returns {void}
      */
-    private drop: Function = (e: DropEventArgs) => {
+    private drop: (e: DropEventArgs) => void = (e: DropEventArgs) => {
         const targetElementGrid : HTMLElement = parentsUntil(e.target, 'e-grid') as HTMLElement;
         const cloneElementGrid: HTMLElement = e.droppedElement.parentElement;
         const elementsNullCaseCheck: boolean = !isNullOrUndefined(targetElementGrid) && !isNullOrUndefined(cloneElementGrid);

@@ -54,9 +54,9 @@ else
 
     private bool UpdateCheckState()
     {
-        bool batchAddedRowSelected = Parent.EditSettings.Mode == EditMode.Batch && Parent.EditModule.EditedRow?.IsSelected == true;
-        bool checkStateForCheckBox = (Parent != null && Parent.SelectionModule != null && Parent.SelectionModule.HasCheckBoxColumn()) && (Parent.SelectionModule.IsDataInPersistedCollection(Parent.EditModule.EditedRow!.Data) && Parent.IsEdit)
-        || (Parent != null && Parent.EditModule!.IsAdd && Parent.SelectionModule != null 
+        bool batchAddedRowSelected = Parent?.EditSettings?.Mode == EditMode.Batch && Parent?.EditModule?.EditedRow?.IsSelected == true;
+        bool checkStateForCheckBox = (Parent != null && Parent.SelectionModule != null && Parent.SelectionModule.HasCheckBoxColumn()) && (Parent.SelectionModule.IsDataInPersistedCollection(Parent.EditModule?.EditedRow?.Data!) && Parent.IsEdit)
+        || (Parent != null && Parent.EditModule?.IsAdd == true && Parent.SelectionModule != null 
             && (Parent.SelectionModule.IsHeaderCheckboxChecked || batchAddedRowSelected)
             && Parent.EditModule.EditedRow?.Action == EditAction.Added);
         return checkStateForCheckBox;

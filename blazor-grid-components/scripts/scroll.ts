@@ -168,7 +168,9 @@ export class Scroll {
         const cssProps: ScrollCss = this.getCssProperties(rtl);
         const hDiv: HTMLDivElement = (<HTMLDivElement>this.parent.getHeaderContent());
         hDiv.style[cssProps.border] = '';
-        hDiv.parentElement.style[cssProps.padding] = '';
+        if (!isNullOrUndefined(hDiv.parentElement)) {
+            hDiv.parentElement.style[cssProps.padding] = '';
+        }
         //const footerDiv: HTMLDivElement = (<HTMLDivElement>this.parent.getFooterContent());
     }
     /**
@@ -221,7 +223,7 @@ export class Scroll {
     //     }
     // }
 
-    private onContentScroll(scrollTarget: HTMLElement): Function {
+    private onContentScroll(scrollTarget: HTMLElement): (e: Event) => void {
         const element: HTMLElement = scrollTarget;
         const isHeader: boolean = element.classList.contains('e-headercontent');
         return (e: Event) => {
@@ -288,7 +290,7 @@ export class Scroll {
         };
     }
 
-    private onFreezeContentScroll(scrollTarget: HTMLElement): Function {
+    private onFreezeContentScroll(scrollTarget: HTMLElement): (e: Event) => void {
         const element: HTMLElement = scrollTarget;
         return (e: Event) => {
             if (this.content.querySelector('tbody') === null) {
@@ -317,7 +319,7 @@ export class Scroll {
             this.parent.element.classList.remove('e-left-shadow');
         }
     }
-    private onCustomScrollbar(mCont: HTMLElement, mHdr: HTMLElement): Function {
+    private onCustomScrollbar(mCont: HTMLElement, mHdr: HTMLElement): (e: Event) => void {
         const content: HTMLElement = mCont;
         const header: HTMLElement = mHdr;
         let mfooter: HTMLElement;
@@ -344,7 +346,7 @@ export class Scroll {
 
         };
     }
-    private onWheelScroll(scrollTarget: HTMLElement): Function {
+    private onWheelScroll(scrollTarget: HTMLElement): (e: WheelEvent) => void {
         const element: HTMLElement = scrollTarget;
         return (e: WheelEvent) => {
             if (this.content.querySelector('tbody') === null) {
@@ -361,7 +363,7 @@ export class Scroll {
         };
     }
 
-    private onTouchScroll(scrollTarget: HTMLElement): Function {
+    private onTouchScroll(scrollTarget: HTMLElement): (e: PointerEvent | TouchEvent) => void {
         const element: HTMLElement = scrollTarget;
         return (e: PointerEvent | TouchEvent) => {
             if ((e as PointerEvent).pointerType === 'mouse') {
@@ -422,7 +424,7 @@ export class Scroll {
         };
     }
 
-    private setPageXY(): Function {
+    private setPageXY(): (e: PointerEvent | TouchEvent) => void {
         return (e: PointerEvent | TouchEvent) => {
             if ((e as PointerEvent).pointerType === 'mouse') {
                 return;
@@ -627,6 +629,64 @@ export class Scroll {
         element.style.width = width != null ? width + 'px' : '';
         element.style.top = top != null ? top - 2 + 'px' : '';
         element.style.left = left !== null ? parseInt(element.style.left, 10) !== left ? left + 'px' : element.style.left : '';
+    }
+
+    /**
+     * Function to scroll the grid to it's active match cell
+     *
+     * @returns {number} The width of the scrollbar in pixels.
+     * @hidden
+     */
+    public scrollActiveCellHorizontally(activeCell: HTMLElement, content: HTMLElement): void {
+        // eslint-disable-next-line @typescript-eslint/no-this-alias
+        const _this: Scroll = this;
+        if (isNullOrUndefined(activeCell) || isNullOrUndefined(content)) return;
+        setTimeout(() => {
+            const cell: HTMLElement = activeCell.isConnected
+                ? activeCell
+                : content.querySelector('.e-find-highlight-active') as HTMLElement;
+            if (isNullOrUndefined(cell)) {
+                return;
+            }
+            // The active element may be the inner <mark> wrapper (.e-find-highlight-active)
+            // rather than the <td> cell itself, because the C# FindHighlight renderer
+            // wraps matched text in a <mark> inside the cell. The freeze classes
+            // (e-leftfreeze / e-rightfreeze / e-fixedfreeze / e-freeze) live on the
+            // parent <td>, so resolve the owning cell before checking the freeze flags
+            // - otherwise matches inside frozen panes would still trigger horizontal scroll
+            // and the active text would scroll out of view.
+            const owningCell: HTMLElement = cell.classList.contains('e-rowcell')
+                ? cell
+                : (cell.closest('.e-rowcell') as HTMLElement) || cell;
+            if (owningCell.classList.contains('e-leftfreeze') || owningCell.classList.contains('e-rightfreeze') ||
+                owningCell.classList.contains('e-fixedfreeze') || owningCell.classList.contains('e-freeze')) {
+                return;
+            }
+            const cellRect: DOMRect = cell.getBoundingClientRect();
+            const contentRect: DOMRect = content.getBoundingClientRect();
+            const contentLeft: number = contentRect.left + content.clientLeft;
+            const contentRight: number = contentLeft + content.clientWidth;
+            const visibleLeft: number = contentLeft;
+            const visibleRight: number = contentRight;
+            if (_this.parent.options.enableRtl) {
+                if (cellRect.left < visibleLeft) {
+                    _this.scrollActiveToCenter(cellRect.left, cellRect.right, visibleLeft, visibleRight);
+                } else if (cellRect.right > visibleRight) {
+                    _this.scrollActiveToCenter(cellRect.left, cellRect.right, visibleLeft, visibleRight);
+                }
+            }
+            else {
+                _this.scrollActiveToCenter(cellRect.left, cellRect.right, visibleLeft, visibleRight);
+            }
+        }, 0);
+    }
+
+    private scrollActiveToCenter(cellRectLeft: number, cellRectRight: number, visibleLeft: number, visibleRight: number): void {
+        const content: HTMLElement = this.parent.getContent();
+        const cellCenter: number = (cellRectLeft + cellRectRight) / 2;
+        const viewportCenter: number = (visibleLeft + visibleRight) / 2;
+        const delta: number = cellCenter - viewportCenter;
+        content.scrollLeft += delta;
     }
 
     public destroy(): void {

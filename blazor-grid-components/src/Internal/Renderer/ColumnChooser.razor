@@ -201,7 +201,7 @@
 
     private string InputFocus { get; set; } = "";
 
-    private string XPosition { get; set; }
+    private string? XPosition { get; set; }
 
     private string YPosition { get; set; } = "bottom";
 
@@ -239,7 +239,7 @@
         return new Dictionary<string, object>
         {
             { "data-sf-style", "max-height:430px" },
-            { "relateTo", $"{Parent.ID}" }
+            { "relateTo", $"{Parent?.ID}" }
         };
     }
 
@@ -281,7 +281,7 @@
     {
         if (!_hasCustomPosition)
         {
-            XPosition = Parent.EnableRtl ? "left" : "right";
+            XPosition = Parent!.EnableRtl ? "left" : "right";
         }
         GridColumns = Parent?.FreezeModule!.GetFrozenCount() > 0 ? Parent.RearrangeColumns(GridUtils.GetColumns(Parent)) : GridUtils.GetColumns(Parent!);
         Columns = GridColumns?.Where(column => column.ShowInColumnChooser && column.Type != ColumnType.CheckBox)?.ToList()!;
@@ -320,7 +320,7 @@
                 positions = await Parent.InvokeMethod<Position>("sfBlazor.Grid.renderColumnChooser", false, new object[] { Parent.DataId });
             }
             Parent.ShowChooser = false;
-            await OpenColumnChooser(XPosition, YPosition);
+            await OpenColumnChooser(XPosition!, YPosition);
         }
         else if (!Parent!.RenderColumnChooser && Parent.ShowChooser)
         {
@@ -494,8 +494,7 @@
         {
             CancelIcon = "e-cc-cancel";
             WhereFilters?.Add(new WhereFilter() { Field = "HeaderText", IgnoreCase = true, value = SearchValue?.ToLower(), Operator = searchOpt?.ToLower() });
-            Columns = DataOperations.PerformFiltering(CCColumns, WhereFilters, searchOpt?.ToLower())?.ToList()!;
-            WhereFilters = new List<WhereFilter>();
+            Columns = DataOperations.PerformFiltering(CCColumns!, WhereFilters!, searchOpt?.ToLower()!)?.ToList()!; WhereFilters = new List<WhereFilter>();
             SelectAllHandler();
         }
     }
@@ -590,6 +589,10 @@
                 InputValue = string.Empty;                
                 await CCDialog?.HideAsync()!;
                 this.Parent.RenderColumnChooser = false;
+                if (Parent.GridEvents?.HeaderCellInfo.HasDelegate == true)
+                {
+                    Parent.IsColumnHeaderChange = false;
+                }
                 return;
             }
         }
@@ -714,6 +717,10 @@
         hideColumns = new List<string>();
         this.IsOkButtonDisabled = false;
         this.Parent!.RenderColumnChooser = false;
+        if (Parent.GridEvents?.HeaderCellInfo.HasDelegate == true)
+        {
+            Parent.IsColumnHeaderChange = false;
+        }
         _hasCustomPosition = false;
         StateHasChanged();
         Parent.InvokeMethod("sfBlazor.Grid.searchClear", new object[] { Parent.DataId, $"{Parent.ID}_CCSearchBox" });

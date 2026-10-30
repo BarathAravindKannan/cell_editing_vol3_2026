@@ -64,10 +64,14 @@ namespace Syncfusion.Blazor.Grids.Internal
 
             if (GetFreezeLeftCount() != 0 || GetFreezeRightColumnsCount() != 0 || _parent.IsFreezeLineMoved)
             {
-                var leftCols = new List<GridColumn>();
-                var rightCols = new List<GridColumn>();
-                var movableCols = new List<GridColumn>();
-                SetFrozenColumnModel(_parent.Columns!, ref leftCols, ref rightCols, ref movableCols);
+                // Safety check: Ensure Columns collection exists before processing
+                if (_parent.Columns?.Count > 0)
+                {
+                    var leftCols = new List<GridColumn>();
+                    var rightCols = new List<GridColumn>();
+                    var movableCols = new List<GridColumn>();
+                    SetFrozenColumnModel(_parent.Columns, ref leftCols, ref rightCols, ref movableCols);
+                }
             }
         }
 
@@ -79,13 +83,14 @@ namespace Syncfusion.Blazor.Grids.Internal
         /// <param name="leftCols">Output: List of left-frozen columns.</param>
         /// <param name="rightCols">Output: List of right-frozen columns.</param>
         /// <param name="movableCols">Output: List of movable columns.</param>
-        private void SetFrozenColumnModel(List<GridColumn> cols, ref List<GridColumn> leftCols, ref List<GridColumn> rightCols, ref List<GridColumn> movableCols)
+        private void SetFrozenColumnModel(List<GridColumn>? cols, ref List<GridColumn> leftCols, ref List<GridColumn> rightCols, ref List<GridColumn> movableCols)
         {
-            for (var i = 0; i < cols.Count; i++)
+            for (var i = 0; i < cols?.Count; i++)
             {
-                if ((cols[i].Columns) != null)
+                // Safe: Explicit null check before recursive call
+                if (cols[i].Columns != null && cols[i].Columns?.Count > 0)
                 {
-                    SetFrozenColumnModel(cols[i].Columns!, ref leftCols, ref rightCols, ref movableCols);
+                    SetFrozenColumnModel(cols[i].Columns, ref leftCols, ref rightCols, ref movableCols);
                 }
                 else
                 {
@@ -195,7 +200,7 @@ namespace Syncfusion.Blazor.Grids.Internal
         /// Gets the collection of right-frozen columns from the given list of columns
         /// </summary>
         /// <returns>The list of right-frozen columns.</returns>
-        internal List<GridColumn> GetFrozenRightColumns(List<GridColumn>? columns)
+        internal static List<GridColumn> GetFrozenRightColumns(List<GridColumn>? columns)
         {
             return columns!.Where(_ => _.IsFrozen && _.Freeze.Equals(FreezeDirection.Right)).ToList();
         }
@@ -204,7 +209,7 @@ namespace Syncfusion.Blazor.Grids.Internal
         /// Gets the collection of left-frozen columns from the given list of columns
         /// </summary>
         /// <returns>The list of left-frozen columns.</returns>
-        internal List<GridColumn> GetFrozenLeftColumns(List<GridColumn>? columns)
+        internal static List<GridColumn> GetFrozenLeftColumns(List<GridColumn>? columns)
         {
             return columns!.Where(_ => _.IsFrozen && _.Freeze.Equals(FreezeDirection.Left)).ToList();
         }
@@ -322,9 +327,9 @@ namespace Syncfusion.Blazor.Grids.Internal
 
         }
 
-        internal void SetFrozenMovableLabel(List<GridColumn>? parentColumn, int frozenColumnNum)
+        internal static void SetFrozenMovableLabel(List<GridColumn>? parentColumn, int frozenColumnNum)
         {
-            for (int i = 0; i < parentColumn.Count; i++)
+            for (int i = 0; i < parentColumn?.Count; i++)
             {
                 if (frozenColumnNum > 0)
                 {
@@ -382,18 +387,18 @@ namespace Syncfusion.Blazor.Grids.Internal
             // Refactored frozen column primary check
             bool isColumnFrozen = Column?.IsFrozen == true;
             bool hasStackedHeaderWithoutFrozen = _parent.FrozenColumns == 0 && !Column?.IsFrozen == true && Column?.Columns != null && Column?.Columns.Count > 0;
-            bool hasChildFrozenColumns = hasStackedHeaderWithoutFrozen && IsFrozenColumn(Column);
+            bool hasChildFrozenColumns = hasStackedHeaderWithoutFrozen && IsFrozenColumn(Column!);
             bool shouldProcessFrozen = isColumnFrozen || hasChildFrozenColumns;
 
             if (shouldProcessFrozen)
             {
                 if (_parent.IsStackedHeader)
                 {
-                    if (IsLastColumn(Column))
+                    if (IsLastColumn(Column!))
                     {
                         classNames = string.Concat(classNames, " e-leftfreeze e-freezeleftborder");
                     }
-                    else if (Column.FrozenMovableLabel != null && Column.FrozenMovableLabel.Contains("FrozenLeftLast", StringComparison.CurrentCulture))
+                    else if (Column!.FrozenMovableLabel != null && Column.FrozenMovableLabel.Contains("FrozenLeftLast", StringComparison.CurrentCulture))
                     {
                         classNames = string.Concat(classNames, " e-leftfreeze e-freezeleftborder");
                     }
@@ -418,11 +423,12 @@ namespace Syncfusion.Blazor.Grids.Internal
                 {
                     var FrozenLeftColumns = _parent.Columns?.Where(x => x.Freeze == FreezeDirection.Left && x.IsFrozen && x.Visible).ToList();
                     var FrozenRightColumns = _parent.Columns?.Where(x => x.Freeze == FreezeDirection.Right && x.IsFrozen && x.Visible).ToList();
-                    // Refactored left freeze border condition
-                    bool isLastFrozenLeftColumn = Column.Index == FrozenLeftColumns.LastOrDefault()?.Index;
+                    // Refactored left freeze border condition - safe access to last frozen column
+                    var lastLeftFrozenCol = FrozenLeftColumns?.LastOrDefault();
+                    bool isLastFrozenLeftColumn = Column?.Index == lastLeftFrozenCol?.Index;
                     bool hasGroupedColumns = _parent.GroupSettings?.Columns != null && _parent.GroupSettings.Columns.Length > 0;
 
-                    if (Column.Freeze.Equals(FreezeDirection.Left) && Column.IsFrozen && FrozenLeftColumns != null && FrozenLeftColumns.Count > 0 && !isLastFrozenLeftColumn)
+                    if (Column!.Freeze.Equals(FreezeDirection.Left) && Column.IsFrozen && FrozenLeftColumns != null && FrozenLeftColumns.Count > 0 && !isLastFrozenLeftColumn)
                     {
                         classNames = string.Concat(classNames, " e-leftfreeze");
                         if (hasGroupedColumns)
@@ -435,7 +441,7 @@ namespace Syncfusion.Blazor.Grids.Internal
                                     {
                                         classNames = string.Concat(classNames, " e-freezeleftborder");
                                     }
-                                    else if (col == FrozenLeftColumns.LastOrDefault()?.Field && _parent.GroupSettings.ShowGroupedColumn && Column.Equals(FrozenLeftColumns[FrozenLeftColumns.Count - 1]))
+                                    else if (col == FrozenLeftColumns.LastOrDefault()?.Field && _parent.GroupSettings!.ShowGroupedColumn && Column.Equals(FrozenLeftColumns[FrozenLeftColumns.Count - 1]))
                                     {
                                         classNames = string.Concat(classNames, " e-freezeleftborder");
                                     }
@@ -448,15 +454,15 @@ namespace Syncfusion.Blazor.Grids.Internal
                         classNames = string.Concat(classNames, " e-leftfreeze e-freezeleftborder");
                     }
                     // Refactored right freeze border condition
-                    bool isFirstRightFrozenColumn = (!_parent.EnableColumnVirtualization && FrozenRightColumns?.Count > 0 && (Column.Index == FrozenRightColumns[0].Index)) || (_parent.EnableColumnVirtualization && Column.Index == _parent.VirtualScrollModule?.VirtualizedColumns.Where(x => x.IsFrozen && x.Freeze.Equals(FreezeDirection.Right)).FirstOrDefault()?.Index);
+                    bool isFirstRightFrozenColumn = (!_parent.EnableColumnVirtualization && FrozenRightColumns?.Count > 0 && (Column.Index == FrozenRightColumns[0].Index)) || (_parent.EnableColumnVirtualization && Column?.Index == _parent.VirtualScrollModule?.VirtualizedColumns.Where(x => x.IsFrozen && x.Freeze.Equals(FreezeDirection.Right)).FirstOrDefault()?.Index);
                     bool hasNoGroupedColumns = groupedColumnCount == 0;
-                    bool shouldApplyRightFreezeBorder = Column.Freeze.Equals(FreezeDirection.Right) && Column.IsFrozen && Column.Visible && FrozenRightColumns != null && FrozenRightColumns.Count > 0 && isFirstRightFrozenColumn && hasNoGroupedColumns;
+                    bool shouldApplyRightFreezeBorder = Column!= null && Column.Freeze.Equals(FreezeDirection.Right) && Column.IsFrozen && Column.Visible && FrozenRightColumns != null && FrozenRightColumns.Count > 0 && isFirstRightFrozenColumn && hasNoGroupedColumns;
 
                     if (shouldApplyRightFreezeBorder)
                     {
                         classNames = string.Concat(classNames, " e-rightfreeze e-freezerightborder");
                     }
-                    else if (Column.Freeze.Equals(FreezeDirection.Right) && Column.IsFrozen)
+                    else if (Column!= null && Column.Freeze.Equals(FreezeDirection.Right) && Column.IsFrozen)
                     {
                         classNames = string.Concat(classNames, " e-rightfreeze");
                         if (_parent.GroupSettings!.Columns != null && _parent.GroupSettings.Columns.Length > 0)
@@ -478,14 +484,14 @@ namespace Syncfusion.Blazor.Grids.Internal
                         }
                     }
                     // Refactored fixed freeze border conditions
-                    bool isFixedFrozen = Column.Freeze.Equals(FreezeDirection.Fixed) && Column.IsFrozen;
+                    bool isFixedFrozen = Column!= null && Column.Freeze.Equals(FreezeDirection.Fixed) && Column.IsFrozen;
 
                     if (isFixedFrozen)
                     {
                         var ArrangedColumns = _parent.RearrangeColumns(_parent.Columns!.Where(x => x.Visible).ToList());
                         var frozenColumnsFixed = _parent.Columns!.Where(x => x.Freeze == FreezeDirection.Fixed && x.IsFrozen && x.Visible).ToList();
                         classNames = string.Concat(classNames, " e-fixedfreeze");
-                        var CurrentIndex = Column.Index;
+                        var CurrentIndex = Column!.Index;
 
                         // Refactored isolated fixed column border logic
                         bool isIsolatedFixedColumn = frozenColumnsFixed.Count > 0 && CurrentIndex != 0 && CurrentIndex != ArrangedColumns.Count - 1 && !ArrangedColumns[CurrentIndex - 1].IsFrozen && !ArrangedColumns[CurrentIndex + 1].IsFrozen && ArrangedColumns[CurrentIndex + 1].Freeze != FreezeDirection.Fixed && ArrangedColumns[CurrentIndex - 1].Freeze != FreezeDirection.Fixed;
@@ -726,7 +732,7 @@ namespace Syncfusion.Blazor.Grids.Internal
                         RightWidth = RightWidth + _parent.VirtualScrollModule.TranslateX;
                     }
 
-                    text = " left:" + LeftWidth + "px; " + " right:" + RightWidth + "px";
+                    text = _parent.EnableRtl ? " right:" + LeftWidth + "px; " + " left:" + RightWidth + "px" : " left:" + LeftWidth + "px; " + " right:" + RightWidth + "px";
                 }
             }
             else if (!_parent.IsStackedHeader && GetFrozenCount() > 0 && Column?.Index < GetFrozenCount() && GetFreezeRightCount() == 0 && GetFreezeLeftCount() == 0 && GetFreezeFixedCount() == 0)
@@ -737,7 +743,7 @@ namespace Syncfusion.Blazor.Grids.Internal
                 {
                     if (GroupedColumn != null && _parent.GroupSettings != null && FrozenColumns != null && GroupedColumn.Any(x => x == FrozenColumns[i].Field) && !_parent.GroupSettings.ShowGroupedColumn)
                         continue;
-                    if (FrozenColumns != null && FrozenColumns[i].Visible)
+                    if (FrozenColumns != null && FrozenColumns.Count > 0 && FrozenColumns[i].Visible)
                     {
                         LeftWidth += GridUtils.GetDoubleParsedWidth(FrozenColumns[i].Width);
                     }
@@ -810,15 +816,19 @@ namespace Syncfusion.Blazor.Grids.Internal
                     for (int i = 0; i < FrozenFixedCells?.Count; i++)
                     {
                         var CurrentCell = FrozenFixedCells[i];
-                        var PreviousCell = CurrentCell.Column!.Index == 0 ? Cells?[CurrentCell.Column.Index] : Cells?[CurrentCell.Column.Index - 1];
-                        var NextCell = CurrentCell.Column.Index == Cells?.Count - 1 ? Cells?[CurrentCell.Column.Index] : Cells?[CurrentCell.Column.Index + 1];
-                        if ((CurrentCell.Column.Index == 0 || !PreviousCell!.Column!.IsFrozen || (PreviousCell.Column.IsFrozen && !PreviousCell.Column.Freeze.Equals(FreezeDirection.Fixed))) && (!NextCell!.Column!.IsFrozen || (NextCell.Column.IsFrozen && !NextCell.Column.Freeze.Equals(FreezeDirection.Fixed))))
+                        int currentIdx = CurrentCell.Column?.Index ?? 0;
+                        int prevIdx = currentIdx - 1;
+                        int nextIdx = currentIdx + 1;
+                        // Safe: Use ElementAtOrDefault to avoid out-of-range access
+                        var PreviousCell = currentIdx == 0 ? Cells?.ElementAtOrDefault(currentIdx) : Cells?.ElementAtOrDefault(prevIdx);
+                        var NextCell = currentIdx == (Cells?.Count - 1) ? Cells?.ElementAtOrDefault(currentIdx) : Cells?.ElementAtOrDefault(nextIdx);
+                        if ((CurrentCell.Column?.Index == 0 || !PreviousCell!.Column!.IsFrozen || (PreviousCell.Column.IsFrozen && !PreviousCell.Column.Freeze.Equals(FreezeDirection.Fixed))) && (!NextCell!.Column!.IsFrozen || (NextCell.Column.IsFrozen && !NextCell.Column.Freeze.Equals(FreezeDirection.Fixed))))
                         {
                             CurrentCell.EnableFrozenLineCursor = true;
                             CurrentCell.EnableFixedLeftFrozenLineCursor = true;
                             CurrentCell.EnableFixedRightFrozenLineCursor = true;
                         }
-                        if ((CurrentCell.Column.Index == 0 || !PreviousCell!.Column!.IsFrozen || (PreviousCell.Column.IsFrozen && !PreviousCell.Column.Freeze.Equals(FreezeDirection.Fixed))) && NextCell!.Column!.IsFrozen && NextCell.Column.Freeze.Equals(FreezeDirection.Fixed))
+                        if ((CurrentCell.Column?.Index == 0 || !PreviousCell!.Column!.IsFrozen || (PreviousCell.Column.IsFrozen && !PreviousCell.Column.Freeze.Equals(FreezeDirection.Fixed))) && NextCell!.Column!.IsFrozen && NextCell.Column.Freeze.Equals(FreezeDirection.Fixed))
                         {
                             CurrentCell.EnableFrozenLineCursor = true;
                             CurrentCell.EnableFixedLeftFrozenLineCursor = true;
@@ -828,7 +838,7 @@ namespace Syncfusion.Blazor.Grids.Internal
                             CurrentCell.EnableFrozenLineCursor = true;
                             CurrentCell.EnableFixedRightFrozenLineCursor = true;
                         }
-                        if (CurrentCell.Column.Index == 0 || CurrentCell.Column.Index == Cells!.Count - 1)
+                        if (CurrentCell.Column?.Index == 0 || CurrentCell.Column?.Index == Cells?.Count - 1)
                         {
                             CurrentCell.EnableDefaultFrozenLine = true;
                         }
@@ -885,9 +895,9 @@ namespace Syncfusion.Blazor.Grids.Internal
         }
 
 
-        internal void EnableFrozenLineCursorVirtualHeader(List<GridColumn> frozenColumn, List<GridColumn> movableColumn, List<GridColumn> frozenRightColumn)
+        internal static void EnableFrozenLineCursorVirtualHeader(List<GridColumn> frozenColumn, List<GridColumn> movableColumn, List<GridColumn> frozenRightColumn)
         {
-            if (frozenColumn.Any())
+            if (frozenColumn.Count > 0)
             {
                 var column = frozenColumn.Where(_ => _.Visible).LastOrDefault();
                 if (column != null)
@@ -903,7 +913,7 @@ namespace Syncfusion.Blazor.Grids.Internal
             {
                 SetEnableFrozeLineCursorMovableColumn(movableColumn, true);
             }
-            if (frozenRightColumn.Any())
+            if (frozenRightColumn.Count > 0)
             {
                 var column = frozenRightColumn.Where(_ => _.Visible).FirstOrDefault();
                 if (column != null)
@@ -921,7 +931,7 @@ namespace Syncfusion.Blazor.Grids.Internal
             }
         }
 
-        private void SetEnableFrozeLineCursorMovableColumn(List<GridColumn> movableColumn, bool isFirst = true)
+        private static void SetEnableFrozeLineCursorMovableColumn(List<GridColumn> movableColumn, bool isFirst = true)
         {
             var column = isFirst ? movableColumn.Where(_ => _.Visible).FirstOrDefault() : movableColumn.Where(_ => _.Visible).LastOrDefault();
             if (column != null)
@@ -942,13 +952,13 @@ namespace Syncfusion.Blazor.Grids.Internal
                         col.EnableLeftFrozenLineCursor = col.EnableRightFrozenLineCursor = col.EnableFrozenLineCursor = false;
                     }
                 }
-                var FrozenLeftColumns = _parent.FrozenColumns > 0 ? columns?.Take(_parent.FrozenColumns)?.ToList() : columns?.Where(x => x.IsFrozen && x.Freeze.Equals(FreezeDirection.Left))?.ToList();
+                var FrozenLeftColumns = _parent.FrozenColumns > 0 ? columns.Take(_parent.FrozenColumns)?.ToList() : columns.Where(x => x.IsFrozen && x.Freeze.Equals(FreezeDirection.Left))?.ToList();
                 var FrozenRightColumns = GetFrozenRightColumns(columns);
                 var FrozenFixedColumns = columns?.Where(x => x.IsFrozen && x.Freeze.Equals(FreezeDirection.Fixed))?.ToList();
                 var MovableColumns = columns?.Where(x => !x.IsFrozen || (x.IsFrozen && x.Freeze == FreezeDirection.Fixed))?.ToList();
-                if (FrozenLeftColumns != null && FrozenLeftColumns.Any())
+                if (FrozenLeftColumns != null && FrozenLeftColumns.Count > 0)
                 {
-                    var column = FrozenLeftColumns?.Where(_ => _.Visible)?.LastOrDefault();
+                    var column = FrozenLeftColumns.Where(_ => _.Visible)?.LastOrDefault();
                     if (column != null)
                     {
                         column.EnableFrozenLineCursor = true;
@@ -972,9 +982,9 @@ namespace Syncfusion.Blazor.Grids.Internal
                         column.EnableLeftFrozenLineCursor = true;
                     }
                 }
-                if (FrozenRightColumns != null && FrozenRightColumns.Any())
+                if (FrozenRightColumns != null && FrozenRightColumns.Count > 0)
                 {
-                    var column = FrozenRightColumns?.Where(_ => _.Visible)?.FirstOrDefault();
+                    var column = FrozenRightColumns.Where(_ => _.Visible)?.FirstOrDefault();
                     if (column != null)
                     {
                         column.EnableFrozenLineCursor = true;
@@ -998,9 +1008,9 @@ namespace Syncfusion.Blazor.Grids.Internal
                         column.EnableRightFrozenLineCursor = true;
                     }
                 }
-                if (FrozenFixedColumns != null && FrozenFixedColumns.Any())
+                if (FrozenFixedColumns != null && FrozenFixedColumns.Count > 0)
                 {
-                    for (int i = 0; i < FrozenFixedColumns?.Count; i++)
+                    for (int i = 0; i < FrozenFixedColumns.Count; i++)
                     {
                         var CurrentColumn = FrozenFixedColumns[i];
                         var PreviousColumn = CurrentColumn?.Index == 0 ? columns![CurrentColumn.Index] : columns![CurrentColumn!.Index - 1];
@@ -1026,10 +1036,10 @@ namespace Syncfusion.Blazor.Grids.Internal
             }
             else if (_parent.AllowFreezeLineMoving && _parent.FrozenColumns != 0 && columns != null && columns.Count != 0)
             {
-                var FrozenLeftColumns = columns?.Take(_parent.FrozenColumns)?.ToList();
-                if (FrozenLeftColumns != null && FrozenLeftColumns.Any())
+                var FrozenLeftColumns = columns.Take(_parent.FrozenColumns)?.ToList();
+                if (FrozenLeftColumns != null && FrozenLeftColumns.Count > 0)
                 {
-                    var column = FrozenLeftColumns?.Where(_ => _.Visible)?.LastOrDefault();
+                    var column = FrozenLeftColumns.Where(_ => _.Visible)?.LastOrDefault();
                     if (column != null)
                     {
                         column.EnableFrozenLineCursor = true;

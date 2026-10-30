@@ -113,7 +113,7 @@ export class Selection {
         }
     }
 
-    private mouseUpHandler(e: MouseEventArgs): void {
+    private async mouseUpHandler(e: MouseEventArgs): Promise<void> {
         document.body.classList.remove('e-disableuserselect');
         if (!isNullOrUndefined(this.element) && !isNullOrUndefined(this.element.parentNode)) {
             remove(this.element);
@@ -163,12 +163,16 @@ export class Selection {
                 setTimeout(() => {
                     _this.selectCellByRow();
                 }, 10);
-                this.expandAFBorder(e, true);
-                const updateAFBor: object = this.createBorder(this.startRowIndex, this.startColIndex, this.endRowIndex,
-                                                              this.endColIndex, true);
-                this.parent.dotNetRef.invokeMethodAsync('UpdateAutofillPositions', updateAFBor, 'UpdateAutofillBorder');
-                const updateAFPos: object = this.updateAutofillPosition(this.endColIndex, this.endRowIndex, true);
-                this.parent.dotNetRef.invokeMethodAsync('UpdateAutofillPositions', updateAFPos, 'UpdateAutofillBox');
+                if (!isNullOrUndefined(this.startCell) && !isNullOrUndefined(this.endCell)) {
+                    await this.expandAFBorder(e, true);
+                }
+                if (!isNullOrUndefined(this.startRowIndex) && !isNullOrUndefined(this.endRowIndex)) {
+                    const updateAFBor: object = this.createBorder(this.startRowIndex, this.startColIndex, this.endRowIndex,
+                        this.endColIndex, true);
+                    this.parent.dotNetRef.invokeMethodAsync('UpdateAutofillPositions', updateAFBor, 'UpdateAutofillBorder');
+                    const updateAFPos: object = this.updateAutofillPosition(this.endColIndex, this.endRowIndex, true);
+                    this.parent.dotNetRef.invokeMethodAsync('UpdateAutofillPositions', updateAFPos, 'UpdateAutofillBox');
+                }
             }
         }
         EventHandler.remove(this.parent.getContent(), 'mousemove', this.mouseMoveHandler);
@@ -219,7 +223,7 @@ export class Selection {
         }
     }
 
-    private mouseMoveHandler(e: MouseEventArgs | TouchEvent): void {
+    private async mouseMoveHandler(e: MouseEventArgs | TouchEvent): Promise<void> {
         if (!this.parent.options.allowDragSelection && e.type !== 'touchmove') {
             e.preventDefault();
         }
@@ -337,7 +341,7 @@ export class Selection {
                         this.endAFCell = td;
                         this.endCell = td;
                         if (this.isAutoFillSel) {
-                            this.expandAFBorder((e as MouseEventArgs), false);
+                            await this.expandAFBorder((e as MouseEventArgs), false);
                         }
                         else {
                             this.assignCells();
@@ -467,7 +471,10 @@ export class Selection {
         const selectedCells: Element[] = [].slice.call(this.parent.element.querySelectorAll('.e-cellselectionbackground'));
         const rowstart: Element = this.parent.getRowByIndex(startRowIndex);
         const cellStart: Element = rowstart.querySelector('[aria-colindex="' + (startColIndex + 1) + '"]');
-        let cellsStart: HTMLElement[] = [].slice.call(cellStart.parentElement.querySelectorAll('[aria-colindex="' + (startColIndex + 1) + '"]'));
+        let cellsStart: HTMLElement[] = [];
+        if (!isNullOrUndefined(cellStart) && !isNullOrUndefined(cellStart.parentElement)) {
+            cellsStart = [].slice.call(cellStart.parentElement.querySelectorAll('[aria-colindex="' + (startColIndex + 1) + '"]'));
+        }
         let rowEnd: Element;
         let cellEnd: Element;
         let cellsEnd: HTMLElement[];
@@ -480,7 +487,9 @@ export class Selection {
         if (endRowIndex != null && endColIndex != null) {
             rowEnd = this.parent.getRowByIndex(endRowIndex);
             cellEnd = rowEnd.querySelector('[aria-colindex="' + (endColIndex + 1) + '"]');
-            cellsEnd = [].slice.call(cellEnd.parentElement.querySelectorAll('[aria-colindex="' + (endColIndex + 1) + '"]'));
+            if (!isNullOrUndefined(cellEnd) && !isNullOrUndefined(cellEnd.parentElement)) {
+                cellsEnd = [].slice.call(cellEnd.parentElement.querySelectorAll('[aria-colindex="' + (endColIndex + 1) + '"]'));
+            }
         }
         else {
             rowEnd = rowstart;
@@ -488,10 +497,14 @@ export class Selection {
             cellsEnd = cellsStart;
         }
         if (selectedCells && !newSelect) {
-            cellsStart = [].slice.call(selectedCells[0].parentElement.querySelectorAll('[aria-colindex="' +
-                ((selectedCells[0] as HTMLTableCellElement).cellIndex - this.parent.getIndentCount() + 1) + '"]'));
-            cellsEnd = [].slice.call(selectedCells[selectedCells.length - 1].parentElement.querySelectorAll('[aria-colindex="' +
-                ((selectedCells[selectedCells.length - 1] as HTMLTableCellElement).cellIndex - this.parent.getIndentCount() + 1) + '"]'));
+            if (!isNullOrUndefined(selectedCells[0]) && !isNullOrUndefined(selectedCells[0].parentElement)) {
+                cellsStart = [].slice.call(selectedCells[0].parentElement.querySelectorAll('[aria-colindex="' +
+                    ((selectedCells[0] as HTMLTableCellElement).cellIndex - this.parent.getIndentCount() + 1) + '"]'));
+            }
+            if (!isNullOrUndefined(selectedCells[selectedCells.length - 1]) && !isNullOrUndefined(selectedCells[selectedCells.length - 1].parentElement)) {
+                cellsEnd = [].slice.call(selectedCells[selectedCells.length - 1].parentElement.querySelectorAll('[aria-colindex="' +
+                    ((selectedCells[selectedCells.length - 1] as HTMLTableCellElement).cellIndex - this.parent.getIndentCount() + 1) + '"]'));
+            }
         }
         if (!this.startCell) {
             this.startCell = cellsStart[0];
@@ -527,7 +540,7 @@ export class Selection {
             Top: autoFillBorderTop
         };
     }
-    private expandAFBorder(e: MouseEvent, isApply: boolean): void {
+    private async expandAFBorder(e: MouseEvent, isApply: boolean): Promise<void> {
         const selectedCells: Element[] = [].slice.call(this.parent.element.querySelectorAll('.e-cellselectionbackground'));
         const startrowIdx: number = parseInt(parentsUntil(this.startCell, 'e-row').getAttribute('aria-rowindex'), 10) - 1;
         const startCellIdx: number = parseInt(this.startCell.getAttribute('aria-colindex'), 10) - 1;
@@ -544,105 +557,128 @@ export class Selection {
         }
         colLen = colLen - 1;
         colLen = colLen >= 0 ? colLen : 0;
-        switch (true) {
-        case !isApply && this.endAFCell.classList.contains('e-cellselectionbackground') &&
-            !!parentsUntil(e.target as Element, 'e-rowcell'):
-            this.startAFCell = this.parent.getCellFromIndex(startrowIdx, startCellIdx);
-            this.endAFCell = this.parent.getCellFromIndex(startrowIdx + rowLen, startCellIdx + colLen);
-            this.drawAFBorders();
-            break;
-        case startCellIdx + colLen < endCellIdx &&
-            endCellIdx - startCellIdx - colLen + 1 > endrowIdx - startrowIdx - rowLen
-            && endCellIdx - startCellIdx - colLen + 1 > startrowIdx - endrowIdx:
-            this.endAFCell = this.parent.getCellFromIndex(startrowIdx + rowLen, endCellIdx);
-            endrowIdx = parseInt(parentsUntil(this.endAFCell, 'e-row').getAttribute('aria-rowindex'), 10) - 1;
-            endCellIdx = parseInt(this.endAFCell.getAttribute('aria-colindex'), 10) - 1;
-            if (!isApply) {
-                this.drawAFBorders();
+        if (isApply) {
+            if(this.parent.options.enableUndoRedo && this.parent.options.editMode === 'Batch') {
+                await this.parent.dotNetRef.invokeMethodAsync('BeginAutoFillBatch');
             }
-            else {
-                const cellIdx: number = parseInt(this.endCells.getAttribute('aria-colindex'), 10) - 1;
-                for (let i: number = startrowIdx; i <= endrowIdx; i++) {
-                    const cells: HTMLElement[] = this.getAutoFillCells(i);
-                    let c: number = 0;
-                    for (let j: number = cellIdx + 1; j <= endCellIdx; j++) {
-                        if (c > colLen) {
-                            c = 0;
+        }
+
+        try {
+            switch (true) {
+            case !isApply && this.endAFCell.classList.contains('e-cellselectionbackground') &&
+                !!parentsUntil(e.target as Element, 'e-rowcell'):
+                this.startAFCell = this.parent.getCellFromIndex(startrowIdx, startCellIdx);
+                this.endAFCell = this.parent.getCellFromIndex(startrowIdx + rowLen, startCellIdx + colLen);
+                this.drawAFBorders();
+                break;
+            case startCellIdx + colLen < endCellIdx &&
+                endCellIdx - startCellIdx - colLen + 1 > endrowIdx - startrowIdx - rowLen
+                && endCellIdx - startCellIdx - colLen + 1 > startrowIdx - endrowIdx:
+                this.endAFCell = this.parent.getCellFromIndex(startrowIdx + rowLen, endCellIdx);
+                endrowIdx = parseInt(parentsUntil(this.endAFCell, 'e-row').getAttribute('aria-rowindex'), 10) - 1;
+                endCellIdx = parseInt(this.endAFCell.getAttribute('aria-colindex'), 10) - 1;
+                if (!isApply) {
+                    this.drawAFBorders();
+                }
+                else {
+                    const cellIdx: number = parseInt(this.endCells.getAttribute('aria-colindex'), 10) - 1;
+                    for (let i: number = startrowIdx; i <= endrowIdx; i++) {
+                        const cells: HTMLElement[] = this.getAutoFillCells(i);
+                        let c: number = 0;
+                        if (!isNullOrUndefined(cells) && cells.length > 0) {
+                            for (let j: number = cellIdx + 1; j <= endCellIdx; j++) {
+                                if (c > colLen) {
+                                    c = 0;
+                                }
+                                this.updateValue(i, j, cells[parseInt(c.toString(), 10)] as HTMLTableCellElement);
+                                c++;
+                            }
                         }
-                        this.updateValue(i, j, cells[parseInt(c.toString(), 10)] as HTMLTableCellElement);
-                        c++;
                     }
                 }
-            }
-            break;
-        case startCellIdx > endCellIdx &&
-            startCellIdx - endCellIdx + 1 > endrowIdx - startrowIdx - rowLen &&
-            startCellIdx - endCellIdx + 1 > startrowIdx - endrowIdx:
-            this.startAFCell = this.parent.getCellFromIndex(startrowIdx, endCellIdx);
-            this.endAFCell = this.endCells;
-            if (!isApply) {
-                this.drawAFBorders();
-            }
-            else {
-                for (let i: number = startrowIdx; i <= startrowIdx + rowLen; i++) {
-                    const cells: HTMLElement[] = this.getAutoFillCells(i);
-                    cells.reverse();
-                    let c: number = 0;
-                    for (let j: number = this.startCellIndex - 1; j >= endCellIdx; j--) {
-                        if (c > colLen) {
-                            c = 0;
+                break;
+            case startCellIdx > endCellIdx &&
+                startCellIdx - endCellIdx + 1 > endrowIdx - startrowIdx - rowLen &&
+                startCellIdx - endCellIdx + 1 > startrowIdx - endrowIdx:
+                this.startAFCell = this.parent.getCellFromIndex(startrowIdx, endCellIdx);
+                this.endAFCell = this.endCells;
+                if (!isApply) {
+                    this.drawAFBorders();
+                }
+                else {
+                    for (let i: number = startrowIdx; i <= startrowIdx + rowLen; i++) {
+                        const cells: HTMLElement[] = this.getAutoFillCells(i);
+                        cells.reverse();
+                        let c: number = 0;
+                        for (let j: number = this.startCellIndex - 1; j >= endCellIdx; j--) {
+                            if (c > colLen) {
+                                c = 0;
+                            }
+                            this.updateValue(i, j, cells[parseInt(c.toString(), 10)] as HTMLTableCellElement);
+                            c++;
                         }
-                        this.updateValue(i, j, cells[parseInt(c.toString(), 10)] as HTMLTableCellElement);
-                        c++;
                     }
                 }
-            }
-            break;
-        case startrowIdx > endrowIdx:
-            this.startAFCell = this.parent.getCellFromIndex(endrowIdx, startCellIdx);
-            this.endAFCell = this.endCells;
-            if (!isApply) {
-                this.drawAFBorders();
-            }
-            else {
-                const trIdx: number = parseInt(this.endCells.parentElement.getAttribute('aria-rowindex'), 10) - 1;
-                let r: number = trIdx;
-                for (let i: number = startrowIdx - 1; i >= endrowIdx; i--) {
-                    if (r === this.startIndex - 1) {
-                        r = trIdx;
-                    }
-                    const cells: HTMLElement[] = this.getAutoFillCells(r);
-                    let c: number = 0;
-                    r--;
-                    for (let j: number = this.startCellIndex; j <= this.startCellIndex + colLen; j++) {
-                        this.updateValue(i, j, cells[parseInt(c.toString(), 10)] as HTMLTableCellElement);
-                        c++;
+                break;
+            case startrowIdx > endrowIdx:
+                this.startAFCell = this.parent.getCellFromIndex(endrowIdx, startCellIdx);
+                this.endAFCell = this.endCells;
+                if (!isApply) {
+                    this.drawAFBorders();
+                }
+                else {
+                    const trIdx: number = parseInt(this.endCells.parentElement.getAttribute('aria-rowindex'), 10) - 1;
+                    let r: number = trIdx;
+                    for (let i: number = startrowIdx - 1; i >= endrowIdx; i--) {
+                        if (r === this.startIndex - 1) {
+                            r = trIdx;
+                        }
+                        const cells: HTMLElement[] = this.getAutoFillCells(r);
+                        let c: number = 0;
+                        r--;
+                        for (let j: number = this.startCellIndex; j <= this.startCellIndex + colLen; j++) {
+                            this.updateValue(i, j, cells[parseInt(c.toString(), 10)] as HTMLTableCellElement);
+                            c++;
+                        }
                     }
                 }
-            }
-            break;
-        default:
-            this.endAFCell = this.parent.getCellFromIndex(endrowIdx, startCellIdx + colLen);
-            if (!isApply) {
-                this.drawAFBorders();
-            }
-            else {
-                const trIdx: number = parseInt(this.endCells.parentElement.getAttribute('aria-rowindex'), 10) - 1;
-                let r: number = this.startIndex;
-                for (let i: number = trIdx + 1; i <= endrowIdx; i++) {
-                    if (r === trIdx + 1) {
-                        r = this.startIndex;
-                    }
-                    const cells: HTMLElement[] = this.getAutoFillCells(r);
-                    r++;
-                    let c: number = 0;
-                    for (let m: number = this.startCellIndex; m <= this.startCellIndex + colLen; m++) {
-                        this.updateValue(i, m, cells[parseInt(c.toString(), 10)] as HTMLTableCellElement);
-                        c++;
+                break;
+            default:
+                this.endAFCell = this.parent.getCellFromIndex(endrowIdx, startCellIdx + colLen);
+                if (!isApply) {
+                    this.drawAFBorders();
+                }
+                else {
+                    const trIdx: number = parseInt(this.endCells.parentElement.getAttribute('aria-rowindex'), 10) - 1;
+                    let r: number = this.startIndex;
+                    for (let i: number = trIdx + 1; i <= endrowIdx; i++) {
+                        if (r === trIdx + 1) {
+                            r = this.startIndex;
+                        }
+                        const cells: HTMLElement[] = this.getAutoFillCells(r);
+                        r++;
+                        let c: number = 0;
+                        for (let m: number = this.startCellIndex; m <= this.startCellIndex + colLen; m++) {
+                            this.updateValue(i, m, cells[parseInt(c.toString(), 10)] as HTMLTableCellElement);
+                            c++;
+                        }
                     }
                 }
+                break;
             }
-            break;
+            if (isApply) {
+                if(this.parent.options.enableUndoRedo && this.parent.options.editMode === 'Batch') {
+                    await this.parent.dotNetRef.invokeMethodAsync('CommitAutoFillBatch');
+                }
+            }
+        } catch (error) {
+
+            if (isApply) {
+                if(this.parent.options.enableUndoRedo && this.parent.options.editMode === 'Batch') {
+                  await this.parent.dotNetRef.invokeMethodAsync('DiscardAutoFillBatch');
+                }
+            }
+            throw error;
         }
     }
     private drawAFBorders(): void {
@@ -752,17 +788,19 @@ export class Selection {
         }
     }
     private assignCells(): void {
-        this.startRowIndex = parseInt(this.startAFCell.parentElement.getAttribute('aria-rowindex'), 10) - 1;
-        this.endRowIndex = parseInt(this.endAFCell.parentElement.getAttribute('aria-rowindex'), 10) - 1;
-        this.startColIndex = parseInt(this.startAFCell.getAttribute('aria-colindex'), 10) - 1;
-        this.endColIndex = parseInt(this.endAFCell.getAttribute('aria-colindex'), 10) - 1;
-        if (this.startRowIndex > this.endRowIndex) {
-            this.startRowIndex = this.endRowIndex;
-            this.endRowIndex = parseInt(this.startAFCell.parentElement.getAttribute('aria-rowindex'), 10) - 1;
-        }
-        if (this.endColIndex < this.startColIndex) {
-            this.startColIndex = this.endColIndex;
-            this.endColIndex = parseInt(this.startAFCell.getAttribute('aria-colindex'), 10) - 1;
+        if (!isNullOrUndefined(this.startAFCell) && !isNullOrUndefined(this.endAFCell)) {
+            this.startRowIndex = parseInt(this.startAFCell.parentElement.getAttribute('aria-rowindex'), 10) - 1;
+            this.endRowIndex = parseInt(this.endAFCell.parentElement.getAttribute('aria-rowindex'), 10) - 1;
+            this.startColIndex = parseInt(this.startAFCell.getAttribute('aria-colindex'), 10) - 1;
+            this.endColIndex = parseInt(this.endAFCell.getAttribute('aria-colindex'), 10) - 1;
+            if (this.startRowIndex > this.endRowIndex) {
+                this.startRowIndex = this.endRowIndex;
+                this.endRowIndex = parseInt(this.startAFCell.parentElement.getAttribute('aria-rowindex'), 10) - 1;
+            }
+            if (this.endColIndex < this.startColIndex) {
+                this.startColIndex = this.endColIndex;
+                this.endColIndex = parseInt(this.startAFCell.getAttribute('aria-colindex'), 10) - 1;
+            }
         }
     }
     private selectCellByRow(): void {
@@ -826,7 +864,10 @@ export class Selection {
             if (!isMovableRow) {
                 const checkboxCell: Element = cells.filter((cell: Element) => cell.classList.contains('e-gridchkbox'))[0] as Element;
                 if (!isNullOrUndefined(checkboxCell) && checkboxCell.classList.contains('e-gridchkbox')) {
-                    checkboxCell.querySelector('.e-frame').classList.replace('e-uncheck', 'e-check');
+                    const frameElement: Element = checkboxCell.querySelector('.e-frame');
+                    if (!isNullOrUndefined(frameElement)) {
+                        frameElement.classList.replace('e-uncheck', 'e-check');
+                    }
                 }
             }
         }
@@ -841,7 +882,10 @@ export class Selection {
         addRemoveActiveClasses(cells, false, ...['e-aria-selected', 'e-active']);
         const checkboxCell: Element = cells.filter((cell: Element) => cell.classList.contains('e-gridchkbox'))[0] as Element;
         if (!isNullOrUndefined(checkboxCell) && checkboxCell.classList.contains('e-gridchkbox')) {
-            checkboxCell.querySelector('.e-frame').classList.replace('e-check', 'e-uncheck');
+            const frameElement: Element = checkboxCell.querySelector('.e-frame');
+            if (!isNullOrUndefined(frameElement)) {
+                frameElement.classList.replace('e-check', 'e-uncheck');
+            }
         }
     }
 
@@ -863,4 +907,5 @@ export class Selection {
     private isSingleSel(): boolean {
         return this.parent.options.selectionType === 'Single';
     }
+
 }

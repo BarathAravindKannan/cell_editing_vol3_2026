@@ -9,7 +9,7 @@ import { SfGrid } from './sf-grid-fn';
  * @returns {void}
  * @hidden
  */
-export function getUpdateUsingRaf(updateFunction: Function, callBack: Function): void {
+export function getUpdateUsingRaf(updateFunction: () => unknown, callBack: (error?: unknown, result?: unknown) => void): void {
     requestAnimationFrame(() => {
         try {
             callBack(null, updateFunction());
@@ -125,7 +125,7 @@ export function parentsUntil(elem: Element, selector: string, isID?: boolean): E
 // eslint-disable-next-line @typescript-eslint/no-namespace
 export namespace Global {
     // eslint-disable-next-line prefer-const
-    export let timer: Object = null;
+    export let timer: ReturnType<typeof setTimeout> | null = null;
 }
 
 
@@ -156,7 +156,7 @@ export function getElementIndex(element: Element, elements: Element[]): number {
  * @param {Object[]} collection The array to search within.
  * @returns {number} The index of the value if found, otherwise -1.
  */
-export function inArray(value: Object, collection: Object[]): number {
+export function inArray(value: object, collection: object[]): number {
     for (let i: number = 0, len: number = collection.length; i < len; i++) {
         if (collection[parseInt(i.toString(), 10)] === value) {
             return i;
@@ -187,7 +187,7 @@ export function getPosition(e: MouseEvent | TouchEvent): IPosition {
  * @param {Function} predicate The function to apply to each item.
  * @returns {Array} A new array with the results of the predicate function.
  */
-export function iterateArrayOrObject<T, U>(collection: U[], predicate: (item: Object, index: number) => T): T[] {
+export function iterateArrayOrObject<T, U>(collection: U[], predicate: (item: U, index: number) => T): T[] {
     const result: T[] = [];
     for (let i: number = 0, len: number = collection.length; i < len; i++) {
         const pred: T = predicate(collection[parseInt(i.toString(), 10)], i);

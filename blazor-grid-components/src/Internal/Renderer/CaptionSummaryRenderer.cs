@@ -5,6 +5,7 @@ using Syncfusion.Blazor.Data;
 using System;
 using System.Collections;
 using System.Collections.Generic;
+using System.Globalization;
 using System.Linq;
 
 namespace Syncfusion.Blazor.Grids.Internal
@@ -66,12 +67,14 @@ namespace Syncfusion.Blazor.Grids.Internal
             builder.OpenElement(seq++, "td");
             builder.AddAttribute(seq++, "class", $"{classNames} {(Parent?.FocusModule != null ? Parent.FocusModule.GetFocusClass(cell) : string.Empty)}");
             builder.AddAttribute(seq++, "role", "gridcell");
-            builder.AddAttribute(seq++, "tabindex", EnsureTabIndexForSummary(row, cell));
+            builder.AddAttribute(seq++, "tabindex", EnsureTabIndexForSummary(row, cell).ToString(CultureInfo.InvariantCulture));
             if (cell.AggregateColumn?.Type is AggregateType type && type != AggregateType.Custom) { builder.AddAttribute(seq++, "aria-label", ariaLabel); }
             builder.AddAttribute(seq++, "data-uid", cell.Uid);
 
-            if (!string.IsNullOrEmpty(StyleText))
-                builder.AddAttribute(seq++, "data-sf-style", StyleText);
+            string frozenStyle = Parent!.FreezeModule!.ApplyFrozenColumnsStyles(cell.Column!)?.ToLower(CultureInfo.CurrentCulture)!;
+            string style = GridUtils.EnsureUniqueStyles(StyleText, frozenStyle);
+            if (!string.IsNullOrEmpty(style))
+                builder.AddAttribute(seq++, "data-sf-style", style);
 
             // Click handler
             builder.AddAttribute(seq++, "onclick", EventCallback.Factory.Create<MouseEventArgs>(this, async (e) =>
@@ -128,12 +131,14 @@ namespace Syncfusion.Blazor.Grids.Internal
             builder.OpenElement(seq++, "td");
             builder.AddAttribute(seq++, "class", classNames);
             builder.AddAttribute(seq++, "role", "gridcell");
-            builder.AddAttribute(seq++, "tabindex", cell.TabIndex);
+            builder.AddAttribute(seq++, "tabindex", cell.TabIndex.ToString(CultureInfo.InvariantCulture));
             if (cell.AggregateColumn?.Type is AggregateType type && type != AggregateType.Custom) { builder.AddAttribute(seq++, "aria-label", ariaLabel); }
             builder.AddAttribute(seq++, "data-uid", cell.Uid);
 
-            if (!string.IsNullOrEmpty(StyleText))
-                builder.AddAttribute(seq++, "data-sf-style", StyleText);
+            string frozenStyle = Parent!.FreezeModule!.ApplyFrozenColumnsStyles(cell.Column!)?.ToLower(CultureInfo.CurrentCulture)!;
+            string style = GridUtils.EnsureUniqueStyles(StyleText, frozenStyle);
+            if (!string.IsNullOrEmpty(style))
+                builder.AddAttribute(seq++, "data-sf-style", style);
 
             // Click handler
             builder.AddAttribute(seq++, "onclick", EventCallback.Factory.Create<MouseEventArgs>(this, async (e) =>
@@ -180,12 +185,14 @@ namespace Syncfusion.Blazor.Grids.Internal
             builder.OpenElement(seq++, "td");
             builder.AddAttribute(seq++, "class", classNames);
             builder.AddAttribute(seq++, "role", "gridcell");
-            builder.AddAttribute(seq++, "tabindex", cell.TabIndex);
+            builder.AddAttribute(seq++, "tabindex", cell.TabIndex.ToString(CultureInfo.InvariantCulture));
             builder.AddAttribute(seq++, "aria-label", ariaLabel);
             builder.AddAttribute(seq++, "data-uid", cell.Uid);
 
-            if (!string.IsNullOrEmpty(StyleText))
-                builder.AddAttribute(seq++, "data-sf-style", StyleText);
+            string frozenStyle = Parent!.FreezeModule!.ApplyFrozenColumnsStyles(cell.Column!)?.ToLower(CultureInfo.CurrentCulture)!;
+            string style = GridUtils.EnsureUniqueStyles(StyleText, frozenStyle);
+            if (!string.IsNullOrEmpty(style))
+                builder.AddAttribute(seq++, "data-sf-style", style);
 
             // Click handler
             builder.AddAttribute(seq++, "onclick", EventCallback.Factory.Create<MouseEventArgs>(this, async (e) =>
@@ -236,8 +243,8 @@ namespace Syncfusion.Blazor.Grids.Internal
             // Extract grouped data
             
             var groupedData = (row?.Data as Group<TRow>);
-            context.Key = groupedData?.Key.ToString();
-            context.Field = groupedData?.Field.ToString();
+            context.Key = groupedData?.Key?.ToString();
+            context.Field = groupedData?.Field?.ToString();
 
             // Get column and handle foreign key
             if (!string.IsNullOrEmpty(context.Field))

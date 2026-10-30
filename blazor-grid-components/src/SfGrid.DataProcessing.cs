@@ -1,4 +1,4 @@
-﻿using Microsoft.AspNetCore.Components;
+using Microsoft.AspNetCore.Components;
 using Syncfusion.Blazor.Data;
 using Syncfusion.Blazor.Grids.Internal;
 using Syncfusion.Blazor.Internal;
@@ -57,7 +57,7 @@ namespace Syncfusion.Blazor.Grids
                 {
                     return;
                 }
-                if (IsFirstEventRender && DataSource == null && SfBaseUtils.IsObservableCollection(CurrentViewData))
+                if (IsFirstEventRender && DataSource == null && SfBaseUtils.IsObservableCollection(CurrentViewData!))
                 {
                     ((INotifyCollectionChanged)CurrentViewData!).CollectionChanged += CollectionChangedMethod!;
                     IsFirstEventRender = false;
@@ -68,7 +68,7 @@ namespace Syncfusion.Blazor.Grids
                     IsAdd = false;
                 }
 
-                AddOrDeleteArgs = (actionArgs != null || eventArgs != null) && ((actionArgs!.RequestType == Action.Save || requestType == "Save") || (actionArgs.RequestType == Action.Delete || requestType == "Delete")) ? actionArgs : null;
+                AddOrDeleteArgs = (actionArgs != null || eventArgs != null) && actionArgs != null && ((actionArgs.RequestType == Action.Save || requestType == "Save") || (actionArgs.RequestType == Action.Delete || requestType == "Delete")) ? actionArgs : null;
                 await CallStateHasChangedAsync().ConfigureAwait(true);
                 SelectionModule?.UpdateSelectionAfterDataProcess();
                 if (actionArgs != null || eventArgs != null)
@@ -86,7 +86,7 @@ namespace Syncfusion.Blazor.Grids
 #pragma warning restore BL0005 // Component parameter should not be set outside of its component.
                     }
                     if (actionArgs != null) actionArgs.Type = "ActionComplete";
-                    await SfBaseUtils.InvokeEvent<ActionEventArgs<TValue>>(GridEvents?.OnActionComplete, actionArgs!).ConfigureAwait(true);
+                    await SfBaseUtils.InvokeEvent<ActionEventArgs<TValue>>(GridEvents?.OnActionComplete!, actionArgs!).ConfigureAwait(true);
                     await EventAggregator.NotifyAsync("ActionComplete", actionArgs!).ConfigureAwait(true);
                     await InvokeDataProcessCompletionEvents(requestType, eventArgs).ConfigureAwait(true);
                     await NotifyFilteringStateChange(requestType).ConfigureAwait(true);
@@ -135,8 +135,8 @@ namespace Syncfusion.Blazor.Grids
             {
                 action = new ActionArgs
                 {
-                    VirtualStartIndex = DataSource != null && DataSource is INotifyPropertyChanged ? VirtualScrollModule!.RowStartIndex : 0,
-                    VirtualEndIndex = DataSource != null && DataSource is INotifyPropertyChanged ? VirtualScrollModule!.RowEndIndex : 0
+                    VirtualStartIndex = DataSource != null && DataSource is INotifyPropertyChanged && VirtualScrollModule != null ? VirtualScrollModule.RowStartIndex : 0,
+                    VirtualEndIndex = DataSource != null && DataSource is INotifyPropertyChanged && VirtualScrollModule != null ? VirtualScrollModule.RowEndIndex : 0
                 };
             }
 
@@ -155,12 +155,15 @@ namespace Syncfusion.Blazor.Grids
                 }
                 if (EnableVirtualization && Reset && VirtualScrollModule != null)
                 {
-                    VirtualScrollModule.QueriedCurrentViewData = (IEnumerable<object>)((DataResult)Data!).Result;
+                    if (Data is DataResult dataResultReset)
+                    {
+                        VirtualScrollModule.QueriedCurrentViewData = (IEnumerable<object>?)dataResultReset.Result;
+                    }
                 }
             }
             else
             {
-                if (EnableVirtualization && (actionArgs != null || actionEventArgs != null) && ((actionArgs!.RequestType == Action.RowDragAndDrop || requestType == "RowDragAndDrop") || (actionArgs.RequestType == Action.Sorting || requestType == "Sorting")
+                if (EnableVirtualization && (actionArgs != null || actionEventArgs != null) && actionArgs != null && ((actionArgs.RequestType == Action.RowDragAndDrop || requestType == "RowDragAndDrop") || (actionArgs.RequestType == Action.Sorting || requestType == "Sorting")
                     || (VirtualScrollModule != null && VirtualScrollModule.RefreshByMethod) || (IsRenderedFromTreeGrid && VirtualScrollModule != null && !VirtualScrollModule.RefreshByMethod && (DataSource?.GetType() == typeof(ObservableCollection<TValue>))) || (EditSettings != null && !EditSettings.Mode.Equals(EditMode.Batch) &&
                     (actionArgs.Action == "Edit" || actionArgs.Action == "Add" || (actionEventArgs is RowUpdatingEventArgs<TValue> savingEventArgs) || (actionArgs.RequestType.Equals(Action.Delete) || requestType == "Delete")))))
                 {
@@ -177,10 +180,11 @@ namespace Syncfusion.Blazor.Grids
                     int gridPageSize = (totalItemCount) < PageSettings.PageSize ? totalItemCount : PageSettings.PageSize;
                     VirtualScrollModule.RowStartIndex = action.VirtualStartIndex = VirtualScrollModule.RowEndIndex - gridPageSize;
                 }
-                QueryStartIndexes = await (VirtualScrollModule?.GenerateQueryAndSetQueryIndex(query, foreignKeyHandle, isForeignKeyAction, (int)action.VirtualStartIndex, (int)action.VirtualEndIndex, saveAction: requestType == "Save" || requestType == "Delete"))!.ConfigureAwait(true)!;
-                ReactiveAggregateModule?.UpdateAggregateFromDataResult((DataResult)Data!, IsEmptyGrid);
-                TotalItemCount = ((DataResult)Data!).Count;
-                CurrentFilteredRecords = IsEmptyGrid ? null : ((DataResult)Data).FilteredRecords?.Cast<TValue>().ToList();
+                QueryStartIndexes = await (VirtualScrollModule?.GenerateQueryAndSetQueryIndex(query, foreignKeyHandle, isForeignKeyAction, (int)action.VirtualStartIndex, (int)action.VirtualEndIndex, saveAction: requestType == "Save" || requestType == "Delete", requestType: actionArgs?.RequestType.ToString()!))!.ConfigureAwait(true)!;
+                var dataResultForAggregate = Data as DataResult;
+                ReactiveAggregateModule?.UpdateAggregateFromDataResult(dataResultForAggregate ?? new DataResult(), IsEmptyGrid);
+                TotalItemCount = dataResultForAggregate?.Count ?? 0;
+                CurrentFilteredRecords = IsEmptyGrid ? null : dataResultForAggregate?.FilteredRecords?.Cast<TValue>().ToList();
             }
             cancel = await VirtualScrollModule!.VirtualDataProcess(QueryStartIndexes, action, eventArgs!, requestType: actionArgs?.RequestType.ToString()!, query).ConfigureAwait(true);
             return cancel;
@@ -206,15 +210,16 @@ namespace Syncfusion.Blazor.Grids
             bool isFilteringOrClearFiltering = (actionArgs?.RequestType == Action.Filtering || actionArgs?.RequestType == Action.ClearFiltering) || (requestType != null && (requestType == "Filtering" || requestType == "ClearFiltering"));
             await TriggerGenerateAndExecuteQuery(action, isFilteringOrClearFiltering, isForeignKeyAction).ConfigureAwait(true);
 
-            if (EnableInfiniteScrolling && InfiniteScrollModule != null)
+            if (EnableInfiniteScrolling && InfiniteScrollModule != null && Data is DataResult dataResultInfinite)
             {
-                InfiniteScrollModule.RefreshInfiniteCurrentViewData((IEnumerable<object>)((DataResult)Data!).Result);
+                InfiniteScrollModule.RefreshInfiniteCurrentViewData((IEnumerable<object>)(dataResultInfinite.Result ?? new List<object>()));
             }
 
-            CurrentViewData = IsEmptyGrid ? null! : (IEnumerable<object>)((DataResult)Data!).Result;
-            ReactiveAggregateModule?.UpdateAggregateFromDataResult((DataResult)Data!, IsEmptyGrid);
-            TotalItemCount = IsEmptyGrid ? 0 : ((DataResult)Data!).Count;
-            CurrentFilteredRecords = IsEmptyGrid ? null : ((DataResult)Data!).FilteredRecords?.Cast<TValue>().ToList();
+            var dataResult = Data as DataResult;
+            CurrentViewData = IsEmptyGrid ? null! : (IEnumerable<object>?)(dataResult?.Result ?? new List<object>());
+            ReactiveAggregateModule?.UpdateAggregateFromDataResult(dataResult ?? new DataResult(), IsEmptyGrid);
+            TotalItemCount = IsEmptyGrid ? 0 : dataResult?.Count ?? 0;
+            CurrentFilteredRecords = IsEmptyGrid ? null : dataResult?.FilteredRecords?.Cast<TValue>().ToList();
             
             await HandleSelectionPersistence(actionArgs, requestType, isDeleteAction).ConfigureAwait(true);
 
@@ -478,8 +483,9 @@ namespace Syncfusion.Blazor.Grids
         /// <returns>DataReady event arguments populated with query and data information.</returns>
         private async Task<DataReadyArgs<TValue>> SetupVirtualScrollData(ActionArgs action, ActionEventArgs<TValue>? actionArgs)
         {
-            var eventArgs = new DataReadyArgs<TValue>() { Data = (IEnumerable<object>)((DataResult)Data!).Result, Grid = this, Query = query, StartIndex = (int)action.VirtualStartIndex, EndIndex = (int)action.VirtualEndIndex };
-            EventAggregator.Trigger("DataReady", eventArgs);
+            var dataResult = Data as DataResult;
+            var eventArgs = new DataReadyArgs<TValue>() { Data = (IEnumerable<object>?)(dataResult?.Result ?? new List<object>()), Grid = this, Query = query, StartIndex = (int)action.VirtualStartIndex, EndIndex = (int)action.VirtualEndIndex };
+            EventAggregator?.Trigger("DataReady", eventArgs);
             
             CurrentViewData = eventArgs.Data;
             VirtualScrollModule!.QueriedCurrentViewData = CurrentViewData;
@@ -498,11 +504,11 @@ namespace Syncfusion.Blazor.Grids
         {
             if (actionArgs != null && actionArgs.RequestType.Equals(Action.RowDragAndDrop))
             {
-                VirtualScrollModule!.SetGeneratedData((int)VirtualScrollModule!.RowStartIndex, (int)VirtualScrollModule!.RowEndIndex, VirtualScrollModule.QueriedCurrentViewData);
+                VirtualScrollModule!.SetGeneratedData((int)VirtualScrollModule!.RowStartIndex, (int)VirtualScrollModule!.RowEndIndex, VirtualScrollModule.QueriedCurrentViewData!);
             }
             else
             {
-                VirtualScrollModule!.SetGeneratedData((int)action.VirtualStartIndex, (int)action.VirtualEndIndex, VirtualScrollModule.QueriedCurrentViewData);
+                VirtualScrollModule!.SetGeneratedData((int)action.VirtualStartIndex, (int)action.VirtualEndIndex, VirtualScrollModule.QueriedCurrentViewData!);
             }
         }
 
@@ -538,7 +544,7 @@ namespace Syncfusion.Blazor.Grids
         {
             if (actionArgs == null && (SearchSettings?.Key?.Length > 0 || FilterSettings?.Columns?.Count > 0 || Query?.Queries?.Where?.Count > 0) && SelectionSettings != null && SelectionSettings.PersistSelection && SelectionModule != null)
             {
-                var currentInitialAction = SearchSettings?.Key?.Length > 0 ? "Searching" : (FilterSettings?.Columns?.Count > 0 || Query?.Queries?.Where?.Count > 0) ? "Filtering" : "";
+                var currentInitialAction = (SearchSettings?.Key?.Length ?? 0) > 0 ? "Searching" : (FilterSettings?.Columns?.Count > 0 || Query?.Queries?.Where?.Count > 0) ? "Filtering" : "";
                 SelectionModule.GetCurrentFilterData(requestType: currentInitialAction);
             }
 
@@ -565,11 +571,11 @@ namespace Syncfusion.Blazor.Grids
         /// </summary>
         private async Task HandleCheckBoxPersistSelection(ActionEventArgs<TValue>? actionArgs)
         {
-            if (actionArgs != null && !((actionArgs.RequestType.Equals(Action.Filtering) || actionArgs.RequestType.Equals(Action.ClearFiltering)) && (DataManager.DataAdaptor.IsRemote() || DataManager.Adaptor == Adaptors.CustomAdaptor) && !Columns!.Any(x => x.Type == ColumnType.CheckBox)) && !actionArgs.RequestType.Equals(Action.Sorting))
+            if (actionArgs != null && !((actionArgs.RequestType.Equals(Action.Filtering) || actionArgs.RequestType.Equals(Action.ClearFiltering)) && (DataManager!.DataAdaptor!.IsRemote() || DataManager.Adaptor == Adaptors.CustomAdaptor) && !Columns!.Any(x => x.Type == ColumnType.CheckBox)) && !actionArgs.RequestType.Equals(Action.Sorting))
             {
                 if (SelectionModule != null)
                 {
-                    SelectionModule.HandleCheckBoxPersistSelection(actionArgs.RequestType, AllowFiltering, TotalItemCount, FilteredColumns);
+                    SelectionModule.HandleCheckBoxPersistSelection(actionArgs.RequestType, AllowFiltering, TotalItemCount, FilteredColumns!);
                 }
             }
         }
@@ -680,8 +686,7 @@ namespace Syncfusion.Blazor.Grids
                 var PersistSort = JsonSerializer.Deserialize<GridSortSettings>(PersistProp?["sortSettings"]?.ToString()!);
                 var PersistGroup = JsonSerializer.Deserialize<GridGroupSettings>(PersistProp?["groupSettings"]?.ToString()!);
                 var PersistSearch = JsonSerializer.Deserialize<GridSearchSettings>(PersistProp?["searchSettings"]?.ToString()!);
-
-                await RestoreColumnPersistence(columns, PersistColumns!, PersitAutoFit).ConfigureAwait(true);
+                await RestoreColumnPersistence(columns!, PersistColumns!, PersitAutoFit).ConfigureAwait(true);
                 await RestoreFilterColumnValues(PersistFilter).ConfigureAwait(true);
                 await RestoreSortGroupSearchSettings(PersistSort, PersistFilter, PersistGroup, PersistSearch).ConfigureAwait(true);
                 await RestorePagingSettings(PersistPage).ConfigureAwait(true);
@@ -693,7 +698,7 @@ namespace Syncfusion.Blazor.Grids
                 await HandleResetPersistData(isResetPersistData, PersistFilter, PersistColumns).ConfigureAwait(true);
                 if (EnableInfiniteScrolling)
                 {
-                    await PageSettings.UpdateProperties("CurrentPage", 1).ConfigureAwait(true);
+                    await PageSettings!.UpdateProperties("CurrentPage", 1).ConfigureAwait(true);
                 }
             }
             catch (Exception exception)
@@ -741,7 +746,7 @@ namespace Syncfusion.Blazor.Grids
             Columns = _columns = columns = columns!.OrderBy(a => PersistColumns?.Select(i => persistedInOldVersion ? i.Index : i.OriginalIndex).ToList().IndexOf(persistedInOldVersion ? a.Index : a.OriginalIndex)).ToList();
             List<GridColumn> gridForeignKeyColumns = new List<GridColumn>();
             SetValuesRecursively(columns, PersistColumns!);
-            await ApplyPersistedColumnProperties(columns, PersistColumns, persistedInOldVersion, gridForeignKeyColumns).ConfigureAwait(true);
+            await ApplyPersistedColumnProperties(columns, PersistColumns!, persistedInOldVersion, gridForeignKeyColumns).ConfigureAwait(true);
             if (PersitAutoFit == true)
             {
                 Columns.ForEach(col => col.IsPersistAutoFit = true);
@@ -764,14 +769,15 @@ namespace Syncfusion.Blazor.Grids
         /// </summary>
         private async Task RestoreIndividualColumnState(List<GridColumn> columns, List<GridColumn> PersistColumns, int index, bool persistedInOldVersion, List<GridColumn> gridForeignKeyColumns)
         {
-            var foreignKeyColumn = ForeignKey<TValue>.GetForeignKeyColumns(Columns)?.Where(x => x.Uid == columns[index].Uid)?.FirstOrDefault();
+            var foreignKeyColumn = ForeignKey<TValue>.GetForeignKeyColumnsAsync(Columns ?? new List<GridColumn>())?.Where(x => x.Uid == columns[index].Uid)?.FirstOrDefault();
 
             // Refactored foreign key duplicate check
             bool hasForeignKeyColumn = foreignKeyColumn != null;
             bool isDuplicateForeignkeyField = hasForeignKeyColumn && (gridForeignKeyColumns?.Any(x => x.Field == columns?[index]?.Field) ?? false);
 
             var foreignKeyColumnByIndex = PersistColumns?.FirstOrDefault(c => c.Index == columns[index].Index);
-            var Column = isDuplicateForeignkeyField ? foreignKeyColumnByIndex : PersistColumns?.FirstOrDefault(c => (!string.IsNullOrEmpty(c.Field) || SfGrid<TValue>.CheckColumnType(c, columns[index])) ? c.Field == columns[index].Field : c.Uid == columns[index].Uid) ?? columns[index];
+
+            var Column = isDuplicateForeignkeyField ? foreignKeyColumnByIndex : FindPersistedColumn(PersistColumns, columns, index) ?? columns[index];
 
             // Refactored column width changed check
             bool isWidthDifferent = (columns[index].Width?.ToUpperInvariant()) != Column?.Width?.ToUpperInvariant();
@@ -793,16 +799,16 @@ namespace Syncfusion.Blazor.Grids
 
             // Refactored stacked columns persistence check
             bool hasComplexColumns = PersistColumns != null && index < PersistColumns.Count;
-            bool hasPersistedChildren = hasComplexColumns && PersistColumns[index].Columns != null;
+            bool hasPersistedChildren = hasComplexColumns && PersistColumns?[index]?.Columns != null;
             bool hasCurrentChildren = hasComplexColumns && columns[index].Columns != null;
             bool shouldProcessComplexColumns = hasPersistedChildren && hasCurrentChildren;
 
             if (shouldProcessComplexColumns)
             {
-                for (int j = 0; j < PersistColumns[index].Columns?.Count && j < columns[index].Columns?.Count; j++)
+                for (int j = 0; j < PersistColumns?[index].Columns?.Count && j < columns[index].Columns?.Count; j++)
                 {
 #pragma warning disable BL0005
-                    Columns[index].Columns = _columns[index].Columns = columns[index].Columns = columns[index].Columns?.OrderBy(a => PersistColumns[index].Columns?.Select(i => persistedInOldVersion ? i.Index : i.OriginalIndex).ToList().IndexOf(persistedInOldVersion ? a.Index : a.OriginalIndex)).ToList();
+                    Columns![index].Columns = _columns![index].Columns = columns[index].Columns = columns[index].Columns?.OrderBy(a => PersistColumns[index].Columns?.Select(i => persistedInOldVersion ? i.Index : i.OriginalIndex).ToList().IndexOf(persistedInOldVersion ? a.Index : a.OriginalIndex)).ToList();
 #pragma warning restore BL0005
                 }
             }
@@ -815,7 +821,31 @@ namespace Syncfusion.Blazor.Grids
             columns[index].TableWidth = Column.TableWidth;
             columns[index].LeftFrozenTableWidth = Column.LeftFrozenTableWidth;
             columns[index].RightFrozenTableWidth = Column.RightFrozenTableWidth;
-            await Task.CompletedTask;
+            await Task.CompletedTask.ConfigureAwait(true);
+        }
+
+        private static GridColumn? FindPersistedColumn(List<GridColumn>? persistColumns, List<GridColumn> currentColumns, int index)
+        {
+            if (persistColumns == null || index < 0 || index >= currentColumns.Count)
+            {
+                return null;
+            }
+            var currentColumn = currentColumns[index];
+
+            return persistColumns.FirstOrDefault(c =>
+            {
+                if (SfGrid<TValue>.CheckColumnType(c, currentColumn))
+                {
+                    return c.Uid == currentColumn.Uid;
+                }
+
+                if (!string.IsNullOrEmpty(c.Field))
+                {
+                    return c.Field == currentColumn.Field;
+                }
+
+                return c.Uid == currentColumn.Uid;
+            });
         }
 
         /// <summary>
@@ -825,7 +855,7 @@ namespace Syncfusion.Blazor.Grids
         {
             if (PersistFilter != null && PersistFilter.Columns != null)
             {
-                for (int i = 0; i < PersistFilter!.Columns?.Count; i++)
+                for (int i = 0; i < PersistFilter.Columns.Count; i++)
                 {
                     await ConvertFilterValue(PersistFilter, i).ConfigureAwait(true);
                 }
@@ -837,15 +867,15 @@ namespace Syncfusion.Blazor.Grids
         /// </summary>
         private async Task ConvertFilterValue(GridFilterSettings? PersistFilter, int columnIndex)
         {
-            var filteredValue = PersistFilter?.Columns[columnIndex].Value;
+            var filteredValue = PersistFilter?.Columns?[columnIndex].Value;
 
             // Refactored filter value type check
             bool isJsonElementValue = filteredValue is JsonElement;
 
             if (isJsonElementValue)
             {
-                var column = IsStackedHeader ? GridUtils.GetColumnByFColUidOrField(PersistFilter?.Columns[columnIndex].Uid!, Columns, true) : Columns.Find(col => col.Field == PersistFilter?.Columns[columnIndex].Field);
-                string? value = filteredValue.ToString();
+                var column = IsStackedHeader ? GridUtils.GetColumnByFColUidOrField(PersistFilter?.Columns?[columnIndex].Uid!, Columns!, true) : Columns!.Find(col => col.Field == PersistFilter?.Columns?[columnIndex].Field);
+                string? value = filteredValue?.ToString();
 
                 // Refactored number column detection
                 double result = 0;
@@ -855,7 +885,7 @@ namespace Syncfusion.Blazor.Grids
                 if (isNumberColumnWithValidParse)
                 {
 #pragma warning disable BL0005
-                    if (PersistFilter?.Columns[columnIndex] != null) PersistFilter.Columns[columnIndex]!.Value = result;
+                    if (PersistFilter?.Columns?[columnIndex] != null) PersistFilter.Columns[columnIndex]!.Value = result;
                     if (PersistFilter?.Columns?[columnIndex] != null) PersistFilter.Columns[columnIndex]!.ActualValue = result;
 #pragma warning restore BL0005
                 }
@@ -866,11 +896,11 @@ namespace Syncfusion.Blazor.Grids
                 if (isDateTimeColumn)
                 {
 #pragma warning disable BL0005
-                    if (PersistFilter?.Columns[columnIndex] != null) PersistFilter.Columns[columnIndex]!.ColumnType = Filter<TValue>.GetColumnType(column.Type)!;
+                    if (PersistFilter?.Columns?[columnIndex] != null) PersistFilter.Columns[columnIndex]!.ColumnType = Filter<TValue>.GetColumnType(column?.Type)!;
 #pragma warning restore BL0005
                 }
             }
-            await Task.CompletedTask;
+            await Task.CompletedTask.ConfigureAwait(true);
         }
 
         /// <summary>
@@ -924,7 +954,7 @@ namespace Syncfusion.Blazor.Grids
 
                 if (hasMediaColumns)
                 {
-                    foreach (var col in MediaColumns)
+                    foreach (var col in MediaColumns!)
                     {
                         _mediaColumnsUid.AddOrUpdateItem(col.Uid, col.Visible);
                     }
@@ -1020,9 +1050,26 @@ namespace Syncfusion.Blazor.Grids
             {
                 query = await GenerateQuery(query, VirtualStartIndex, VirtualEndIndex).ConfigureAwait(true);
             }
+            // Event-driven data source: check if consumer registered OnLoadData event
+            if (GridEvents?.OnDataLoad.HasDelegate == true)
+            {
+                // Invoke event and let consumer populate Result, Count, AggregatesResult
+                var eventArgs = await EventDrivenDataHandler<TValue>.InvokeDataRequestAsync(query).ConfigureAwait(true);
+                await InvokeAsync(() => GridEvents.OnDataLoad.InvokeAsync(eventArgs)).ConfigureAwait(true);
 
-            Data = await DataManager.ExecuteQuery<TValue>(query!).ConfigureAwait(true);
-
+                // Wrap consumer response in DataResult (non-generic version)
+                Data = query.Queries.RequiresCounts == true ? new DataResult
+                {
+                    Result = eventArgs!.Result != null ? eventArgs.Result : new List<object>(),
+                    Count = eventArgs.Count,
+                    Aggregates = eventArgs.AggregatesResult,
+                } : eventArgs?.Result != null ? eventArgs.Result : new List<object>();
+            }
+            else
+            {
+                // Traditional DataManager-based flow
+                Data = await DataManager!.ExecuteQuery<TValue>(query!).ConfigureAwait(true);
+            }
             await ProcessGroupedData(action).ConfigureAwait(true);
 
             await WrapCustomAdaptorData(query).ConfigureAwait(true);
@@ -1038,7 +1085,7 @@ namespace Syncfusion.Blazor.Grids
         /// </summary>
         private async Task<Query> GenerateQuery(Query query, int VirtualStartIndex, int VirtualEndIndex)
         {
-            if (IsRenderedFromTreeGrid && !(DataManager.DataAdaptor.IsRemote() || DataManager.Adaptor.Equals(Adaptors.CustomAdaptor)))
+            if (IsRenderedFromTreeGrid && !(DataManager!.DataAdaptor!.IsRemote() || DataManager!.Adaptor.Equals(Adaptors.CustomAdaptor)))
             {
                 var updateArgs = new QueryArgs(
                     Query: query,
@@ -1066,7 +1113,7 @@ namespace Syncfusion.Blazor.Grids
             if (AllowGrouping && EnableVirtualization && GroupSettings != null && !GroupSettings.EnableLazyLoading && GroupSettings.Columns != null && GroupSettings.Columns.Length > 0 && action != null && action.RequestType != "virtualscroll")
             {
                 VirtualScrollModule!.SetCurrentGroupedData();
-                VisibleGroupedDataCount = Grouping<TValue>.GetVisibleGroupeddataCountInternal(VirtualScrollModule.CurrentGroupedData, GroupStates, GroupSettings.PersistGroupState, VirtualScrollModule.CurrentGroupedDataCaptionRowMap);
+                VisibleGroupedDataCount = Grouping<TValue>.GetVisibleGroupeddataCountInternal(VirtualScrollModule.CurrentGroupedData!, GroupStates, GroupSettings.PersistGroupState, VirtualScrollModule.CurrentGroupedDataCaptionRowMap);
             }
         }
 
@@ -1075,9 +1122,9 @@ namespace Syncfusion.Blazor.Grids
         /// </summary>
         private async Task WrapCustomAdaptorData(Query query)
         {
-            if (DataManager.Adaptor.Equals(Adaptors.CustomAdaptor) && !query.Queries.RequiresCounts)
+            if (DataManager!.Adaptor.Equals(Adaptors.CustomAdaptor) && !query.Queries.RequiresCounts)
             {
-                Data = new DataResult { Result = (IEnumerable)Data };
+                Data = new DataResult { Result = (IEnumerable?)Data };
             }
         }
 
@@ -1087,9 +1134,10 @@ namespace Syncfusion.Blazor.Grids
         /// </summary>
         private async Task ProcessForeignKeyData(bool isForeignKeyAction, bool foreginKeyFilter, bool preventForeign)
         {
-            if ((Data as DataResult)?.Result != null && ForeignKey<TValue>.GetForeignKeyColumns(Columns!).Count > 0 && (!isForeignKeyAction || !string.IsNullOrEmpty(SearchSettings?.Key) || foreginKeyFilter) && !preventForeign)
+            var dataResult = Data as DataResult;
+            if (dataResult?.Result != null && ForeignKey<TValue>.GetForeignKeyColumnsAsync(Columns!).Count > 0 && (!isForeignKeyAction || !string.IsNullOrEmpty(SearchSettings?.Key) || foreginKeyFilter) && !preventForeign)
             {
-                await ForeignKeyModule!.GetForeignKeyData<TValue>((Data as DataResult)!.Result, isFiltered: foreginKeyFilter).ConfigureAwait(true);
+                await ForeignKeyModule!.GetForeignKeyData<TValue>(dataResult.Result!, isFiltered: foreginKeyFilter).ConfigureAwait(true);
             }
         }
 
@@ -1098,9 +1146,10 @@ namespace Syncfusion.Blazor.Grids
         /// </summary>
         private void EnsureDataResultIsNotNull()
         {
-            if ((Data as DataResult)?.Result == null)
+            var dataResult = Data as DataResult;
+            if (dataResult != null && dataResult.Result == null)
             {
-                (Data as DataResult)!.Result = new List<object>();
+                dataResult.Result = new List<object>();
             }
         }
 

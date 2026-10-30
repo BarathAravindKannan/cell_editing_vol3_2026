@@ -119,6 +119,45 @@ namespace Syncfusion.Blazor.Grids
         private bool _allowSearching { get; set; }
 
         /// <summary>
+        /// Gets or sets a value indicating whether the column participates in the Find and Highlight feature.
+        /// </summary>
+        /// <value>
+        /// <c>true</c> if matches in the column are included in Find and Highlight operations; otherwise, <c>false</c>.
+        /// The default value is <c>true</c>.
+        /// </value>
+        /// <remarks>
+        /// <para>
+        /// This property applies only when the Find and Highlight feature is enabled by including the
+        /// <c>Find</c> toolbar item in the grid <see cref="SfGrid{TValue}.Toolbar"/> configuration.
+        /// </para>
+        /// <para>
+        /// When set to <c>false</c>, matches in this column are excluded from highlighting, match counting,
+        /// and active-match navigation.
+        /// </para>
+        /// <para>
+        /// This property is independent of <see cref="AllowSearching"/>. The <see cref="AllowSearching"/> 
+        /// property controls participation in the grid search operation, whereas <see cref="GridColumn.AllowSearchHighlight"/>
+        /// controls participation in the Find and Highlight feature.
+        /// </para>
+        /// </remarks>
+        /// <example>
+        /// <code><![CDATA[
+        /// <SfGrid Toolbar="@(new List<string> { "Find" })" DataSource="@Orders">
+        ///     <GridColumns>
+        ///         <GridColumn Field="@nameof(Order.OrderID)" />
+        ///         <GridColumn Field="@nameof(Order.Notes)" AllowSearchHighlight="false" />
+        ///     </GridColumns>
+        /// </SfGrid>
+        /// ]]></code>
+        /// </example>
+        [Parameter]
+        [DefaultValue(true)]
+        [JsonIgnore]
+        public bool AllowSearchHighlight { get; set; } = true;
+
+        private bool _allowSearchHighlight { get; set; }
+
+        /// <summary>
         /// If AllowSorting set to false, then it disables sorting option of a particular column.
         /// By default all columns are sortable.
         /// </summary>
@@ -1013,6 +1052,7 @@ namespace Syncfusion.Blazor.Grids
             _allowReordering = AllowReordering;
             _allowResizing = AllowResizing;
             _allowSearching = AllowSearching;
+            _allowSearchHighlight = AllowSearchHighlight;
             _allowSorting = AllowSorting;
             _autoFit = AutoFit;
             _clipMode = ClipMode;
@@ -1076,7 +1116,7 @@ namespace Syncfusion.Blazor.Grids
             }
         }
 
-        private string[] _changeableProps = new string[] { "Visible", "HeaderText", "DataSource", "ForeignDataSource","Width", "IsFrozen", "Freeze", "ClipMode", "FixedColumn", "AutoSpan" };
+        private string[] _changeableProps = new string[] { "Visible", "HeaderText", "DataSource", "ForeignDataSource","Width", "IsFrozen", "Freeze", "ClipMode", "FixedColumn", "AutoSpan", "AllowSearchHighlight" };
 
         /// <summary>
         /// Handles parameter updates and synchronizes property values when component parameters are set.
@@ -1090,6 +1130,7 @@ namespace Syncfusion.Blazor.Grids
             AllowReordering = _allowReordering = await UpdateProperty(nameof(AllowReordering), AllowReordering, _allowReordering).ConfigureAwait(true);
             AllowResizing = _allowResizing = await UpdateProperty(nameof(AllowResizing), AllowResizing, _allowResizing).ConfigureAwait(true);
             AllowSearching = _allowSearching = await UpdateProperty(nameof(AllowSearching), AllowSearching, _allowSearching).ConfigureAwait(true);
+            AllowSearchHighlight = _allowSearchHighlight = await UpdateProperty(nameof(AllowSearchHighlight), AllowSearchHighlight, _allowSearchHighlight).ConfigureAwait(true);
             AllowSorting = _allowSorting = await UpdateProperty(nameof(AllowSorting), AllowSorting, _allowSorting).ConfigureAwait(true);
             AutoFit = _autoFit = await UpdateProperty(nameof(AutoFit), AutoFit, _autoFit).ConfigureAwait(true);
             ClipMode = _clipMode = await UpdateProperty(nameof(ClipMode), ClipMode, _clipMode).ConfigureAwait(true);

@@ -14,7 +14,7 @@ namespace Syncfusion.Blazor.Grids.Internal
         private static readonly object _telemetrySync = new object();
 
         // Memoization flag for Telemetry.Telemetry.Configure / assembly-name capture.
-        private static bool _telemetryConfigured = false;
+        private static bool _telemetryConfigured ;
 
         private static string _assemblyName = string.Empty;
 
@@ -53,13 +53,13 @@ namespace Syncfusion.Blazor.Grids.Internal
                 {
                     AssemblyName = _assemblyName,
                     SdkVersion = _sdkVersion,
-                    SdkName = "Grid SDK"
+                    SdkName = "GridSDK" 
                 };
 
-                //if (isfeature)
-                //    Telemetry.Telemetry.TrackFeature(name, ComponentName.GridBlazor, options);
-                //else
-                //    Telemetry.Telemetry.TrackComponent(ComponentName.GridBlazor, options);
+                if (isfeature)
+                    Telemetry.Telemetry.TrackFeature(name, ComponentName.GridBlazor, options);
+                else
+                    Telemetry.Telemetry.TrackComponent(ComponentName.GridBlazor, options);
             }
         }
     }

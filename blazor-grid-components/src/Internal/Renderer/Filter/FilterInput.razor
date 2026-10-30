@@ -381,7 +381,7 @@
                         FilterInputParameters.FilterValue = MetadataExtension.GetDisplayName(enumValue);
                     }
                 }
-                string? Val = FilterInputParameters.FilterValue == null || string.IsNullOrEmpty(FilterInputParameters.FilterValue.ToString()) ? null : FilterInputParameters.Column?.Format != null && (FilterInputParameters.Column?.Type == ColumnType.DateOnly) ? Parent?.FilterModule!.ConvertToDesiredDateFormat(FilterInputParameters.FilterValue.ToString()!, FilterInputParameters.Column?.Format!, FilterInputParameters.Column!.Type, false) : FilterInputParameters.FilterValue.ToString();
+                string? Val = FilterInputParameters.FilterValue == null || string.IsNullOrEmpty(FilterInputParameters.FilterValue.ToString()) ? null : FilterInputParameters.Column?.Format != null && (FilterInputParameters.Column?.Type == ColumnType.DateOnly) ? Filter<TContent>.ConvertToDesiredDateFormat(FilterInputParameters.FilterValue.ToString()!, FilterInputParameters.Column?.Format!, FilterInputParameters.Column!.Type, false) : FilterInputParameters.FilterValue.ToString();
                 <span class="e-input-group e-control-container e-control-wrapper @InputFocus">
                     <input id="@($"{FilterInputParameters.Column?.Field}_filterBarcell")" @attributes="GetHtmlAttributes(Title!, FilterInputParameters.Column!)" autocomplete="on" type="search" class="e-control e-textbox e-lib e-input" @key="FilterInputParameters.Column?.Uid" value="@Val" @oninput="@((e) => UpdateValue(e))" @onkeydown="@((KeyboardEventArgs args) => KeyDownHandler(args, FilterInputParameters.Column!))" @onblur="@OnBlur" @onfocus="@OnFocus" name="@($"{FilterInputParameters.Column?.Field}_filterBarcell")" role="searchbox" aria-disabled=false tabindex=0 aria-label="@($"{FilterInputParameters.Column?.Field}_{Parent?.Localizer?.GetText(GridLocaleKeys.FilterBar)}")">
                     @if (FilterInputParameters.Column?.FilterClearIcon == "e-clear-icon")
@@ -458,7 +458,6 @@
     private string StringInputValue { get; set; } = string.Empty;
     private List<BooleanOption> BooleanOptions { get; set; } = new();
     private bool _userInitiatedClear = false;
-    private bool _isOperatorIconClicked = false;
     private bool _isDeviceMode = false;
     private int _invalidInputCalendarRefreshKey = 0;
 
@@ -784,7 +783,7 @@
             IsInputEventTriggered = false;
             if (!string.IsNullOrEmpty(Parent?.FilterModule?.FilteredValue))
             {
-                string formattedFilterValue = column?.Format != null && (column?.Type == ColumnType.Date || column?.Type == ColumnType.DateTime || column?.Type == ColumnType.DateOnly) ? Parent.FilterModule.ConvertToDesiredDateFormat(Parent.FilterModule.FilteredValue, column.Format, column.Type) : Parent.FilterModule.FilteredValue;
+                string formattedFilterValue = column?.Format != null && (column?.Type == ColumnType.Date || column?.Type == ColumnType.DateTime || column?.Type == ColumnType.DateOnly) ? Filter<TContent>.ConvertToDesiredDateFormat(Parent.FilterModule.FilteredValue, column.Format, column.Type) : Parent.FilterModule.FilteredValue;
                 value = Parent.FilterModule!.GetActualFilterValue(column!, formattedFilterValue);
                 string operatorStr = !string.IsNullOrEmpty(Parent.FilterModule.FilterOperatorProperty) ? Parent.FilterModule.FilterOperatorProperty : FilterOperator!;
                 await Parent?.FilterModule?.FilterByColumn(column?.Field!, Filter<TContent>.GetOperator(operatorStr), value!, null!, Parent.FilterSettings!.EnableCaseSensitivity, Parent.FilterSettings.IgnoreAccent, null, null, column?.Uid, Parent.FilterModule.RawInputValue)!;
@@ -927,8 +926,6 @@
     private void OnIconMouseDown(MouseEventArgs args)
     {
         _wasOpenOnMouseDown = IsOperatorDropdownOpen;
-        // Set flag to prevent OnInputBlur from triggering filter when clicking operator icon
-        _isOperatorIconClicked = true;
         // Stop any pending timer to prevent filter from being applied after the click
         StopTimer();
     }
@@ -957,8 +954,6 @@
 
     private async Task OnIconKeyDown(KeyboardEventArgs args)
     {
-        // Set flag to prevent OnInputBlur from triggering filter when interacting with operator icon
-        _isOperatorIconClicked = true;
         // Stop any pending timer to prevent filter from being applied after the interaction
         StopTimer();
 
@@ -1367,7 +1362,7 @@
                 }
                 else
                 {
-                    string formattedFilterValue = column?.Format != null && (column?.Type == ColumnType.Date || column?.Type == ColumnType.DateTime || column?.Type == ColumnType.DateOnly) ? Parent?.FilterModule!.ConvertToDesiredDateFormat(FilteredValue, column.Format, column.Type)! : FilteredValue;
+                    string formattedFilterValue = column?.Format != null && (column?.Type == ColumnType.Date || column?.Type == ColumnType.DateTime || column?.Type == ColumnType.DateOnly) ? Filter<TContent>.ConvertToDesiredDateFormat(FilteredValue, column.Format, column.Type)! : FilteredValue;
                     value = Parent!.FilterModule!.GetActualFilterValue(column!, formattedFilterValue);
                 }
 

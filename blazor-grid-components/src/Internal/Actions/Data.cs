@@ -1,11 +1,11 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
-using System.Linq;
-using Syncfusion.Blazor.Data;
-using System.Threading.Tasks;
-using Syncfusion.Blazor.Internal;
 using System.Globalization;
+using System.Linq;
 using System.Reflection;
+using System.Threading.Tasks;
+using Syncfusion.Blazor.Data;
+using Syncfusion.Blazor.Internal;
 
 namespace Syncfusion.Blazor.Grids.Internal
 {
@@ -50,7 +50,7 @@ namespace Syncfusion.Blazor.Grids.Internal
 
             SortQuery(query);
 
-            if ((Parent != null && Parent.AllowPaging && !Parent.GroupSettings!.EnableLazyLoading) || (Parent != null && Parent.AllowPaging && (Parent.GroupSettings!.EnableLazyLoading && (Parent.GroupSettings.Columns == null || Parent.GroupSettings.Columns.Length == 0))) || (Parent != null && Parent.EnableVirtualization && (Parent.GroupSettings!.Columns == null || Parent.GroupSettings.Columns.Length == 0)) || (Parent != null && Parent.EnableInfiniteScrolling && (Parent.GroupSettings?.Columns == null || Parent.GroupSettings.Columns.Length == 0)))
+            if ((Parent != null && Parent.AllowPaging && Parent.GroupSettings?.EnableLazyLoading != true) || (Parent != null && Parent.AllowPaging && (Parent.GroupSettings?.EnableLazyLoading == true && (Parent.GroupSettings.Columns == null || Parent.GroupSettings.Columns.Length == 0))) || (Parent != null && Parent.EnableVirtualization && (Parent.GroupSettings?.Columns == null || Parent.GroupSettings.Columns.Length == 0)) || (Parent != null && Parent.EnableInfiniteScrolling && (Parent.GroupSettings?.Columns == null || Parent.GroupSettings.Columns.Length == 0)))
             {
                 if (Parent.EnableInfiniteScrolling && !skipPage && Parent.InfiniteScrollModule != null)
                 {
@@ -74,7 +74,7 @@ namespace Syncfusion.Blazor.Grids.Internal
             var settings = Parent.SearchSettings;
             if (settings != null && settings.Key?.Length > 0)
             {
-                var foreignColumns = ForeignKey<T>.GetForeignKeyColumns(Parent.Columns!);
+                var foreignColumns = ForeignKey<T>.GetForeignKeyColumnsAsync(Parent.Columns!);
                 foreignColumns = foreignColumns.Where(column => (column.Visible || (!column.Visible && Parent.GroupSettings?.Columns != null && Parent.GroupSettings.Columns.Contains(column.Field)))).ToList();
                 var fields = settings.Fields?.Length > 0 ? settings.Fields.ToList() :
                    _flattenedColumns?.Where(column => column.AllowSearching && !string.IsNullOrEmpty(column.Field) && (column.Visible || (!column.Visible && Parent.GroupSettings?.Columns != null && Parent.GroupSettings.Columns.Contains(column.Field))))
@@ -83,7 +83,9 @@ namespace Syncfusion.Blazor.Grids.Internal
                 if (foreignColumns != null && foreignColumns.Count > 0)
                 {
                     List<WhereFilter> finalPredicateList = new List<WhereFilter>();
-                    var columnData = (foreignColumns[0].ColumnData as IEnumerable<object>)?.Count();
+                    // Safe: Use FirstOrDefault to avoid out-of-range access
+                    var firstForeignColumn = foreignColumns.FirstOrDefault();
+                    var columnData = firstForeignColumn != null ? (firstForeignColumn.ColumnData as IEnumerable<object>)?.Count() : 0;
                     var gridColumns = Parent.Columns;
                     WhereFilter filters = new WhereFilter();
                     if (Parent.DataManager!.Adaptor == Adaptors.ODataV4Adaptor || Parent.DataManager.Adaptor == Adaptors.ODataV4Adaptor)
@@ -99,16 +101,19 @@ namespace Syncfusion.Blazor.Grids.Internal
                     else
                     {
                         List<WhereFilter> Predicates = new List<WhereFilter>();
-                        for (int i = 0; i < fields?.Count; i++)
+                        if (fields?.Count > 0)
                         {
-                            Predicates.Add(new WhereFilter()
+                            for (int i = 0; i < fields.Count; i++)
                             {
-                                Field = fields[i],
-                                Operator = "contains",
-                                value = Parent.SearchSettings!.Key,
-                                IgnoreCase = Parent.SearchSettings.IgnoreCase,
-                                IgnoreAccent = Parent.SearchSettings.IgnoreAccent
-                            });
+                                Predicates.Add(new WhereFilter()
+                                {
+                                    Field = fields[i],
+                                    Operator = "contains",
+                                    value = Parent.SearchSettings!.Key,
+                                    IgnoreCase = Parent.SearchSettings.IgnoreCase,
+                                    IgnoreAccent = Parent.SearchSettings.IgnoreAccent
+                                });
+                            }
                         }
 
                         finalPredicateList.Add(WhereFilter.Or(Predicates));
@@ -119,7 +124,7 @@ namespace Syncfusion.Blazor.Grids.Internal
                 else
                 {
                     // TODO: Foreign key search handling: TsLine: Data.ts->221
-                    query.Search(settings.Key, fields, settings.Operator.ToString().ToLower(System.Globalization.CultureInfo.CurrentCulture), settings.IgnoreCase, settings.IgnoreAccent);
+                    query.Search(settings.Key, fields ?? new List<string>(), settings.Operator.ToString().ToLower(System.Globalization.CultureInfo.CurrentCulture), settings.IgnoreCase, settings.IgnoreAccent);
                 }
             }
         }
@@ -134,7 +139,7 @@ namespace Syncfusion.Blazor.Grids.Internal
                     {
                         foreach (var type in types)
                         {
-                            query.Aggregates(column.Field, type.ToString());
+                            query.Aggregates(column.Field!, type.ToString());
                         }
                     }
                 }));
@@ -181,13 +186,13 @@ namespace Syncfusion.Blazor.Grids.Internal
                         object? comparer = null;
                         if (comp != null && comp.Count > 0 && comp[0].ForeignKeySorting != null)
                         {
-                            comparer = (!(Parent.DataManager.DataAdaptor.IsRemote()) && Parent.DataSource != null && !(Parent.DataSource.GetType().Name.Contains("DbSet", StringComparison.Ordinal))) ? comp[0].ForeignKeySorting : null!;
+                            comparer = (!(Parent.DataManager!.DataAdaptor!.IsRemote()) && Parent.DataSource != null && !(Parent.DataSource.GetType().Name.Contains("DbSet", StringComparison.Ordinal))) ? comp[0].ForeignKeySorting : null!;
                         }
                         else
                         {
-                            comparer = (comp?.Count > 0 && !(Parent.DataManager.DataAdaptor.IsRemote()) && Parent.DataSource != null && !(Parent.DataSource.GetType().Name.Contains("DbSet", StringComparison.Ordinal))) ? comp[0].SortComparer : null!;
+                            comparer = (comp?.Count > 0 && !(Parent.DataManager!.DataAdaptor!.IsRemote()) && Parent.DataSource != null && !(Parent.DataSource.GetType().Name.Contains("DbSet", StringComparison.Ordinal))) ? comp[0].SortComparer : null!;
                         }
-                        query.Sort(field, dir.ToString().ToLower(System.Globalization.CultureInfo.CurrentCulture), comparer);
+                        query.Sort(field, dir.ToString().ToLower(System.Globalization.CultureInfo.CurrentCulture), comparer!);
                     }
                 }
 
@@ -196,13 +201,13 @@ namespace Syncfusion.Blazor.Grids.Internal
                     object? comparer = null;
                     if (comp != null && comp.Count > 0 && comp[0].ForeignKeySorting != null)
                     {
-                        comparer = (!(Parent.DataManager.DataAdaptor.IsRemote()) && Parent.DataSource != null && !(Parent.DataSource.GetType().Name.Contains("DbSet", StringComparison.Ordinal))) ? comp[0].ForeignKeySorting : null!;
+                        comparer = (!(Parent.DataManager!.DataAdaptor!.IsRemote()) && Parent.DataSource != null && !(Parent.DataSource.GetType().Name.Contains("DbSet", StringComparison.Ordinal))) ? comp[0].ForeignKeySorting : null!;
                     }
                     else
                     {
-                        comparer = (comp != null && comp.Count > 0 && !(Parent.DataManager.DataAdaptor.IsRemote()) && Parent.DataSource != null && !(Parent.DataSource.GetType().Name.Contains("DbSet", StringComparison.Ordinal))) ? comp[0].SortComparer : null!;
+                        comparer = (comp != null && comp.Count > 0 && !(Parent.DataManager!.DataAdaptor!.IsRemote()) && Parent.DataSource != null && !(Parent.DataSource.GetType().Name.Contains("DbSet", StringComparison.Ordinal))) ? comp[0].SortComparer : null!;
                     }
-                    query.Sort(sorts.Field, sorts.Direction.ToString().ToLower(System.Globalization.CultureInfo.CurrentCulture), comparer);
+                    query.Sort(sorts.Field, sorts.Direction.ToString().ToLower(System.Globalization.CultureInfo.CurrentCulture), comparer!);
                 });
             }
         }
@@ -329,7 +334,7 @@ namespace Syncfusion.Blazor.Grids.Internal
                         }
                     }
                     Dictionary<string, WhereFilter> excelPredicate = GetPredicate(foreignCols);
-                    var foreignColumns = ForeignKey<T>.GetForeignKeyColumns(this.Parent.Columns!);
+                    var foreignColumns = ForeignKey<T>.GetForeignKeyColumnsAsync(this.Parent.Columns!);
                     PredicateList = UpdatePredicateList(PredicateList, excelPredicate, col!, foreignColumns, skipForeign);
                 }
 
@@ -573,7 +578,7 @@ namespace Syncfusion.Blazor.Grids.Internal
                         }
                         else
                         {
-                            predicate = predicate.And(cols[p].Field, cols[p].Operator.ToString().ToLower(System.Globalization.CultureInfo.CurrentCulture), cols[p].Value, !cols[p].MatchCase, cols[p].IgnoreAccent);
+                            predicate = predicate.And(cols[p].Field, cols[p].Operator.ToString().ToLower(System.Globalization.CultureInfo.CurrentCulture), cols[p].Value!, !cols[p].MatchCase, cols[p].IgnoreAccent);
                         }
                     }
                     else if (cols[p]?.Predicate == "or")
@@ -584,7 +589,7 @@ namespace Syncfusion.Blazor.Grids.Internal
                         }
                         else
                         {
-                            predicate = predicate.Or(cols[p].Field, cols[p].Operator.ToString().ToLower(System.Globalization.CultureInfo.CurrentCulture), cols[p].Value, !cols[p].MatchCase, cols[p].IgnoreAccent);
+                            predicate = predicate.Or(cols[p].Field, cols[p].Operator.ToString().ToLower(System.Globalization.CultureInfo.CurrentCulture), cols[p].Value!, !cols[p].MatchCase, cols[p].IgnoreAccent);
                         }
                     }
                 }
@@ -597,40 +602,42 @@ namespace Syncfusion.Blazor.Grids.Internal
         #region CRUD Query Helper Methods
         public async Task<bool> GetData(ActionEventArgs<T> args = null!, object? eventArgs = null, string? requestType = null)
         {
+            bool isEventDriven = EventDrivenDataHandler<T>.IsEventDriven(Parent);
             switch (args?.RequestType.ToString() ?? requestType)
             {
                 case "Save":
                     try
                     {
-                        if ((args != null && args.Action == "Add") || (eventArgs is RowUpdatingEventArgs<T> saveEventArgs && Parent.EditModule!.IsAdd))
+                        if (!isEventDriven &&
+                            ((args != null && args.Action == "Add") || (eventArgs is RowUpdatingEventArgs<T> saveEventArgs && Parent.EditModule!.IsAdd)))
                         {
                             if (Parent.GridEvents?.OnActionBegin.HasDelegate == true || Parent.IsRenderedFromTreeGrid)
                             {
                                 ActionEventArgs<object> updateArgs = new ActionEventArgs<object>() { Data = args!.Data! };
                                 Parent.EventAggregator.Trigger("DataManagerCRUD", updateArgs);
-                                await this.Parent.DataManager.Insert<T>(updateArgs.Data, Parent.Query?.FromTable, Parent.Query, (int)args.Index).ConfigureAwait(true);
+                                await this.Parent!.DataManager!.Insert<T>(updateArgs.Data, Parent.Query?.FromTable!, Parent.Query!, (int)args.Index).ConfigureAwait(true);
                             }
-                            else if(eventArgs != null && eventArgs is RowUpdatingEventArgs<T> savedEventArgs)
+                            else if (eventArgs != null && eventArgs is RowUpdatingEventArgs<T> savedEventArgs)
                             {
                                 RowUpdatingEventArgs<object> savingEventArgs = new RowUpdatingEventArgs<object>() { Data = savedEventArgs.Data!, Action = SaveActionType.Added };
                                 Parent.EventAggregator.Trigger("DataManagerCRUD", savingEventArgs);
-                                await this.Parent.DataManager.Insert<T>(savingEventArgs.Data, Parent.Query?.FromTable, Parent.Query, (int)savedEventArgs.Index).ConfigureAwait(true);
+                                await this.Parent!.DataManager!.Insert<T>(savingEventArgs.Data, Parent.Query?.FromTable!, Parent.Query!, (int)savedEventArgs.Index).ConfigureAwait(true);
                             }
-                            
                         }
-                        else if ((args != null && args.Action == "Edit") || (eventArgs is RowUpdatingEventArgs<T> saveArgs))
+                        else if (!isEventDriven &&
+                            ((args != null && args.Action == "Edit") || (eventArgs is RowUpdatingEventArgs<T> saveArgs)))
                         {
                             if (Parent.GridEvents?.OnActionBegin.HasDelegate == true || Parent.IsRenderedFromTreeGrid)
                             {
                                 ActionEventArgs<object> updateArgs = new ActionEventArgs<object>() { Data = this.Parent?.EditModule?.CloneData!, PreviousData = args!.PreviousData! };
                                 Parent!.EventAggregator.Trigger("DataManagerCRUD", updateArgs);
-                                await this.Parent.DataManager.Update<T>(args.PrimaryKeys![0], updateArgs.Data, Parent.Query?.FromTable, Parent.Query, updateArgs.PreviousData).ConfigureAwait(true)!;
+                                await InvokeUpdateAsync(args.PrimaryKeys!, updateArgs.Data, updateArgs.PreviousData).ConfigureAwait(true)!;
                             }
-                            else if(eventArgs != null && eventArgs is RowUpdatingEventArgs<T> savingEvent)
+                            else if (eventArgs != null && eventArgs is RowUpdatingEventArgs<T> savingEvent)
                             {
                                 RowUpdatingEventArgs<object> savingEventArgs = new RowUpdatingEventArgs<object>() { Data = this.Parent.EditModule!.CloneData!, PreviousData = savingEvent.PreviousData!, Action = SaveActionType.Edited };
                                 Parent.EventAggregator.Trigger("DataManagerCRUD", savingEventArgs);
-                                await this.Parent.DataManager.Update<T>(savingEvent.PrimaryKeys![0], savingEventArgs.Data, Parent.Query?.FromTable, Parent.Query, savingEventArgs.PreviousData).ConfigureAwait(true);
+                                await InvokeUpdateAsync(savingEvent.PrimaryKeys!, savingEventArgs.Data, savingEventArgs.PreviousData).ConfigureAwait(true);
                             }
                         }
                         this.Parent.IsEdit = false;
@@ -644,20 +651,42 @@ namespace Syncfusion.Blazor.Grids.Internal
                 case "Delete":
                     try
                     {
-                        var primaryKey = (await Parent.GetPrimaryKeyFieldNamesAsync().ConfigureAwait(true))[0];
-                        var primaryKeyValues = new List<object>();
-                        RowDeletingEventArgs<T>? deletingEvent = eventArgs as RowDeletingEventArgs<T>;
-                        primaryKeyValues.Add(Parent.PropHelper!.GetObject(primaryKey, args != null ? args.Data! : deletingEvent!.Datas![0]));
-                        if ((Parent.SelectedRecords.Count == 1 || (Parent.SelectedRecords.Count == 0 && ((args != null && args.Data != null) || ((deletingEvent?.Datas != null) && deletingEvent.Datas.Count > 0)))) && !(Parent.SelectionModule?.ClonedSelectedRowRecords?.Count > 1))
+                        if (!isEventDriven)
                         {
-                            await this.Parent.DataManager.Remove<T>(primaryKey, primaryKeyValues[0], Parent.Query?.FromTable, Parent.Query).ConfigureAwait(true);
-                        }
-                        else
-                        {
-                            await this.Parent.DataManager.SaveChanges<T>(new List<T>(), new List<T>(), Parent.SelectionModule?.ClonedSelectedRowRecords, primaryKey, null, Parent.Query?.FromTable, Parent.Query).ConfigureAwait(true);
+                            var primaryKeysInDelete = await Parent.GetPrimaryKeyFieldNamesAsync().ConfigureAwait(true);
+                            var firstPrimaryKey = primaryKeysInDelete.Count > 0 ? primaryKeysInDelete[0] : null;
+                            RowDeletingEventArgs<T>? deletingEvent = eventArgs as RowDeletingEventArgs<T>;
+                            var deleteTargetData = args != null ? args.Data! : deletingEvent!.Datas![0];
+                            if ((Parent.SelectedRecords.Count == 1 || (Parent.SelectedRecords.Count == 0 && ((args != null && args.Data != null) || ((deletingEvent?.Datas != null) && deletingEvent.Datas.Count > 0)))) && !(Parent.SelectionModule?.ClonedSelectedRowRecords?.Count > 1))
+                            {
+                                if (primaryKeysInDelete != null && primaryKeysInDelete.Count > 1)
+                                {
+                                    var keyDict = new System.Collections.Generic.Dictionary<string, object?>(primaryKeysInDelete.Count);
+                                    foreach (var key in primaryKeysInDelete)
+                                    {
+                                        keyDict[key] = Parent.PropHelper?.GetObject(key, deleteTargetData);
+                                    }
+                                    //await this.Parent!.DataManager!.Remove<T>(keyDict, Parent.Query?.FromTable!, Parent.Query!).ConfigureAwait(true);
+                                }
+                                else
+                                {
+                                    var primaryKeyValue = Parent.PropHelper?.GetObject(firstPrimaryKey!, deleteTargetData);
+                                    await this.Parent!.DataManager!.Remove<T>(firstPrimaryKey!, primaryKeyValue!, Parent.Query?.FromTable!, Parent.Query!).ConfigureAwait(true);
+                                }
+                            }
+                            else
+                            {
+                                if (primaryKeysInDelete != null && primaryKeysInDelete.Count > 1)
+                                {
+                                    //await this.Parent!.DataManager!.SaveChanges<T>(new List<T>(), new List<T>(), Parent.SelectionModule?.ClonedSelectedRowRecords!, primaryKeysInDelete, null, Parent.Query?.FromTable!, Parent.Query!).ConfigureAwait(true);
+                                }
+                                else
+                                {
+                                    await this.Parent!.DataManager!.SaveChanges<T>(new List<T>(), new List<T>(), Parent.SelectionModule?.ClonedSelectedRowRecords!, firstPrimaryKey!, null, Parent.Query?.FromTable!, Parent.Query!).ConfigureAwait(true);
+                                }
+                            }
                         }
                         return true;
-
                     }
                     catch (Exception e) when (HandleException(e))
                     {
@@ -668,12 +697,40 @@ namespace Syncfusion.Blazor.Grids.Internal
             }
         }
 
+        private async Task InvokeUpdateAsync(string[]? primaryKeys, object data, object previousData)
+        {
+            if (primaryKeys != null && primaryKeys.Length > 1)
+            {
+                //await this.Parent!.DataManager!.Update<T>(primaryKeys, data, Parent.Query?.FromTable!, Parent.Query!, previousData).ConfigureAwait(true);
+            }
+            else
+            {
+                await this.Parent!.DataManager!.Update<T>(primaryKeys![0], data, Parent.Query?.FromTable!, Parent.Query!, previousData).ConfigureAwait(true);
+            }
+        }
+
         public async Task<bool> SaveChanges(BatchChanges<T> Changes, string Key)
+        {
+            await InvokeSaveChanges(Changes, new string[] { Key }).ConfigureAwait(true);
+            return true;
+        }
+
+        internal async Task<bool> InvokeSaveChanges(BatchChanges<T> Changes, string[]? primaryKeys)
         {
             try
             {
-                await this.Parent.DataManager.SaveChanges<T>(Changes.ChangedRecords,
-                Changes.AddedRecords, Changes.DeletedRecords, Key, null, Parent.Query?.FromTable, Parent.Query).ConfigureAwait(true);
+                bool isEventDriven = EventDrivenDataHandler<T>.IsEventDriven(Parent);
+                if (!isEventDriven && primaryKeys != null)
+                {
+                    if(primaryKeys.Length > 1)
+                    {
+                        //await this.Parent!.DataManager!.SaveChanges<T>(Changes.ChangedRecords, Changes.AddedRecords, Changes.DeletedRecords, primaryKeys, null, Parent.Query?.FromTable!, Parent.Query!).ConfigureAwait(true);
+                    }
+                    else
+                    {
+                        await this.Parent!.DataManager!.SaveChanges<T>(Changes.ChangedRecords,Changes.AddedRecords, Changes.DeletedRecords, primaryKeys[0], null, Parent.Query?.FromTable!, Parent.Query!).ConfigureAwait(true);
+                    }
+                }
                 return true;
             }
             catch (Exception e) when (HandleException(e))

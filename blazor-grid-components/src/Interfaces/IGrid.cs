@@ -227,6 +227,11 @@ namespace Syncfusion.Blazor.Grids
         public GridSearchSettings? SearchSettings { get; set; }
 
         /// <summary>
+        /// Gets or sets the find and highlight settings for the grid.
+        /// </summary>
+        public GridFindSettings? FindSettings { get; set; }
+
+        /// <summary>
         /// Gets or sets the index of the selected row.
         /// </summary>
         public int SelectedRowIndex { get; set; }
@@ -255,6 +260,23 @@ namespace Syncfusion.Blazor.Grids
         /// Gets or sets the text wrap settings.
         /// </summary>
         public GridTextWrapSettings? TextWrapSettings { get; set; }
+
+        /// <summary>
+        /// Gets or sets the per-instance WebMCP tool settings. When non-null,
+        /// the adapter merges these settings on top of the built-in catalog
+        /// (disable / override / extend) before invoking JavaScript
+        /// <c>document.modelContext.registerTool(...)</c>. The
+        /// <see cref="GridWebMcpSettings.Name"/> property, when set, takes
+        /// priority over the grid's <c>ID</c> for browser-side tool-name
+        /// prefixing.
+        /// </summary>
+        public GridWebMcpSettings? WebMcpSettings { get; set; }
+
+        /// <summary>
+        /// Indicates that the WebMCP settings tree changed and the
+        /// adapter must re-resolve its effective tools on the next render.
+        /// </summary>
+        public bool HasWebMcpSettingsChanges { get; set; }
 
         /// <summary>
         /// Gets or sets the toolbar items.
@@ -305,7 +327,7 @@ namespace Syncfusion.Blazor.Grids
         /// Gets or sets the automatic cell spanning mode for the entire grid.
         /// </summary>
         public AutoSpanMode AutoSpan { get; set; }
-        
+
         /// <summary>
         /// Triggers a state change in the grid.
         /// </summary>
@@ -383,5 +405,61 @@ namespace Syncfusion.Blazor.Grids
         /// </summary>
         /// <value>The operator value of the custom filter operator.</value>
         public string Value { get; set; }
+    }
+
+    /// <summary>
+    /// Represents a WebMCP tool definition that can be registered and exposed
+    /// to compatible browser-side AI agents.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Implementations of this interface provide the metadata and schema
+    /// information required for WebMCP tool registration, including the tool
+    /// name, description, input schema, output schema, and annotations.
+    /// </para>
+    /// <para>
+    /// Tool definitions may represent either built-in WebMCP tools provided by
+    /// the grid or custom tools supplied by the application.
+    /// </para>
+    /// <para>
+    /// The metadata exposed through this interface is used by compatible AI
+    /// agents to discover available tools, understand their purpose, validate
+    /// input arguments, and interpret tool responses.
+    /// </para>
+    /// </remarks>
+    public interface IWebMcpTool
+    {
+        /// <summary>
+        /// Gets the unique name of the tool.
+        /// </summary>
+        /// <value>
+        /// A <see cref="string"/> representing the public identifier used to
+        /// register and invoke the tool. Tool names should be unique within the
+        /// active WebMCP tool registry.
+        /// </value>
+        public string Name { get; }
+
+        /// <summary>
+        /// Gets the human-readable description of the tool.
+        /// </summary>
+        /// <value>
+        /// A <see cref="string"/> describing the purpose, behavior, and expected
+        /// usage of the tool. Compatible AI agents may use this information when
+        /// determining whether the tool is appropriate for a given task.
+        /// </value>
+        public string Description { get; }
+
+        /// <summary>
+        /// Gets the JSON Schema that defines the input arguments accepted by the tool.
+        /// </summary>
+        /// <value>
+        /// An <see cref="object"/> representing a JSON Schema document, or
+        /// <see langword="null"/> if the tool does not require input parameters.
+        /// </value>
+        /// <remarks>
+        /// The schema is used by compatible AI agents to discover supported
+        /// arguments, validate inputs, and construct tool invocation requests.
+        /// </remarks>
+        public object? InputSchema { get; }
     }
 }

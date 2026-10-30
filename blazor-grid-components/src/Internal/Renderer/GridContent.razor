@@ -49,6 +49,7 @@
         {
             string Style = $"height: {Parent.RowHeight}px";
             List<GridColumn> gridColumns = GridUtils.GetColumns(Parent);
+            
             @foreach (Row<object> Row in Rows)
             {
                 if (Row.IsDataRow && Parent.IsRenderedFromTreeGrid)
@@ -67,19 +68,19 @@
                 bool isFrozenColumnsVisible = Parent.FrozenColumns > 0 && Parent.Columns!.Where(x => x.Index < Parent.FrozenColumns).All(y => !y.Visible) && Parent.EnableColumnVirtualization;
                 if (Row?.IsExpand == true && Row?.IsDetailRow == true && Row?.Visible == true)
                 {
-                    <GridDetailRow TRow="TContent" RowParameters="rowParameters"></GridDetailRow>
+                    <GridDetailRow TRow="TContent" RowParameters="rowParameters" @key="GetRowKey(Row)"></GridDetailRow>
                 }
                 else if (Row!.Visible && ContentParameters.IsFrozenVirtual && (ContentParameters.IsFrozen.HasValue && ContentParameters.IsFrozen == false && Row.Index > (Parent.FrozenRows - 1)))
                 {
-                    <GridRow TRow="TContent" RowParameters="rowParameters"></GridRow>
+                    <GridRow TRow="TContent" RowParameters="rowParameters" @key="GetRowKey(Row)"></GridRow>
                 }
                 else if (Row.Visible && ContentParameters.IsFrozenVirtual && !isRightFreezeVisible && !isFrozenColumnsVisible && Row.Index > (Parent.FrozenRows - 1))
                 {
-                    <GridRow TRow="TContent" RowParameters="rowParameters"></GridRow>
+                    <GridRow TRow="TContent" RowParameters="rowParameters" @key="GetRowKey(Row)"></GridRow>
                 }
                 else if (Row?.Visible == true && !ContentParameters.IsFrozenVirtual)
                 {
-                    <GridRow TRow="TContent" RowParameters="rowParameters"></GridRow>
+                    <GridRow TRow="TContent" RowParameters="rowParameters" @key="GetRowKey(Row)"></GridRow>
                 }
             }
         }
@@ -271,10 +272,21 @@
                 await Parent.FocusModule!.ProcessKeyDown(Parent.FocusModule.LastKeyCombination!, Row!, Cell!);
             }
         }
+        if (Parent?.FindHightLightModule != null && Parent?.FindHightLightModule.HasNavigated == true 
+            && Parent?.FindHightLightModule.IsInputValueUpdated == false
+                && Parent?.EnableVirtualization == false && Parent?.EnableColumnVirtualization == false)
+        {
+            await Parent?.FindHightLightModule.AutoScrollActiveMatch()!;
+            Parent.FindHightLightModule.HasNavigated = false;
+        }
     }
 
     protected override void OnParametersSet()
     {
+        if (Parent != null && Parent.FindHightLightModule != null && !Parent!.FindHightLightModule!.IsStateChangeRefresh)
+        {
+            Parent.FindHightLightModule.GlobalMatchCounter = 0;
+        }
         if (Parent!.IsFreezeLineMoved)
         {
             Parent.Rows = Rows = new RowModelGenerator<TContent>(Parent).GeneratorRows(Data!);
@@ -297,7 +309,7 @@
             {
                 var tempData = _data;
                 _data = Data;
-                bool allowInGroup = Parent.DataSource == null && SfBaseUtils.IsObservableCollection(Data) ? Data != null && Data != tempData : true;
+                bool allowInGroup = Parent.DataSource == null && SfBaseUtils.IsObservableCollection(Data!) ? Data != null && Data != tempData : true;
                 var groupCount = this.Parent.GroupSettings?.Columns?.Count() > 0 ? this.Parent.GroupSettings.Columns.Count() : 0;
                 if (Parent.AllowGrouping && groupCount > 0 && groupCount != this.Parent.GroupSettings?.Columns!.Where(column => string.IsNullOrEmpty(column)).Count() && this.Parent.GroupSettings!.Columns?.Count() > 0 && allowInGroup)
                 {
@@ -498,6 +510,23 @@
     #endregion
 
     #region Private Methods
+
+    /// <summary>
+    /// Gets a stable key for a row to enable Blazor component reuse via @key directive.
+    /// Combines RowType and record ID to ensure uniqueness across different row types.
+    /// </summary>
+    private string GetRowKey(Row<object> row)
+    {
+        if (row == null) return string.Empty;
+        
+        // Use Uid if available (most stable), fall back to Index
+        string recordId = !string.IsNullOrEmpty(row.Uid) 
+            ? row.Uid 
+            : row.Index?.ToString() ?? string.Empty;
+        
+        // Combine RowType and recordId for uniqueness
+        return $"{row.RowType}_{recordId}";
+    }
 
     private List<GridColumn>? GetVisibleColumns(List<GridColumn> columns)
     {

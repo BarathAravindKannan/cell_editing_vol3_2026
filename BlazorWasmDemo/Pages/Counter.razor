@@ -1,18 +1,83 @@
 ﻿@page "/counter"
+@using Syncfusion.Blazor.Grids
+@using Syncfusion.Blazor.Data
+@using Syncfusion.Blazor
 
-<PageTitle>Counter</PageTitle>
 
-<h1>Counter</h1>
+<h3>Syncfusion Grid Dom Virtualization Custom Adaptor sample -> Height 300px, RowHeight 30px</h3>
+<SfGrid Height="300" TValue="Order" EnableDomVirtualization="true" RowHeight="30">
+    <SfDataManager AdaptorInstance="@typeof(OrderAdaptor)"
+                   Adaptor="Adaptors.CustomAdaptor">
+    </SfDataManager>
+    <GridColumns>
+        <GridColumn Field=@nameof(Order.OrderId)
+                    HeaderText="Order ID"
+                    Width="120">
+        </GridColumn>
 
-<p role="status">Current count: @currentCount</p>
+        <GridColumn Field=@nameof(Order.CustomerName)
+                    HeaderText="Customer"
+                    Width="200">
+        </GridColumn>
 
-<button class="btn btn-primary" @onclick="IncrementCount">Click me</button>
+        <GridColumn Field=@nameof(Order.Country)
+                    HeaderText="Country"
+                    Width="150">
+        </GridColumn>
 
-@code {
-    private int currentCount = 0;
+        <GridColumn Field=@nameof(Order.Amount)
+                    HeaderText="Amount"
+                    Format="C2"
+                    Width="150">
+        </GridColumn>
+    </GridColumns>
 
-    private void IncrementCount()
+</SfGrid>
+
+@code
+{
+    public class Order
     {
-        currentCount++;
+        public int OrderId { get; set; }
+        public string CustomerName { get; set; } = "";
+        public string Country { get; set; } = "";
+        public decimal Amount { get; set; }
+    }
+
+    public class OrderAdaptor : DataAdaptor
+    {
+        private static List<Order> Orders = Enumerable.Range(1, 1000000)
+            .Select(i => new Order
+            {
+                OrderId = i,
+                CustomerName = $"Customer {i}",
+                Country = $"Country {i % 50}",
+                Amount = i * 10
+            })
+            .ToList();
+
+        public override object Read(DataManagerRequest dm, string? key = null)
+        {
+            IEnumerable<Order> data = Orders;
+
+            int count = Orders.Count;
+
+            // Virtual scrolling sends Skip/Take values
+            if (dm.Skip > 0)
+            {
+                data = data.Skip(dm.Skip);
+            }
+
+            if (dm.Take > 0)
+            {
+                data = data.Take(dm.Take);
+            }
+
+            return new DataResult()
+            {
+                Result = data,
+                Count = count
+            };
+        }
     }
 }

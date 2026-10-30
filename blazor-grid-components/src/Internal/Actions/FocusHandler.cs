@@ -1,4 +1,4 @@
-﻿using Microsoft.AspNetCore.Components.Web;
+using Microsoft.AspNetCore.Components.Web;
 using System;
 using System.Collections.Generic;
 using System.Dynamic;
@@ -32,7 +32,7 @@ namespace Syncfusion.Blazor.Grids.Internal
             get { return _isHeader ? _parent.HeaderRows : _parent.Rows; }
         }
 
-        internal bool isMultiSelectPopUpOpened { get; set; }
+        internal bool isPopUpOpened { get; set; }
 
         private List<Row<object>> _frozenHeaderRows
         {
@@ -101,6 +101,11 @@ namespace Syncfusion.Blazor.Grids.Internal
         private GridColumn? GetLastVisibleColumn()
         {
             return _parent.GetVisibleColumnsAsync().Result.LastOrDefault();
+        }
+
+        private bool IsHeaderRow(Row<object>? row)
+        {
+            return row != null && _parent.HeaderRows.Concat(_parent.FrozenHeaderRows).Concat(_parent.FrozenRightHeaderRows).Any(headerRow => headerRow?.Uid == row.Uid);
         }
 
         internal Cell<object> GetLastVisibleCell()
@@ -215,8 +220,8 @@ namespace Syncfusion.Blazor.Grids.Internal
 
         private (Row<object>, Cell<object>) GetCurrentRowAndCell(Row<object>? row, Cell<object>? staleCell)
         {
-            Row<object>? currentRow = _parent?.Rows.Find(r => r.Uid == _current.Item1) ?? new Row<object>();
-            Cell<object>? currentCell = ResolveCurrentCell(currentRow, staleCell) ?? staleCell;
+            Row<object>? currentRow = _parent?.Rows.Find(r => r.Uid == _current.Item1);
+            Cell<object>? currentCell = GridUtils.ResolveCurrentCell(currentRow, staleCell) ?? staleCell;
             if (currentRow == null)
             {
                 currentRow = _parent?.Rows.FirstOrDefault();
@@ -226,46 +231,6 @@ namespace Syncfusion.Blazor.Grids.Internal
                 currentCell = currentRow?.Cells.FirstOrDefault();
             }
             return (currentRow!, currentCell!);
-        }
-
-        private static Cell<object>? ResolveCurrentCell(Row<object>? row, Cell<object>? staleCell)
-        {
-            if (row == null || staleCell == null)
-            {
-                return null;
-            }
-
-            // Preferred match: same Column.Uid (stable across re-render).
-            if (staleCell.Column != null && !string.IsNullOrEmpty(staleCell.Column.Uid))
-            {
-                var byColumnUid = row.Cells?.FirstOrDefault(c => c.Column != null && c.Column.Uid == staleCell.Column.Uid);
-                if (byColumnUid != null)
-                {
-                    return byColumnUid;
-                }
-            }
-
-            // Fallback 1: same Column.Field.
-            if (staleCell.Column != null && !string.IsNullOrEmpty(staleCell.Column.Field))
-            {
-                var byField = row.Cells?.FirstOrDefault(c => c.Column != null && c.Column.Field == staleCell.Column.Field);
-                if (byField != null)
-                {
-                    return byField;
-                }
-            }
-
-            // Fallback 2: same Index within the row.
-            if (staleCell.Index.HasValue)
-            {
-                int idx = staleCell.Index.Value;
-                if (row.Cells != null && idx >= 0 && idx < row.Cells.Count)
-                {
-                    return row.Cells[idx];
-                }
-            }
-
-            return null;
         }
 
         /// <summary>
@@ -324,7 +289,7 @@ namespace Syncfusion.Blazor.Grids.Internal
             }
             else if (cell?.IsEdit == true)
             {
-                await _parent.EditModule!.EndEdit(cell);
+                await _parent.EditModule!.EndEdit(cell).ConfigureAwait(true);
             }
         }
 
@@ -337,7 +302,7 @@ namespace Syncfusion.Blazor.Grids.Internal
 
             bool isShiftEnter = keyCombination?.Equals("ShiftEnter", StringComparison.Ordinal) == true;
 
-            if (direction == EnterKeyDirection.Row)
+            if (direction == EnterKeyDirection.NextRow)
             {
                 return new[] { isShiftEnter ? "MoveUpCell" : "MoveDownCell" };
             }
@@ -350,7 +315,7 @@ namespace Syncfusion.Blazor.Grids.Internal
                 && _parent.EditSettings?.AllowEditOnKeyPress == true
                 && cell?.IsEdit != true
                 && !_parent.IsEdit
-                && IsPrintableKey(e?.Key);
+                && IsPrintableKey(e?.Key) && cell?.IsDataCell == true;
         }
 
         private static bool IsPrintableKey(string? key)
@@ -372,9 +337,10 @@ namespace Syncfusion.Blazor.Grids.Internal
         /// <summary>
         /// Determines if Tab/Shift+Tab navigation should be handled in Cell edit mode.
         /// </summary>
-        private bool ShouldHandleTabNavigationInCellEditMode(Cell<object>? cell, string? keyCombination)
+        private bool ShouldHandleTabNavigationInCellEditMode(Row<object> row, Cell<object>? cell, string? keyCombination)
         {
-            return cell?.IsEdit == true 
+            var UpdatedCell = GetCurrentRowAndCell(row, cell).Item2 ?? cell;
+            return UpdatedCell?.IsEdit == true 
                 && _parent.IsEdit
                 && _parent.EditSettings?.Mode == EditMode.Cell
                 && (IsTabKeyPressed(keyCombination) || IsShiftTabKeyPressed(keyCombination));
@@ -387,7 +353,7 @@ namespace Syncfusion.Blazor.Grids.Internal
         {
             if (row == null || cell == null || _parent.EditModule == null)
                 return;
-            await _parent.EditModule!.EndEdit(cell);
+            await _parent.EditModule!.EndEdit(cell).ConfigureAwait(true);
 
             // If validation failed, the editor will still be open (IsEdit remains true), so don't navigate
             if (cell.IsEdit)
@@ -567,7 +533,7 @@ namespace Syncfusion.Blazor.Grids.Internal
             }
             KeyInvokedRow = row!;
             KeyInvokedCell = cell!;
-            var keyCombination = e.GetKeyCombination(isMacDevice: _parent!.IsMacDevice ?? false);
+            var keyCombination = e.GetKeyCombination(isMacDevice: _parent!.IsMacDevice ?? false, isEnableUndoRedo: _parent!.EditSettings!.EnableUndoRedo);
             bool isFilterBar = _parent.AllowFiltering && _parent.FilterSettings!.Type == FilterType.FilterBar;
             bool isAddForm = _parent.EditSettings!.ShowAddNewRow;
             bool isArrowUp = keyCombination != null && keyCombination.Equals("ArrowUp", StringComparison.Ordinal);
@@ -577,10 +543,16 @@ namespace Syncfusion.Blazor.Grids.Internal
             bool isArrowKeys = isArrowUp || isArrowDown || isArrowLeft || isArrowRight;
             bool isTabKey = IsTabKeyPressed(keyCombination);
             bool isShiftTabKey = IsShiftTabKeyPressed(keyCombination);
-            if (cell?.IsEdit == true && _parent.IsEdit && (_parent.EditSettings.Mode == EditMode.Batch || _parent.EditSettings.Mode == EditMode.Cell) && keyCombination != null && (isArrowKeys || isMultiSelectPopUpOpened && keyCombination.Equals("Enter", StringComparison.Ordinal)))
+            bool isAltDownPressed = keyCombination?.Equals("AltDown", StringComparison.Ordinal) ?? false;
+            bool isEnterKeyPressed = keyCombination?.Equals("Enter", StringComparison.Ordinal) ?? false;
+            // Handle keyboard interactions for popup components in batch editing mode
+            if (cell?.IsEdit == true && _parent.IsEdit && (_parent.EditSettings.Mode == EditMode.Batch || _parent.EditSettings.Mode == EditMode.Cell))
             {
-                isMultiSelectPopUpOpened = false;
-                return;
+                if ((isPopUpOpened && isEnterKeyPressed) || isArrowKeys || isAltDownPressed)
+                {
+                    isPopUpOpened = false;
+                    return;
+                }
             }
 
             if (ShouldHandleKeyPressInCellEditMode(cell, e))
@@ -597,17 +569,20 @@ namespace Syncfusion.Blazor.Grids.Internal
                     var enterDirection = _parent.EditSettings?.EnterKeyDirection ?? EnterKeyDirection.None;
                     string[] directionAction = MapEnterKeyDirectionToActions(enterDirection, keyCombination);
                     ValueTuple<Row<object>, Cell<object>> currentRowAndCell = GetCurrentRowAndCell(row, cell);
-                    row = currentRowAndCell.Item1;
-                    cell = currentRowAndCell.Item2;
-                    if (directionAction.Length > 0)
+                    if (row?.Uid != currentRowAndCell.Item1.Uid)
                     {
-                        await MoveFocusCell(directionAction, row!, cell!, e, keyCombination!).ConfigureAwait(true);
+                        row = currentRowAndCell.Item1;
+                        cell = currentRowAndCell.Item2;
+                        if (directionAction.Length > 0)
+                        {
+                            await MoveFocusCell(directionAction, row!, cell!, e, keyCombination!).ConfigureAwait(true);
+                        }
+                        else
+                        {
+                            await FocusCell(row: row!, cell: cell!, navigator: (0, 0), e: e, actions: directionAction, keyCombination: keyCombination!).ConfigureAwait(true);
+                        }
+                        return;
                     }
-                    else
-                    {
-                        await FocusCell(row: row!, cell: cell!, navigator: (0, 0), e: e, actions: directionAction, keyCombination: keyCombination!).ConfigureAwait(true);
-                    }
-                    return;
                 }
                 if(IsEnterKeyPressed(keyCombination) || cell?.IsEdit == true)
                     return;
@@ -616,7 +591,7 @@ namespace Syncfusion.Blazor.Grids.Internal
             // EditMode.Cell: Tab/Shift+Tab commits the current cell and moves focus to the next/previous
             // editable cell, then auto-enters edit mode. If validation fails, the movement is blocked.
             // This enables continuous editing experience like Excel.
-            if (ShouldHandleTabNavigationInCellEditMode(cell, keyCombination))
+            if (ShouldHandleTabNavigationInCellEditMode(row!, cell, keyCombination))
             {
                 await HandleTabNavigationInCellMode(row, cell, keyCombination).ConfigureAwait(true);
                 return;
@@ -656,7 +631,7 @@ namespace Syncfusion.Blazor.Grids.Internal
             {
                 return;
             }
-            if (cell!.IsFocused && _parent.EditSettings.AllowEditing && _parent.EditSettings.Mode == EditMode.Batch && !string.IsNullOrEmpty(keyCombination) && keyCombination == "Enter")
+            if (cell!.IsFocused && _parent.EditSettings!.AllowEditing && _parent.EditSettings.Mode == EditMode.Batch && !string.IsNullOrEmpty(keyCombination) && keyCombination == "Enter")
             {
                 cell.IsFocused = false;
             }
@@ -689,14 +664,14 @@ namespace Syncfusion.Blazor.Grids.Internal
             if(isAddForm)
             {
                 // to focus on the first cell of the 'Add form' when tab is pressed from the last header cell.
-                if (isTabKey && isHeader && row?.Index == null && cell?.Index == row?.Cells?.Where(e => e.Visible).LastOrDefault()?.Index && _parent.EditSettings.NewRowPosition == NewRowPosition.Top)
+                if (isTabKey && isHeader && row?.Index == null && cell?.Index == row?.Cells?.Where(e => e.Visible).LastOrDefault()?.Index && _parent.EditSettings!.NewRowPosition == NewRowPosition.Top)
                 {
                     FocusAddForm(keyCombination!);
                     return;
                 }
 
                 // to focus on the last cell of the 'Add form' when shiftTab is pressed from the first content cell.
-                if (isShiftTabKey && _parent.Rows?.Count > 0 && _parent.Rows.First().Equals(row) && _parent.Rows.First().Cells?.Where(_ => _.Visible).FirstOrDefault()?.Equals(cell) == true && _parent.EditSettings.NewRowPosition == NewRowPosition.Top)
+                if (isShiftTabKey && _parent.Rows?.Count > 0 && _parent.Rows.First().Equals(row) && _parent.Rows.First().Cells?.Where(_ => _.Visible).FirstOrDefault()?.Equals(cell) == true && _parent.EditSettings!.NewRowPosition == NewRowPosition.Top)
                 {
                     FocusAddForm(keyCombination!);
                     return;
@@ -717,6 +692,20 @@ namespace Syncfusion.Blazor.Grids.Internal
 
             if (string.IsNullOrEmpty(keyCombination) || (keyCombination.Equals("Space", StringComparison.Ordinal) && (_parent.IsEdit || (cell?.Column != null && cell.Column.Type.Equals(ColumnType.CheckBox) && !_parent.SelectionSettings!.CheckboxOnly))))
             {
+                return;
+            }
+
+            // OPSX-20261016-ctrl-arrow-virtualization-nav: Handle Ctrl+Arrow Up/Down for first/last row navigation
+            // in virtualized grids. Silent no-op when virtualization is off, infinite scroll is on, or grouping has columns grouped.
+            // Restriction: Only execute when focus is on content cells (not headers, filter rows, or grouping headers).
+            // Feature works when: AllowGrouping is false OR (AllowGrouping is true AND Columns is null - meaning grouping enabled but no columns grouped)
+            if ((keyCombination.Equals("CtrlUp", StringComparison.Ordinal) || keyCombination.Equals("CtrlDown", StringComparison.Ordinal))
+                && !_isHeader
+                && _parent.EnableVirtualization
+                && !_parent.EnableInfiniteScrolling
+                && (!_parent.AllowGrouping || _parent.GroupSettings?.Columns == null))
+            {
+                await HandleCtrlArrowFirstLastRowNavigation(keyCombination, e).ConfigureAwait(true);
                 return;
             }
 
@@ -816,7 +805,7 @@ namespace Syncfusion.Blazor.Grids.Internal
             bool isShiftTab = keyCombination != null && keyCombination.Equals("ShiftTab", StringComparison.Ordinal);
             bool isLeftArrow = keyCombination != null && keyCombination.Equals("ArrowLeft", StringComparison.Ordinal);
             bool shouldScrollForLeftFrozen = (_parent!.FrozenColumns > 0 || _parent.FreezeModule!.GetFreezeLeftCount() > 0) && (isShiftTab || isLeftArrow);
-            if (_parent != null && _parent.FreezeModule!.GetFrozenCount() > 0 && actions?.Length != 0 && !(isMoveUpOrDown && _parent.IsEdit && _parent.EditSettings.Mode == EditMode.Batch) 
+            if (_parent != null && _parent.FreezeModule!.GetFrozenCount() > 0 && actions?.Length != 0 && !(isMoveUpOrDown && _parent.IsEdit && _parent.EditSettings!.Mode == EditMode.Batch) 
                 && (_parent.FreezeModule!.GetFreezeRightCount() > 0 || shouldScrollForLeftFrozen))
             {
                 await _parent.InvokeMethod("sfBlazor.Grid.scrollToFocusedCell", _parent.DataId).ConfigureAwait(true);
@@ -953,7 +942,7 @@ namespace Syncfusion.Blazor.Grids.Internal
 
         internal async Task ProcessGridKeyDown(KeyboardEventArgs e, BeforeCellFocus? bf = null, bool isPagerFocused = true, bool isToolbarFocused = false, int? cellIndex = null, int? rowIndex = null, int? templateCellIndex = null, bool focusColumnTemplate = false)
         {
-            var keyCombination = e.GetKeyCombination(isMacDevice: _parent.IsMacDevice ?? false);
+            var keyCombination = e.GetKeyCombination(isMacDevice: _parent.IsMacDevice ?? false, isEnableUndoRedo: _parent!.EditSettings!.EnableUndoRedo);
             var isTabKey = keyCombination != null && keyCombination.Equals("Tab", StringComparison.Ordinal);
             var isShiftTabKey = keyCombination != null && keyCombination.Equals("ShiftTab", StringComparison.Ordinal);
             var editedRow = _parent.EditModule!.EditedRow;
@@ -1132,6 +1121,31 @@ namespace Syncfusion.Blazor.Grids.Internal
 
         private async Task ProcessKeyCombination(string keyCombination, int tPage, BeforeCellFocus? bf = null, bool isPagerFocused = true, KeyboardEventArgs? e = null)
         {
+        
+            if (_parent.EditSettings?.EnableUndoRedo == true && _parent.EditSettings?.Mode == EditMode.Batch && _parent.UndoRedoManager != null && keyCombination?.Equals("CtrlZ", StringComparison.OrdinalIgnoreCase) == true)
+            {
+                    if (_parent.IsEdit && _parent.EditModule != null)
+                    {
+                        await _parent.EditModule.CloseEdit(true).ConfigureAwait(true);
+                    }
+                    await _parent.UndoRedoManager.PerformUndoAsync().ConfigureAwait(true);
+                    await _parent.CallStateHasChangedAsync().ConfigureAwait(true); 
+                    _parent.EventAggregator?.Trigger("UndoRedoStackChanged", null!);
+                    return;
+            }
+            else if ((_parent.EditSettings?.EnableUndoRedo == true && _parent.EditSettings?.Mode == EditMode.Batch && _parent.UndoRedoManager != null) && (keyCombination?.Equals("CtrlY", StringComparison.OrdinalIgnoreCase) == true ||
+                     keyCombination?.Equals("CtrlShiftZ", StringComparison.OrdinalIgnoreCase) == true))
+            {
+                    if (_parent.IsEdit && _parent.EditModule != null)
+                    {
+                        await _parent.EditModule.CloseEdit(true).ConfigureAwait(true);
+                    }
+                    await _parent.UndoRedoManager.PerformRedoAsync().ConfigureAwait(true);
+                    await _parent.CallStateHasChangedAsync().ConfigureAwait(true);
+                    _parent.EventAggregator?.Trigger("UndoRedoStackChanged", null!);
+                    return;
+            }
+
             switch (keyCombination)
             {
                 case "Insert":
@@ -1191,6 +1205,7 @@ namespace Syncfusion.Blazor.Grids.Internal
 
                     await _parent.PrintAsync().ConfigureAwait(true);
                     break;
+
             }
         }
 
@@ -1261,7 +1276,7 @@ namespace Syncfusion.Blazor.Grids.Internal
                     {
                         if (_parent.PageModule != null)
                         {
-                            await _parent.PageModule.EllipsisButtonClickHandler("PreviousPage");
+                            await _parent.PageModule.EllipsisButtonClickHandler("PreviousPage").ConfigureAwait(true);
                         }
                     }
 
@@ -1271,7 +1286,7 @@ namespace Syncfusion.Blazor.Grids.Internal
                     {
                         if (_parent.PageModule != null)
                         {
-                            await _parent.PageModule.EllipsisButtonClickHandler("NextPage");
+                            await _parent.PageModule.EllipsisButtonClickHandler("NextPage").ConfigureAwait(true);
                         }
                     }
                     break;
@@ -1384,6 +1399,7 @@ namespace Syncfusion.Blazor.Grids.Internal
             {
                 tuple = (row, cell);
             }
+            _isHeader = IsHeaderRow(tuple.Item1);
             object cellValue = _parent.PropHelper?.GetObject(tuple.Item2?.Column?.Field!, tuple.Item1?.IsDirty == true ? tuple.Item1?.EditedData! : tuple.Item1?.Data!)!;
             if (e.Key == "Tab" || e.Key == "ShiftTab" || e.Key == "ArrowRight" || e.Key == "ArrowLeft")
             {
@@ -1479,6 +1495,47 @@ namespace Syncfusion.Blazor.Grids.Internal
             }
         }
 
+        internal async Task RestoreFocus(int EditRowIndex = -1)
+        {
+            var rowIndex = SelectedRowIndex;
+
+            if (SelectedRowIndex != null && SelectedRowIndex >= EditRowIndex && _parent!.EditModule!.IsDeleteAction)
+            {
+                rowIndex = EditRowIndex;
+                _parent!.EditModule!.IsDeleteAction = false;
+            }
+            var cellIndex = SelectedCellIndex;
+
+            if (SelectedRowIndex == null || SelectedCellIndex == null || _parent?.EnableVirtualization == true || _parent?.EnableInfiniteScrolling == true)
+            {
+                return;
+            }
+
+            var row = _parent?.Rows?.Find(r => r.Index == rowIndex);
+
+            if (row != null && row.Cells.Find(c => c.CellType == CellType.Detail) != null)
+            {
+                cellIndex = cellIndex + 1;
+            }
+
+            if (row == null || cellIndex == null || cellIndex < 0 || cellIndex >= row.Cells.Count)
+            {
+                return;
+            }
+
+            var nonIndentCells = row.Cells.Where(x => x.CellType != CellType.Indent && x.CellType != CellType.RowDrag && x.CellType != CellType.DetailIndent).ToList();
+
+            var cell = nonIndentCells[(int)cellIndex];
+            try
+            {
+                await Focus(row.Uid!, cell.Uid, cellColIndex: cell.Index + 1 ?? -1).ConfigureAwait(true);
+            }
+            catch (TaskCanceledException)
+            {
+
+            }
+        }
+
         #endregion
 
         #region Row and Cell Navigation
@@ -1486,10 +1543,27 @@ namespace Syncfusion.Blazor.Grids.Internal
         private ValueTuple<Row<object>, Cell<object>> GetNextRowCell(Row<object> row, Cell<object> cell,
     KeyboardEventArgs e, ValueTuple<int, int> navigator, string? action = null)
         {
-            var keyCombination = e.GetKeyCombination(isMacDevice: _parent!.IsMacDevice ?? false);
+            var keyCombination = e.GetKeyCombination(isMacDevice: _parent!.IsMacDevice ?? false, isEnableUndoRedo: _parent!.EditSettings!.EnableUndoRedo);
             bool isArrowKeys = keyCombination != null && (keyCombination.Equals("ArrowUp", StringComparison.Ordinal) || keyCombination.Equals("ArrowDown", StringComparison.Ordinal) || keyCombination.Equals("ArrowLeft", StringComparison.Ordinal) || keyCombination.Equals("ArrowRight", StringComparison.Ordinal));
             SetCurrentArea(row, cell, e, navigator, action);
             List<Row<object>>? _visiblerows = _currentRows?.Where(_ => _.Visible != false && !(_.CssClass != null && _.CssClass.Contains("e-hiddenrow", StringComparison.Ordinal))).ToList();
+            // On Shift+Tab from a detail row, navigate to the last cell of its parent row.
+            if (row?.IsDetailRow == true && action == "MoveLeftCell" && e.IsShiftTab() && _visiblerows?.Count > 0)
+            {
+                int detailRowIndex = _visiblerows?.IndexOf(row) ?? -1;
+                if (detailRowIndex > 0)
+                {
+                    var parentRow = _visiblerows?[detailRowIndex - 1];
+                    if (parentRow != null && !parentRow.IsDetailRow)
+                    {
+                        var lastDataCell = parentRow.Cells?.Where(x => x.Visible && (x.CellType == CellType.Data || x.CellType == CellType.CommandColumn))?.LastOrDefault();
+                        if (lastDataCell != null)
+                        {
+                            return (parentRow!, lastDataCell!);
+                        }
+                    }
+                }
+            }
             List<Row<object>>? _visibleheaderrows = HeaderRows?.Where(_ => _.Visible != false).ToList();
             List<Row<object>>? _visibleFrozenheader = _frozenHeaderRows?.Where(_ => _.Visible != false).ToList();
             var _frozenHeaderCount = _visibleFrozenheader?.Count - 1;
@@ -1539,13 +1613,14 @@ namespace Syncfusion.Blazor.Grids.Internal
             bool normalGridLastCellFocus = !_parent.EnableColumnVirtualization && row?.Cells?.Where(e => e.Visible).Last()?.IsFocused == true;
             if (row?.Index == null && _parent.Rows?.Count > 0 && !row?.IsCaptionRow == true && (normalGridLastCellFocus || columnVirtualLastCellFocus) && action?.Equals("MoveRightCell", StringComparison.Ordinal) == true && _visibleheaderrows?[_headerRowsCount]?.Cells?.Where(e => e.Visible).Last().IsFocused == true)
             {
-                row = _parent.Rows?.First()!;
+                row = _parent.Rows?.FirstOrDefault(currentRow => currentRow.Visible && !currentRow.Action.Equals(EditAction.Deleted))!;
                 cell = row?.Cells?.Where(_ => _.Visible && _.CellType != CellType.RowDrag).First()!;
                 return (row!, cell);
             }
 
             // To focus the last header cell when shift tab is pressed from the first content cell.
-            if (_parent.Rows?.Count > 0 && !(_parent.AllowFiltering && _parent.FilterSettings != null && _parent.FilterSettings.Type.Equals(FilterType.FilterBar)) && _parent.Rows?.First().Equals(row) == true && row?.Cells?.Where(e => e.Visible && e.CellType != CellType.RowDrag).First().Equals(cell) == true && action?.Equals("MoveLeftCell", StringComparison.Ordinal) == true && !e.Key.Equals("ArrowLeft", StringComparison.Ordinal) && e.GetKeyCombination() == "ShiftTab")
+            Row<object>? firstFocusableRow = _visiblerows?.FirstOrDefault(currentRow => currentRow.Visible && !currentRow.Action.Equals(EditAction.Deleted));
+            if (firstFocusableRow != null && !(_parent.AllowFiltering && _parent.FilterSettings != null && _parent.FilterSettings.Type.Equals(FilterType.FilterBar)) && firstFocusableRow.Equals(row) && row!.Cells?.Where(e => e.Visible && e.CellType != CellType.RowDrag).First().Equals(cell) == true && action?.Equals("MoveLeftCell", StringComparison.Ordinal) == true && !e.Key.Equals("ArrowLeft", StringComparison.Ordinal) && e.GetKeyCombination() == "ShiftTab")
             {
                 row = HeaderRows?.Last()?.Cells != null ? HeaderRows.Last() : row;
                 cell = HeaderRows?.Last()?.Cells?.Where(e => e.Visible).Last()!;
@@ -1853,9 +1928,9 @@ namespace Syncfusion.Blazor.Grids.Internal
                 };
                 var reorderEventArgs = new ColumnReorderingEventArgs() {ReorderingColumns = fromColumns , ToColumn = toColumn!, Cancel = false, Parent = _parent };
                 await _parent.ModelChanged(ar, new ActionArgs() { FromIndex = frIndx, ToIndex = (int)tIndex }, eventArgs: reorderEventArgs, requestType:"Reorder").ConfigureAwait(true);
-                await SfBaseUtils.InvokeEvent<ActionEventArgs<T>>(_parent.GridEvents?.OnActionComplete, ar).ConfigureAwait(true);
+                await SfBaseUtils.InvokeEvent<ActionEventArgs<T>>(_parent.GridEvents?.OnActionComplete!, ar).ConfigureAwait(true);
                 await _parent.EventAggregator.NotifyAsync("ActionComplete", ar).ConfigureAwait(true);
-                await SfBaseUtils.InvokeEvent<ColumnReorderedEventArgs>(_parent.GridEvents?.ColumnReordered, reorderEventArgs).ConfigureAwait(true);
+                await SfBaseUtils.InvokeEvent<ColumnReorderedEventArgs>(_parent.GridEvents?.ColumnReordered!, reorderEventArgs).ConfigureAwait(true);
                 await _parent.EventAggregator.NotifyAsync("ColumnReordered", reorderEventArgs).ConfigureAwait(true);
                 await _parent.InvokeSuccessAsync(ar, requestType: "Reorder").ConfigureAwait(true);
             }
@@ -1893,6 +1968,33 @@ namespace Syncfusion.Blazor.Grids.Internal
                     }
                 }
             }
+        }
+
+        /// <summary>
+        /// Handles Ctrl+Arrow Up/Down keyboard navigation to first/last row in virtualized grids.
+        /// Preserves the current column index and dispatches through ScrollIntoViewAsync.
+        /// </summary>
+        private async Task HandleCtrlArrowFirstLastRowNavigation(string keyCombination, KeyboardEventArgs e)
+        {
+            if (_parent?.VirtualScrollModule == null || _parent.TotalItemCount <= 0)
+            {
+                return;
+            }
+
+            int targetRowIndex = keyCombination.Equals("CtrlDown", StringComparison.Ordinal)
+                ? _parent.TotalItemCount - 1
+                : 0;
+
+            int columnIndex = _parent.FocusModule?.SelectedCellIndex ?? -1;
+
+            // Preserve PreNavigatedIndex for the post-render focus pipeline
+            _parent.VirtualScrollModule.PreNavigatedIndex = _parent.VirtualScrollModule.CurrentRowIndex;
+            _parent.VirtualScrollModule.CurrentRowIndex = targetRowIndex;
+
+            // Dispatch through the existing ScrollIntoViewAsync API, which integrates
+            // with the VirtualRefresh → VirtualComponentUpdate → HandleVirtualScrollKeyDown
+            // event-driven pipeline. This ensures the DOM is updated and focus is applied.
+            await _parent.ScrollIntoViewAsync(columnIndex, targetRowIndex, -1).ConfigureAwait(true);
         }
 
         #endregion

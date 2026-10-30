@@ -24,13 +24,15 @@
                                         string txtAlign = GetTextAlign(Cell.Column!) ?? "left";
                                         string txtClass = GridUtils.GetAlignmentClass(Cell?.Column!);
                                         string FrozenClass = GetFrozenClass(Cell?.Column!);
+                                        string indentFrozenClass = Parent!.FreezeModule!.GetFreezeLeftCount() > 0 ? " e-leftfreeze" : string.Empty;
+                                        string indentStyle = GridUtils.GetIndentStyle(Row, Cell!);
                                         if (cellType.Equals("indent") || cellType.Equals("rowdrag"))
                                         {
-                                            <td class="e-indentcell e-indentcelltop"></td>
+                                            <td class="e-indentcell e-indentcelltop @indentFrozenClass" data-sf-style="@indentStyle"></td>
                                         }
                                         else if (cellType.Equals("detailindent"))
                                         {
-                                            <td class="e-indentcell"></td>
+                                            <td class="e-indentcell @indentFrozenClass" data-sf-style="@indentStyle"></td>
                                         }
                                         else if (@Cell?.AggregateColumn != null && @Cell.AggregateColumn.FooterTemplate != null)
                                         {

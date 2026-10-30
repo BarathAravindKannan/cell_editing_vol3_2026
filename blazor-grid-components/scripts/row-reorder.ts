@@ -4,7 +4,6 @@ import { parentsUntil, getPosition, getScrollBarWidth, removeElement, addRemoveA
 import { SfGrid } from './sf-grid-fn';
 import { IPosition } from './interfaces';
 
-// eslint-disable-next-line valid-jsdoc, jsdoc/require-param, jsdoc/require-returns
 /**
  *
  * Reorder module is used to handle row reordering.
@@ -17,8 +16,8 @@ export class RowDD {
     private dragTarget: number;
     private timer: number;
     private isOverflowBorder: boolean = true;
-    private rowData: Object;
-    private dragStartData: Object;
+    private rowData: object;
+    private dragStartData: object;
     private draggable: Draggable;
     private droppable: Droppable;
     private borderIndex: number;
@@ -35,11 +34,10 @@ export class RowDD {
      */
     /* tslint:disable-next-line:max-line-length */
     // tslint:disable-next-line:max-func-body-length
-    private helper: Function = (e: { sender: MouseEventArgs }) => {
+    private helper: (e: { sender: MouseEventArgs }) => unknown = (e: { sender: MouseEventArgs }) => {
         const gObj: SfGrid = this.parent;
         const target: Element = this.draggable.currentStateTarget as Element;
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        this.draggable.queryPositionInfo = function (value: any): any {
+        interface QueryPositionInfo { left: string | number; }this.draggable.queryPositionInfo = function (value: QueryPositionInfo): QueryPositionInfo {
             if (gObj.options.enableRtl && isNullOrUndefined(gObj.options.rowDropTarget)) {
                 value.left = (this.position.left) - ((this.parentClientRect.left + this.borderWidth.left)) - document.querySelector('.e-cloneproperties').clientWidth + (gObj.element.querySelector('.e-rowdragdrop').clientWidth / 2) + 'px';
             }
@@ -56,7 +54,7 @@ export class RowDD {
         if (document.getElementsByClassName('e-griddragarea').length ||
             ((senderTargetIsNotCell && gObj.options.selectionType !== 'Single')) ||
             (!gObj.options.rowDropTarget && !parentsUntil(target, 'e-rowdragdrop') && Browser.isDevice)
-            || gObj.options.selectionType === 'Single' && (target as Element).parentElement.getAttribute('aria-rowindex') === null
+            || (gObj.options.selectionType === 'Single' && !isNullOrUndefined((target as Element).parentElement) && (target as Element).parentElement.getAttribute('aria-rowindex') === null)
             || this.isTargetInEditMode(target as Element)) {
             if (isNullOrUndefined(parentsUntil(target as Element, 'e-rowdragdrop'))) {
                 return false;
@@ -64,6 +62,7 @@ export class RowDD {
         }
         if (gObj.options.rowDropTarget &&
             gObj.options.selectionMode === 'Row' && gObj.options.selectionType === 'Single' &&
+            !isNullOrUndefined((this.draggable.currentStateTarget as Element).parentElement) &&
             (this.draggable.currentStateTarget as Element).parentElement.getAttribute('aria-rowindex') !== null) {
             gObj.dotNetRef.invokeMethodAsync('SelectRow', parseInt((this.draggable.currentStateTarget as Element).parentElement.getAttribute('aria-rowindex'), 10) - 1, false, -1);
         }
@@ -120,7 +119,7 @@ export class RowDD {
         return visualElement;
     }
 
-    private dragStart: Function = (e: { target: HTMLElement, event: MouseEventArgs } & BlazorDragEventArgs) => {
+    private dragStart: (e: { target: HTMLElement, event: MouseEventArgs } & BlazorDragEventArgs) => unknown = (e: { target: HTMLElement, event: MouseEventArgs } & BlazorDragEventArgs) => {
         const gObj: SfGrid = this.parent;
         document.body.classList.add('e-prevent-select');
         if (document.getElementsByClassName('e-griddragarea').length) {
@@ -136,18 +135,22 @@ export class RowDD {
         this.parent.dotNetRef.invokeMethodAsync('RowDragStartEvent', fromIdx, dragUid);
         e.bindEvents(e.dragElement);
         this.dragStartData = this.rowData;
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const dropElem: any = document.getElementById(gObj.options.rowDropTarget);
+        const dropElem = document.getElementById(gObj.options.rowDropTarget) as HTMLElement & {
+            blazor__instance?: {
+                getModuleName?: () => string;
+                getContent?: () => HTMLElement;
+            };
+        };
         if (gObj.options.rowDropTarget && dropElem && dropElem.blazor__instance &&
-            (typeof (<{ getModuleName?: Function }>dropElem.blazor__instance).getModuleName === 'function') &&
-            (<{ getModuleName?: Function }>dropElem.blazor__instance).getModuleName() === 'grid') {
+            (typeof (<{ getModuleName?: () => string }>dropElem.blazor__instance).getModuleName === 'function') &&
+            (<{ getModuleName?: () => string }>dropElem.blazor__instance).getModuleName() === 'grid') {
             if (isNullOrUndefined(gObj.element.querySelector('.e-dragstartrow'))) {
                 dropElem.blazor__instance.getContent().classList.add('e-allowRowDrop');
             }
         }
     }
 
-    private drag: Function = (e: { target: HTMLElement, event: MouseEventArgs }) => {
+    private drag: (e: { target: HTMLElement, event: MouseEventArgs }) => unknown = (e: { target: HTMLElement, event: MouseEventArgs }) => {
         const gObj: SfGrid = this.parent;
         this.istargetGrid = false;
         this.destinationGrid = this.parent;
@@ -176,6 +179,7 @@ export class RowDD {
         }
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const instance = !isNullOrUndefined(targetElementGrid) && !isNullOrUndefined((targetElementGrid as any).blazor__instance)
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
             ? (targetElementGrid as any).blazor__instance : null;
 
         if (!isNullOrUndefined(instance) && !isNullOrUndefined(instance.options) && instance.options.showAddNewRow && !this.showAddNewRowDisable) {
@@ -244,6 +248,7 @@ export class RowDD {
         const stackedHeader: number = gObj.getStackedColumns(
             gObj.reorderModule.getColumnsModel(gObj.options.columns)).length;
         if (!isNullOrUndefined(targetElementGrid) && gObj.options.allowGrouping
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
             && ((<any>targetElementGrid).blazor__instance.options.groupCount === gObj.options.columns.length
                 || (stackedColumn - stackedHeader) === gObj.options.groupCount) && !gObj.options.showGroupedColumn) {
             classList(cloneElement, ['e-notallowedcur'], ['e-defaultcur']);
@@ -298,7 +303,8 @@ export class RowDD {
                         }
                     }
                 }
-                else if (!isNullOrUndefined(targetElementGrid) && targetElementGrid.querySelector('.e-emptyrow') && cloneElementGrid.id !== targetElementGrid.id && targetElementGrid.querySelector('.e-content').getElementsByClassName('e-emptyrow').length > 0 && !cloneElement.classList.contains('e-notallowedcur')) {
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                else if (!isNullOrUndefined(targetElementGrid) && !isNullOrUndefined((<any>targetElementGrid).blazor__instance) && targetElementGrid.querySelector('.e-emptyrow') && cloneElementGrid.id !== targetElementGrid.id && targetElementGrid.querySelector('.e-content').getElementsByClassName('e-emptyrow').length > 0 && !cloneElement.classList.contains('e-notallowedcur')) {
                     // eslint-disable-next-line @typescript-eslint/no-explicit-any
                     if ((<any>targetElementGrid).blazor__instance.getRows().length === 0 || !isNullOrUndefined(trElement) && parentsUntil(trElement, 'e-detailrow') && trElement.getElementsByClassName('e-emptyrow').length > 0) {
                         if (!isNullOrUndefined(cloneIsDetailRow) || (isNullOrUndefined(cloneIsDetailRow) &&
@@ -322,7 +328,9 @@ export class RowDD {
                         }
                     }
                 }
-                else if (!isNullOrUndefined(targetElementGrid) && gObj.options.allowEmptyAreaDrop
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                else if (!isNullOrUndefined(targetElementGrid) && !isNullOrUndefined((<any>targetElementGrid).blazor__instance) && gObj.options.allowEmptyAreaDrop
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
                     && (<any>targetElementGrid).blazor__instance.options.groupCount === 0) {
                     const gridContentEle: Element = targetElementGrid.querySelector('.e-content');
                     const bottomborder: HTMLElement = createElement('div', { className: 'e-lastrow-dragborder' });
@@ -386,7 +394,7 @@ export class RowDD {
         }
     }
 
-    private lastRowBorderBetweenGrids: Function = (trElement: HTMLElement, event: MouseEventArgs) => {
+    private lastRowBorderBetweenGrids: (trElement: HTMLElement, event: MouseEventArgs) => void = (trElement: HTMLElement, event: MouseEventArgs) => {
         const gObj: SfGrid = this.destinationGrid;
         const rowElements: Element[] = gObj.getRows();
         const isLastRow: boolean = rowElements.length > 0 && !isNullOrUndefined(trElement) && gObj.getContent().querySelector('tr:last-child') === trElement;
@@ -417,7 +425,7 @@ export class RowDD {
         }
     }
 
-    private setBottomBorderPosition: Function = (gObj: SfGrid,  bottomBorder: HTMLElement) => {
+    private setBottomBorderPosition: (gObj: SfGrid, bottomBorder: HTMLElement) => void = (gObj: SfGrid, bottomBorder: HTMLElement) => {
         // Retrieve relevant DOM elements
         const aggregateFooterElement: HTMLElement | null = gObj.element.querySelector('.e-gridfooter') as HTMLElement;
         const pagerElement: HTMLElement | null = gObj.element.querySelector('.e-pager') as HTMLElement;
@@ -431,12 +439,12 @@ export class RowDD {
         bottomBorder.style.bottom = `${bottomOffset}px`;
     }
 
-    private dragStop: Function = (e: { target: HTMLTableRowElement, event: MouseEventArgs, helper: Element }) => {
+    private dragStop: (e: { target: HTMLTableRowElement, event: MouseEventArgs, helper: Element }) => void = (e: { target: HTMLTableRowElement, event: MouseEventArgs, helper: Element }) => {
         document.body.classList.remove('e-prevent-select');
         this.processDragStop(e);
     }
 
-    private emptyTargertInGrid: Function = (target: HTMLElement) => {
+    private emptyTargertInGrid: (target: Element) => boolean = (target: Element) => {
         const gObj: SfGrid = this.parent;
         const contentDragBorder: HTMLCollectionOf<Element> = gObj.getContent().getElementsByClassName('e-dragborder');
         const headerDragBorder: HTMLCollectionOf<Element> = gObj.getHeaderContent().getElementsByClassName('e-firstrow-dragborder');
@@ -450,7 +458,7 @@ export class RowDD {
         return emptyTarget;
     }
 
-    private processDragStop: Function = (e: { target: HTMLTableRowElement, event: MouseEventArgs, helper: Element }) => {
+    private processDragStop: (e: { target: HTMLTableRowElement, event: MouseEventArgs, helper: Element }) => void = (e: { target: HTMLTableRowElement, event: MouseEventArgs, helper: Element }) => {
         const gObj: SfGrid = this.parent;
         const targetEle: Element = this.getElementFromPosition(e.helper as HTMLElement, e.event);
         const target: Element = targetEle && !targetEle.classList.contains('e-dlg-overlay') ?
@@ -473,8 +481,8 @@ export class RowDD {
             gObj.dotNetRef.invokeMethodAsync('ReorderRows', fromIdx, toIdx, 'add', false, targetClass, targetID, positions, null, true, false, null, null, false, getPosition(e.event).x, getPosition(e.event).y);
         }
         if (gObj.options.rowDropTarget && dropElement && dropElement.blazor__instance &&
-            (typeof (<{ getModuleName?: Function }>dropElement.blazor__instance).getModuleName === 'function') &&
-            (<{ getModuleName?: Function }>dropElement.blazor__instance).getModuleName() === 'grid') {
+            (typeof (<{ getModuleName?: () => string }>dropElement.blazor__instance).getModuleName === 'function') &&
+            (<{ getModuleName?: () => string }>dropElement.blazor__instance).getModuleName() === 'grid') {
             dropElement.blazor__instance.getContent().classList.remove('e-allowRowDrop');
         }
 
@@ -566,7 +574,7 @@ export class RowDD {
         }
     }
 
-    private removeCell: Function = (targetRow: HTMLTableRowElement, className: string) => {
+    private removeCell: (targetRow: HTMLTableRowElement, className: string) => unknown = (targetRow: HTMLTableRowElement, className: string) => {
         return [].slice.call(targetRow.querySelectorAll('td')).filter((cell: HTMLTableCellElement) => {
             if (cell.classList.contains(className)) { (targetRow as HTMLTableRowElement).deleteCell(cell.cellIndex); }
         });
@@ -619,8 +627,7 @@ export class RowDD {
                 -(this.destinationGrid.getRowHeight()) : this.destinationGrid.getRowHeight();
             this.isOverflowBorder = false;
             this.stopTimer();
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            this.timer = (window as any).setInterval(
+            this.timer = (window as Window).setInterval(
                 () => { this.setScrollDown(scrollElement, scrollPixel, targetRow); }, 200);
         }
     }
@@ -666,7 +673,7 @@ export class RowDD {
             this.removeFirstRowBorder(element);
             this.removeLastRowBorder(element);
         }
-        const dragIconIsActive: Element | null = this.parent.element.querySelector('.e-dragstartrow');
+        // const dragIconIsActive: Element | null = this.parent.element.querySelector('.e-dragstartrow');
         // Get the mouse position relative to the target row
         const mouseY: number = getPosition(event).y - targetRow.getBoundingClientRect().top;
         // Calculate the midpoint of the target row
@@ -896,9 +903,8 @@ export class RowDD {
         return targetRow ? parseInt(targetRow.getAttribute('aria-rowindex'), 10) - 1 : 0;
     }
 
-    private drop: Function = (e: DropEventArgs) => {
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const droppedElement: HTMLElement = e.droppedElement || (e as any).helper;
+    private drop: (...args: unknown[]) => unknown = (e: DropEventArgs) => {
+        const droppedElement: HTMLElement = e.droppedElement || (e as DropEventArgs & { helper: HTMLElement }).helper;
         this.columnDrop({ target: e.target as HTMLTableRowElement, droppedElement: droppedElement, mouseEvent: e.event as MouseEvent });
         remove(droppedElement);
     }
@@ -936,8 +942,8 @@ export class RowDD {
                 return;
             }
             if (targetGridId !== gObj.element.id) {
-                // eslint-disable-next-line @typescript-eslint/no-explicit-any
                 srcControl = this.cloneElementGrid && rowDragTargetId ?
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
                     (<any>this.cloneElementGrid).blazor__instance : (<any>e.droppedElement.parentElement).blazor__instance;
             }
             const dragStartRow: HTMLElement = srcControl.content.querySelector('.e-dragstartrow') as HTMLElement;
@@ -984,7 +990,7 @@ export class RowDD {
             let isClonedRowNotSelected: boolean = false;
             const clonedRowElement: HTMLElement = parentsUntil(dragStartRow, 'e-row') as HTMLElement;
             if (!isNullOrUndefined(clonedRowElement)) {
-                const ariaSelected: any = clonedRowElement.getAttribute('aria-selected');
+                const ariaSelected: string = clonedRowElement.getAttribute('aria-selected');
                 isClonedRowNotSelected = ariaSelected === 'false' || isNullOrUndefined(ariaSelected);
             }
             const fromIndex: number = isClonedRowNotSelected ? parseInt(clonedRowElement.getAttribute('aria-rowindex'), 10) - 1 : 0;

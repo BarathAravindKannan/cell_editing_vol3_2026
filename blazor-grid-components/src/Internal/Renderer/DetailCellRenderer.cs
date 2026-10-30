@@ -1,6 +1,7 @@
 ﻿using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Components.Web;
 using System;
+using System.Globalization;
 using System.Threading.Tasks;
 
 namespace Syncfusion.Blazor.Grids.Internal
@@ -41,7 +42,7 @@ namespace Syncfusion.Blazor.Grids.Internal
 
             // Add attributes
             builder.AddAttribute(sequence++, "aria-expanded", cell.DetailRowExpand ? "true" : "false");
-            builder.AddAttribute(sequence++, "tabindex", 0);
+            builder.AddAttribute(sequence++, "tabindex", (0).ToString(CultureInfo.InvariantCulture));
             builder.AddAttribute(sequence++, "data-uid", cell.Uid);
 
             // Add style if frozen
@@ -72,6 +73,7 @@ namespace Syncfusion.Blazor.Grids.Internal
                 : "e-icons e-dtdiagonalright e-icon-grightarrow";
 
             builder.OpenElement(sequence++, "a");
+            builder.AddAttribute(sequence++, "role", "button");
             builder.AddAttribute(sequence++, "aria-label", ariaLabel);
             builder.AddAttribute(sequence++, "class", iconClass);
             builder.CloseElement(); // </a>

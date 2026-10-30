@@ -113,7 +113,7 @@ namespace Syncfusion.Blazor.Grids
             {
                 foreignKeyData = foreignKeyData?.Where(item =>
                 {
-                    var itemValue = DataUtil.GetObject(filter.Field, item);
+                    var itemValue = DataUtil.GetObject(filter.Field ?? "", item);
                     return Equals(itemValue, filter.value);
                 })!;
             }            
@@ -138,10 +138,9 @@ namespace Syncfusion.Blazor.Grids
         {
             if (Parent != null && !Parent.IsRendered)
             {
-                DataManager.DataAdaptor.SetRunSyncOnce(true);
+                DataManager?.DataAdaptor?.SetRunSyncOnce(true);
             }
-
-            return await DataManager.ExecuteQuery<object>(dataManagerRequest).ConfigureAwait(true);
+            return DataManager != null ? await DataManager.ExecuteQuery<object>(dataManagerRequest).ConfigureAwait(true) : Array.Empty<object>();
         }
 
         internal static int sequence { get; set; }

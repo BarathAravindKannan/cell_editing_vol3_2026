@@ -1,57 +1,62 @@
 ﻿@page "/weather"
-@inject HttpClient Http
+@using Syncfusion.Blazor.Grids
 
-<PageTitle>Weather</PageTitle>
 
-<h1>Weather</h1>
+<h3>Syncfusion Grid Dom Virtualization 1 million records with Paging -> Height 300px, RowHeight 30px, PageSize 1000</h3>
+<SfGrid DataSource="@Orders"
+        AllowPaging="true"
+        AllowSorting="true"
+        Height="300"
+        EnableDomVirtualization="true"
+        RowHeight="30">
+    <GridPageSettings PageSize="1000"></GridPageSettings>
+    <GridColumns>
+        <GridColumn Field=@nameof(Order.OrderId)
+                    HeaderText="Order ID"
+                    Width="120">
+        </GridColumn>
 
-<p>This component demonstrates fetching data from the server.</p>
+        <GridColumn Field=@nameof(Order.CustomerName)
+                    HeaderText="Customer"
+                    Width="200">
+        </GridColumn>
 
-@if (forecasts == null)
+        <GridColumn Field=@nameof(Order.Country)
+                    HeaderText="Country"
+                    Width="150">
+        </GridColumn>
+
+        <GridColumn Field=@nameof(Order.Amount)
+                    HeaderText="Amount"
+                    Format="C2"
+                    Width="150">
+        </GridColumn>
+    </GridColumns>
+
+</SfGrid>
+
+@code
 {
-    <p><em>Loading...</em></p>
-}
-else
-{
-    <table class="table">
-        <thead>
-            <tr>
-                <th>Date</th>
-                <th aria-label="Temperature in Celsius">Temp. (C)</th>
-                <th aria-label="Temperature in Fahrenheit">Temp. (F)</th>
-                <th>Summary</th>
-            </tr>
-        </thead>
-        <tbody>
-            @foreach (var forecast in forecasts)
-            {
-                <tr>
-                    <td>@forecast.Date.ToShortDateString()</td>
-                    <td>@forecast.TemperatureC</td>
-                    <td>@forecast.TemperatureF</td>
-                    <td>@forecast.Summary</td>
-                </tr>
-            }
-        </tbody>
-    </table>
-}
+    private List<Order> Orders = new();
 
-@code {
-    private WeatherForecast[]? forecasts;
-
-    protected override async Task OnInitializedAsync()
+    protected override void OnInitialized()
     {
-        forecasts = await Http.GetFromJsonAsync<WeatherForecast[]>("sample-data/weather.json");
+        Orders = Enumerable.Range(1, 1000000)
+            .Select(i => new Order
+            {
+                OrderId = i,
+                CustomerName = $"Customer {i}",
+                Country = $"Country {i % 50}",
+                Amount = i * 10
+            })
+            .ToList();
     }
 
-    public class WeatherForecast
+    public class Order
     {
-        public DateOnly Date { get; set; }
-
-        public int TemperatureC { get; set; }
-
-        public string? Summary { get; set; }
-
-        public int TemperatureF => 32 + (int)(TemperatureC / 0.5556);
+        public int OrderId { get; set; }
+        public string CustomerName { get; set; } = "";
+        public string Country { get; set; } = "";
+        public decimal Amount { get; set; }
     }
 }

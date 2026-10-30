@@ -300,7 +300,7 @@ export class InfiniteScroll {
      *  - `rowIndex` {number}: The index of the row that meets the condition.
      *  - `row` {HTMLElement | null}: The row element that meets the condition, or null if none found.
      */
-    private findRowElementsInGrid(rows: HTMLElement[]): any {
+    private findRowElementsInGrid(rows: HTMLElement[]): { rowEntered: boolean, rowIndex: number, row: HTMLElement | null } {
         let rowEntered: boolean = false;
         let row: HTMLElement | null = null;
         let rowIndex: number = 0;

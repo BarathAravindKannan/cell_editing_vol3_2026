@@ -59,3 +59,149 @@
         }
     }
 }
+
+<SfFixture @ref="fixture4" Test="Print_Event_Support" 
+           Description="Print Event Support">
+    <ComponentUnderTest>
+        <SfGrid TValue="Order" @ref="DefaultGrid" DataSource="@Orders" AllowPaging="true">
+            <GridColumns>
+                <GridColumn Field="OrderID" HeaderText="Order ID" Width="120" />
+                <GridColumn Field="CustomerID" HeaderText="Customer ID" Width="150" />
+                <GridColumn Field="Freight" HeaderText="Freight" Format="C2" Width="120" />
+                <GridColumn Field="OrderDate" HeaderText="Order Date" Format="d" Type="ColumnType.Date" Width="130" />
+            </GridColumns>
+            <GridEvents TValue="Order" Printing="Printing" Printed="OnPrintCompleted"></GridEvents>
+        </SfGrid>
+    </ComponentUnderTest>
+    <Fragment>
+        <Syncfusion.Blazor.Grids.Internal.PrintLayout @ref="printLayoutRef" Parent="@DefaultGrid" T="Order" />
+    </Fragment>
+</SfFixture>
+
+
+@code {
+    // Fixtures
+    SfFixture fixture4 { get; set; }
+
+    // Parent Grids
+    SfGrid<Order> DefaultGrid { get; set; }
+
+    // PrintLayout Components
+    PrintLayout<Order> printLayoutRef { get; set; }
+
+    public List<Order> Orders { get; set; } = new()
+    {
+        new Order { OrderID = 1001, CustomerID = "ALFKI", Freight = 32.38, OrderDate = new DateTime(2026,8,19).AddDays(-1) },
+        new Order { OrderID = 1002, CustomerID = "ANATR", Freight = 11.61, OrderDate = new DateTime(2026,8,19).AddDays(-2) },
+        new Order { OrderID = 1003, CustomerID = "ANTON", Freight = 65.83, OrderDate = new DateTime(2026,8,19).AddDays(-3) },
+        new Order { OrderID = 1004, CustomerID = "AROUT", Freight = 41.34, OrderDate = new DateTime(2026,8,19).AddDays(-4) },
+        new Order { OrderID = 1005, CustomerID = "BERGS", Freight = 51.30, OrderDate = new DateTime(2026,8,19).AddDays(-5) },
+        new Order { OrderID = 1006, CustomerID = "BLAUS", Freight = 22.98, OrderDate = new DateTime(2026,8,19).AddDays(-6) },
+        new Order { OrderID = 1007, CustomerID = "BLONP", Freight = 78.11, OrderDate = new DateTime(2026,8,19).AddDays(-7) },
+        new Order { OrderID = 1008, CustomerID = "BOLID", Freight = 19.75, OrderDate = new DateTime(2026,8,19).AddDays(-8) },
+        new Order { OrderID = 1009, CustomerID = "BONAP", Freight = 56.40, OrderDate = new DateTime(2026,8,19).AddDays(-9) },
+        new Order { OrderID = 1010, CustomerID = "BOTTM", Freight = 29.88, OrderDate = new DateTime(2026,8,19).AddDays(-10) }
+    };
+
+    private async Task Printing(PrintingEventArgs args)
+    {
+        args.HeaderTemplate = @<div>Header</div>;
+        args.FooterTemplate = @<div>Footer</div>;
+
+        // Other supported print properties
+        args.Cancel = false;
+        args.PrintDataSource = Orders.Where(order => order.Freight > 50);
+
+        await Task.CompletedTask;
+    }
+
+    private async Task OnPrintCompleted()
+    {
+        await Task.CompletedTask;
+    }
+
+    // Test 1: OnInitialized - With DataManager
+    public void Print_Event_Support(Fixture fixture)
+    {
+        var cut = fixture.GetComponentUnderTest<SfGrid<Order>>();
+        var printLayoutComponent = fixture.GetFragment<PrintLayout<Order>>();
+
+        cut.WaitForState(() => cut.Instance != null, TimeSpan.FromMilliseconds(3000));
+        printLayoutComponent.WaitForState(() => printLayoutComponent.Instance != null, TimeSpan.FromMilliseconds(3000));
+        
+        var htmlContent = printLayoutComponent.Markup;
+        Assert.Contains("e-print-grid-layout", htmlContent, System.StringComparison.OrdinalIgnoreCase);
+        
+    }
+}
+
+
+<SfFixture @ref="fixture5" Test="Print_Event_Support_Cancel" 
+           Description="Print Event Support Cancel">
+    <ComponentUnderTest>
+        <SfGrid TValue="Order" @ref="DefaultGrid2" DataSource="@Orders2" AllowPaging="true">
+            <GridColumns>
+                <GridColumn Field="OrderID" HeaderText="Order ID" Width="120" />
+                <GridColumn Field="CustomerID" HeaderText="Customer ID" Width="150" />
+                <GridColumn Field="Freight" HeaderText="Freight" Format="C2" Width="120" />
+                <GridColumn Field="OrderDate" HeaderText="Order Date" Format="d" Type="ColumnType.Date" Width="130" />
+            </GridColumns>
+            <GridEvents TValue="Order" Printing="Printing2" Printed="OnPrintCompleted2"></GridEvents>
+        </SfGrid>
+    </ComponentUnderTest>
+    <Fragment>
+        <Syncfusion.Blazor.Grids.Internal.PrintLayout @ref="printLayoutRef2" Parent="@DefaultGrid2" T="Order" />
+    </Fragment>
+</SfFixture>
+
+
+@code {
+    // Fixtures
+    SfFixture fixture5 { get; set; }
+
+    // Parent Grids
+    SfGrid<Order> DefaultGrid2 { get; set; }
+
+    // PrintLayout Components
+    PrintLayout<Order> printLayoutRef2 { get; set; }
+
+    public List<Order> Orders2 { get; set; } = new()
+    {
+        new Order { OrderID = 1001, CustomerID = "ALFKI", Freight = 32.38, OrderDate = new DateTime(2026,8,19).AddDays(-1) },
+        new Order { OrderID = 1002, CustomerID = "ANATR", Freight = 11.61, OrderDate = new DateTime(2026,8,19).AddDays(-2) },
+        new Order { OrderID = 1003, CustomerID = "ANTON", Freight = 65.83, OrderDate = new DateTime(2026,8,19).AddDays(-3) },
+        new Order { OrderID = 1004, CustomerID = "AROUT", Freight = 41.34, OrderDate = new DateTime(2026,8,19).AddDays(-4) },
+        new Order { OrderID = 1005, CustomerID = "BERGS", Freight = 51.30, OrderDate = new DateTime(2026,8,19).AddDays(-5) },
+        new Order { OrderID = 1006, CustomerID = "BLAUS", Freight = 22.98, OrderDate = new DateTime(2026,8,19).AddDays(-6) },
+        new Order { OrderID = 1007, CustomerID = "BLONP", Freight = 78.11, OrderDate = new DateTime(2026,8,19).AddDays(-7) },
+        new Order { OrderID = 1008, CustomerID = "BOLID", Freight = 19.75, OrderDate = new DateTime(2026,8,19).AddDays(-8) },
+        new Order { OrderID = 1009, CustomerID = "BONAP", Freight = 56.40, OrderDate = new DateTime(2026,8,19).AddDays(-9) },
+        new Order { OrderID = 1010, CustomerID = "BOTTM", Freight = 29.88, OrderDate = new DateTime(2026,8,19).AddDays(-10) }
+    };
+
+    private async Task Printing2(PrintingEventArgs args)
+    {
+        args.Cancel = true;
+
+        await Task.CompletedTask;
+    }
+
+    private async Task OnPrintCompleted2()
+    {
+        await Task.CompletedTask;
+    }
+
+    // Test 1: OnInitialized - With DataManager
+    public void Print_Event_Support_Cancel(Fixture fixture)
+    {
+        var cut = fixture.GetComponentUnderTest<SfGrid<Order>>();
+        var printLayoutComponent = fixture.GetFragment<PrintLayout<Order>>();
+
+        cut.WaitForState(() => cut.Instance != null, TimeSpan.FromMilliseconds(3000));
+        printLayoutComponent.WaitForState(() => printLayoutComponent.Instance != null, TimeSpan.FromMilliseconds(3000));
+        
+        var htmlContent = printLayoutComponent.Markup;
+        Assert.Contains("e-print-grid-layout", htmlContent, System.StringComparison.OrdinalIgnoreCase);
+        
+    }
+}

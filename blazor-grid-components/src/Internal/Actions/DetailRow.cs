@@ -33,26 +33,32 @@ namespace Syncfusion.Blazor.Grids.Internal
             Action RequestType = Action.ExpandAllComplete;
             if (ExpandAll)
             {
-                for (var i = 0; i < Parent.Rows?.Count; i++)
+                if (Parent.Rows?.Count > 0)
                 {
-                    if (!Parent.Rows[i].IsExpand && Parent.Rows[i].IsDataRow)
+                    for (var i = 0; i < Parent.Rows.Count; i++)
                     {
-                        await DetailClick(Parent.Rows[i].Index, Parent.Rows[i].Uid!, true).ConfigureAwait(true);
-                    }
-                    else if (Parent.Rows[i].IsCaptionRow)
-                    {
-                        Parent.Rows[i].IsExpand = true;
+                        if (!Parent.Rows[i].IsExpand && Parent.Rows[i].IsDataRow)
+                        {
+                            await DetailClick(Parent.Rows[i].Index, Parent.Rows[i].Uid!, true).ConfigureAwait(true);
+                        }
+                        else if (Parent.Rows[i].IsCaptionRow)
+                        {
+                            Parent.Rows[i].IsExpand = true;
+                        }
                     }
                 }
             }
             else
             {
                 RequestType = Action.CollapseAllComplete;
-                for (var i = 0; i < Parent.Rows?.Count; i++)
+                if (Parent.Rows?.Count > 0)
                 {
-                    if (Parent.Rows[i].IsExpand && Parent.Rows[i].IsDataRow)
+                    for (var i = 0; i < Parent.Rows.Count; i++)
                     {
-                        await DetailClick(Parent.Rows[i].Index, Parent.Rows[i].Uid!, true).ConfigureAwait(true);
+                        if (Parent.Rows[i].IsExpand && Parent.Rows[i].IsDataRow)
+                        {
+                            await DetailClick(Parent.Rows[i].Index, Parent.Rows[i].Uid!, true).ConfigureAwait(true);
+                        }
                     }
                 }
             }
@@ -217,7 +223,7 @@ namespace Syncfusion.Blazor.Grids.Internal
 
             if (Parent.AllowRowDragAndDrop)
             {
-                colsSpan = colsSpan + 1;
+                colsSpan = (colsSpan ?? 0) + 1;
             }
 
             cells.Add(new Cell<object>() { IsDataCell = true, Visible = true, ColSpan = colsSpan });
@@ -431,6 +437,7 @@ namespace Syncfusion.Blazor.Grids.Internal
         /// <param name="data">The data items to generate detail rows for</param>
         /// <param name="startIndex">The starting index for row generation</param>
         /// <param name="visibleColumnCount">The count of visible columns for cell generation</param>
+        /// <param name="item">The data item for the detail row</param>
         internal void GenerateDetailRows(List<Row<object>> rows, IEnumerable<object> data, int startIndex, int visibleColumnCount,object item)
         {
             if (!Parent.IsRenderedFromTreeGrid || data == null)

@@ -5,6 +5,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.AspNetCore.Components;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using System.Globalization;
+using Syncfusion.Telemetry; 
 
 namespace Syncfusion.Blazor.Tests.Grids
 {
@@ -12,6 +13,7 @@ namespace Syncfusion.Blazor.Tests.Grids
     {
         public BunitTestContext()
         {
+            Telemetry.Telemetry.Disable();
             // Create a new culture based on en-US and set the ShortDatePattern
             var cultureInfo = new CultureInfo("en-US");
             cultureInfo.DateTimeFormat.ShortDatePattern = "M/d/yyyy";

@@ -257,8 +257,10 @@ export class Freeze {
     private updateStackedHdrRowHgt(idx: number, maxRowSpan: number, row: Element, rows: NodeListOf<Element>): void {
         let height: number = 0;
         for (let i: number = 0; i < maxRowSpan; i++) {
-            height += (rows[idx + i] as HTMLElement).style.height ?
-                parseInt((rows[idx + i] as HTMLElement).style.height, 10) : (rows[idx + i] as HTMLElement).offsetHeight;
+            if (idx + i < rows.length) {
+                height += (rows[idx + i] as HTMLElement).style.height ?
+                    parseInt((rows[idx + i] as HTMLElement).style.height, 10) : (rows[idx + i] as HTMLElement).offsetHeight;
+            }
         }
         (row as HTMLElement).style.height = height + 'px';
     }
@@ -276,7 +278,8 @@ export class Freeze {
     }
 
     public clearWrapHeight(): void {
-        const fn: Function = (fRows: NodeListOf<HTMLElement>, mRows: NodeListOf<HTMLElement>) => {
+        const fn: (fRows: NodeListOf<HTMLElement>, mRows: NodeListOf<HTMLElement>) => void =
+            (fRows: NodeListOf<HTMLElement>, mRows: NodeListOf<HTMLElement>) => {
             for (let i: number = 0, len: number = fRows.length; i < len; i++) {
                 if (!isNullOrUndefined(fRows[parseInt(i.toString(), 10)]) && !isNullOrUndefined(mRows[parseInt(i.toString(), 10)])) {
                     fRows[parseInt(i.toString(), 10)].style.height = null;
@@ -321,14 +324,15 @@ export class Freeze {
 
     public calculatedLeftValue(index: number): number {
         const columns: Column[] = this.parent.columnModel;
-        if (columns === null || columns.length === 0 || index < 0) {
+        if (isNullOrUndefined(columns) || columns.length === 0 || index < 0) {
             return 0;
         }
         let width: number = 0;
         const maxIndex: number = Math.min(index, columns.length - 1);
         for (let i: number = 0; i <= maxIndex; i++) {
-            if (columns[parseInt(i.toString(), 10)] != null) {
-                const columnWidth: string = columns[parseInt(i.toString(), 10)].width as string;
+            const column: Column = columns[parseInt(i.toString(), 10)];
+            if (!isNullOrUndefined(column)) {
+                const columnWidth: string = column.width as string;
                 width += parseInt(columnWidth.toString(), 10);
             }
         }

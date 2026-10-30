@@ -1,9 +1,11 @@
-import { BlazorDotnetObject, isNullOrUndefined, enableBlazorMode, closest } from '@syncfusion/ej2-base';
+import { BlazorDotnetObject, isNullOrUndefined, enableBlazorMode, closest, Browser } from '@syncfusion/ej2-base';
 import { SfGrid } from './sf-grid-fn';
 import { getCellByRowUidAndColIndex, getScrollBarWidth } from './util';
 import { BlazorGridElement, IGridOptions, Column, FreezeLineMovingClientOptions, InitModulesResults, FocusEditableCellsArgs } from './interfaces';
 import { ColumnWidthService } from './width-controller';
 import { parentsUntil } from './util';
+import * as WebMcpAdapter from './webmcp-adapter';
+import type { ToolDescriptor } from './webmcp-adapter';
 /**
  * Blazor grid interop handler
  */
@@ -14,6 +16,7 @@ const Grid: object = {
         enableBlazorMode();
         new SfGrid(dataId, element, options, dotnetRef);
         const gridInstance = this.sfBlazor.getCompInstance(dataId);
+        if (isNullOrUndefined(gridInstance)) { return;}
         if (gridInstance.options.showAddNewRow && focusEditableCellsParams != null) {
             const editableCellField: string = focusEditableCellsParams.editableCellField || '';
             const editableIsAdd: boolean = focusEditableCellsParams.isAdd || false;
@@ -25,7 +28,7 @@ const Grid: object = {
     contentReady(dataId: string, options: IGridOptions, action: string, isResetData?: boolean): InitModulesResults {
         const gridInstance = this.sfBlazor.getCompInstance(dataId);
         let contentReadyResults: InitModulesResults;
-        if (!isNullOrUndefined(gridInstance.element) && !isNullOrUndefined(gridInstance.element.blazor__instance)) {
+        if (!isNullOrUndefined(gridInstance) && !isNullOrUndefined(gridInstance.element) && !isNullOrUndefined(gridInstance.element.blazor__instance)) {
             const instance = gridInstance.element.blazor__instance;
             instance.setOptions(options, instance.options);
             instance.options = options;
@@ -45,7 +48,7 @@ const Grid: object = {
     },
     refreshPivotRowHeight(dataId: string) {
         const gridInstance = this.sfBlazor.getCompInstance(dataId);
-        if (!isNullOrUndefined(gridInstance.element) && !isNullOrUndefined(gridInstance.element.blazor__instance)) {
+        if (!isNullOrUndefined(gridInstance) && !isNullOrUndefined(gridInstance.element) && !isNullOrUndefined(gridInstance.element.blazor__instance)) {
             const instance = gridInstance.element.blazor__instance;
             instance.freezeModule.refreshFreeze({ case: 'textwrap' });
         }
@@ -53,7 +56,7 @@ const Grid: object = {
     },
     customFilterDialog(dataId: string, dlgID: string, isExcel: boolean) {
         const gridInstance = this.sfBlazor.getCompInstance(dataId);
-        if (!isNullOrUndefined(gridInstance.element) && !isNullOrUndefined(gridInstance.element.blazor__instance)) {
+        if (!isNullOrUndefined(gridInstance) && !isNullOrUndefined(gridInstance.element) && !isNullOrUndefined(gridInstance.element.blazor__instance)) {
             let dialogElement: HTMLElement = (document.querySelector('#' + dlgID) as HTMLElement);
             if(gridInstance.options.isRenderedFromTreeGrid && isNullOrUndefined(dialogElement)){
                 dialogElement = document.getElementById(dlgID) as HTMLElement;
@@ -75,6 +78,7 @@ const Grid: object = {
     },
     setCustomFilterDialogPadding(element: BlazorGridElement, field: string) {
         const gridInstance = this.sfBlazor.getCompInstance(element);
+        if (isNullOrUndefined(gridInstance) || isNullOrUndefined(gridInstance.options)) { return; }
         let setPadding: HTMLElement = (document.querySelector('#' + field) as HTMLElement);
         if(gridInstance.options.isRenderedFromTreeGrid && isNullOrUndefined(setPadding)){
             setPadding = document.getElementById(field) as HTMLElement;
@@ -83,7 +87,7 @@ const Grid: object = {
     },
     searchClear(dataId: string, inputId: string, inputValue: string) {
         const gridInstance = this.sfBlazor.getCompInstance(dataId);
-        if (!isNullOrUndefined(gridInstance.element) && !isNullOrUndefined(gridInstance.element.blazor__instance)) {
+        if (!isNullOrUndefined(gridInstance) && !isNullOrUndefined(gridInstance.element) && !isNullOrUndefined(gridInstance.element.blazor__instance)) {
             let inputElement: HTMLInputElement = gridInstance.element.querySelector('#' + inputId);
             if (gridInstance.options.isRenderedFromTreeGrid && isNullOrUndefined(inputElement))
             {
@@ -100,7 +104,7 @@ const Grid: object = {
     },
     updateTableWidth(dataId: string, columns: Column[]) {
         const gridInstance = this.sfBlazor.getCompInstance(dataId);
-        if (!isNullOrUndefined(gridInstance.element) && !isNullOrUndefined(gridInstance.element.blazor__instance)) {
+        if (!isNullOrUndefined(gridInstance) && !isNullOrUndefined(gridInstance.element) && !isNullOrUndefined(gridInstance.element.blazor__instance)) {
             const instance = gridInstance.element.blazor__instance;
             instance.options.columns = columns;
             if (instance.options.allowResizing && instance.options.isResizedGrid) {
@@ -112,21 +116,21 @@ const Grid: object = {
     },
     preventResizeAction(dataId: string, isCancel: boolean) {
         const gridInstance = this.sfBlazor.getCompInstance(dataId);
-        if (!isNullOrUndefined(gridInstance.element) && !isNullOrUndefined(gridInstance.element.blazor__instance)) {
+        if (!isNullOrUndefined(gridInstance) && !isNullOrUndefined(gridInstance.element) && !isNullOrUndefined(gridInstance.element.blazor__instance)) {
             const instance = gridInstance.element.blazor__instance;
             instance.resizeModule.preventResizeAction(isCancel);
         }
     },
     preventFreezeLineMoving(dataId: string, isCancel: boolean) {
         const gridInstance = this.sfBlazor.getCompInstance(dataId);
-        if (!isNullOrUndefined(gridInstance.element) && !isNullOrUndefined(gridInstance.element.blazor__instance)) {
+        if (!isNullOrUndefined(gridInstance) && !isNullOrUndefined(gridInstance.element) && !isNullOrUndefined(gridInstance.element.blazor__instance)) {
             const instance = gridInstance.element.blazor__instance;
             instance.frozenDragDropModule.preventFreezeLineMoving(isCancel);
         }
     },
     freezeLineMovedActions(dataId: string, freezeLineMovingClientOptions: FreezeLineMovingClientOptions) {
         const gridInstance = this.sfBlazor.getCompInstance(dataId);
-        if (!isNullOrUndefined(gridInstance.element) && !isNullOrUndefined(gridInstance.element.blazor__instance)) {
+        if (!isNullOrUndefined(gridInstance) && !isNullOrUndefined(gridInstance.element) && !isNullOrUndefined(gridInstance.element.blazor__instance)) {
             const instance = gridInstance.element.blazor__instance;
             instance.options.actualFrozenColumns = freezeLineMovingClientOptions.actualFrozenColumns;
             instance.options.columns = freezeLineMovingClientOptions.columns;
@@ -141,7 +145,7 @@ const Grid: object = {
     },
     frozenHeight(dataId: string, options: IGridOptions) {
         const gridInstance = this.sfBlazor.getCompInstance(dataId);
-        if (!isNullOrUndefined(gridInstance.element) && !isNullOrUndefined(gridInstance.element.blazor__instance)) {
+        if (!isNullOrUndefined(gridInstance) && !isNullOrUndefined(gridInstance.element) && !isNullOrUndefined(gridInstance.element.blazor__instance)) {
             const instance = gridInstance.element.blazor__instance;
             instance.freezeModule.setFrozenHeight();
             if (options.allowTextWrap) {
@@ -157,7 +161,7 @@ const Grid: object = {
     },
     updateVirtualColumns(dataId: string, virtualizedColumns: Column[]) {
         const gridInstance = this.sfBlazor.getCompInstance(dataId);
-        if (!isNullOrUndefined(gridInstance.element) && !isNullOrUndefined(gridInstance.element.blazor__instance)) {
+        if (!isNullOrUndefined(gridInstance) && !isNullOrUndefined(gridInstance.element) && !isNullOrUndefined(gridInstance.element.blazor__instance)) {
             const instance = gridInstance.element.blazor__instance;
             instance.options.virtualizedColumns = virtualizedColumns;
             if (instance.options.allowResizing && instance.options.frozenColumns === 0 && instance.getContent().querySelector('table').style.width !== '') {
@@ -168,7 +172,7 @@ const Grid: object = {
     },
     updateOptions(dataId: string, options: IGridOptions) {
         const gridInstance = this.sfBlazor.getCompInstance(dataId);
-        if (!isNullOrUndefined(gridInstance.element) && !isNullOrUndefined(gridInstance.element.blazor__instance)) {
+        if (!isNullOrUndefined(gridInstance) && !isNullOrUndefined(gridInstance.element) && !isNullOrUndefined(gridInstance.element.blazor__instance)) {
             const instance = gridInstance.element.blazor__instance;
             instance.setOptions(options, instance.options);
         }
@@ -176,7 +180,7 @@ const Grid: object = {
 
     virtualHeight(dataId: string, options: IGridOptions, totalItemCount: number) {
         const gridInstance = this.sfBlazor.getCompInstance(dataId);
-        if (!isNullOrUndefined(gridInstance.element) && !isNullOrUndefined(gridInstance.element.blazor__instance)) {
+        if (!isNullOrUndefined(gridInstance) && !isNullOrUndefined(gridInstance.element) && !isNullOrUndefined(gridInstance.element.blazor__instance)) {
             const instance = gridInstance.element.blazor__instance;
             instance.options = options;
             instance.options.totalItemCount = totalItemCount;
@@ -187,7 +191,7 @@ const Grid: object = {
 
     lazyGroupExpand(dataId: string, options: IGridOptions) {
         const gridInstance = this.sfBlazor.getCompInstance(dataId);
-        if (!isNullOrUndefined(gridInstance.element) && !isNullOrUndefined(gridInstance.element.blazor__instance)) {
+        if (!isNullOrUndefined(gridInstance) && !isNullOrUndefined(gridInstance.element) && !isNullOrUndefined(gridInstance.element.blazor__instance)) {
             const instance = gridInstance.element.blazor__instance;
             instance.setOptions(options, instance.options);
             instance.options = options;
@@ -204,7 +208,7 @@ const Grid: object = {
 
     viewRefresh(dataId: string, columns: Column[]) {
         const gridInstance = this.sfBlazor.getCompInstance(dataId);
-        if (!isNullOrUndefined(gridInstance.element) && !isNullOrUndefined(gridInstance.element.blazor__instance)) {
+        if (!isNullOrUndefined(gridInstance) && !isNullOrUndefined(gridInstance.element) && !isNullOrUndefined(gridInstance.element.blazor__instance)) {
             const widthService: ColumnWidthService = new ColumnWidthService(gridInstance);
             if(gridInstance.options.enableColumnVirtualization){
                 columns = gridInstance.options.virtualizedColumns;
@@ -220,7 +224,7 @@ const Grid: object = {
 
     virtualDisconnect(dataId: string, options: IGridOptions) {
         const gridInstance = this.sfBlazor.getCompInstance(dataId);
-        if (!isNullOrUndefined(gridInstance.element) && !isNullOrUndefined(gridInstance.element.blazor__instance)
+        if (!isNullOrUndefined(gridInstance) && !isNullOrUndefined(gridInstance.element) && !isNullOrUndefined(gridInstance.element.blazor__instance)
             && !isNullOrUndefined(gridInstance.element.blazor__instance.virtualContentModule)) {
             gridInstance.element.blazor__instance.options.enableVirtualization = options.enableVirtualization;
             gridInstance.element.blazor__instance.virtualContentModule.observer.disconnect();
@@ -229,28 +233,28 @@ const Grid: object = {
 
     reorderColumns(dataId: string, fromFName: string | string[], toFName: string) { //NEW
         const gridInstance = this.sfBlazor.getCompInstance(dataId);
-        if (!isNullOrUndefined(gridInstance.element) && !isNullOrUndefined(gridInstance.element.blazor__instance)) {
+        if (!isNullOrUndefined(gridInstance) && !isNullOrUndefined(gridInstance.element) && !isNullOrUndefined(gridInstance.element.blazor__instance)) {
             gridInstance.element.blazor__instance.reorderModule.reorderColumns(fromFName, toFName);
         }
     },
 
     reorderColumnByIndex(dataId: string, fromIndex: number, toIndex: number) {
         const gridInstance = this.sfBlazor.getCompInstance(dataId);
-        if (!isNullOrUndefined(gridInstance.element) && !isNullOrUndefined(gridInstance.element.blazor__instance)) {
+        if (!isNullOrUndefined(gridInstance) && !isNullOrUndefined(gridInstance.element) && !isNullOrUndefined(gridInstance.element.blazor__instance)) {
             gridInstance.element.blazor__instance.reorderModule.reorderColumnByIndex(fromIndex, toIndex);
         }
     },
 
     reorderColumnByTargetIndex(dataId: string, fieldName: string, toIndex: number) {
         const gridInstance = this.sfBlazor.getCompInstance(dataId);
-        if (!isNullOrUndefined(gridInstance.element) && !isNullOrUndefined(gridInstance.element.blazor__instance)) {
+        if (!isNullOrUndefined(gridInstance) && !isNullOrUndefined(gridInstance.element) && !isNullOrUndefined(gridInstance.element.blazor__instance)) {
             gridInstance.element.blazor__instance.reorderModule.reorderColumnByTargetIndex(fieldName, toIndex);
         }
     },
     renderColumnChooser: function (dataId: string) {
         const gridInstance = this.sfBlazor.getCompInstance(dataId);
         let positions = ['0', '0'];
-        if (!isNullOrUndefined(gridInstance.element) && !isNullOrUndefined(gridInstance.element.blazor__instance)) {
+        if (!isNullOrUndefined(gridInstance) && !isNullOrUndefined(gridInstance.element) && !isNullOrUndefined(gridInstance.element.blazor__instance)) {
             positions = gridInstance.element.blazor__instance.columnChooserModule.renderColumnChooser();
         }
         return positions;
@@ -258,7 +262,7 @@ const Grid: object = {
 
     renderColumnMenu: function (dataId: string, uid: string, isFilter: boolean, key: string) {
         const gridInstance = this.sfBlazor.getCompInstance(dataId);
-        if (!isNullOrUndefined(gridInstance.element) && !isNullOrUndefined(gridInstance.element.blazor__instance)) {
+        if (!isNullOrUndefined(gridInstance) && !isNullOrUndefined(gridInstance.element) && !isNullOrUndefined(gridInstance.element.blazor__instance)) {
             return gridInstance.element.blazor__instance.columnMenuModule.renderColumnMenu(uid, isFilter, key);
         }
         else {
@@ -268,40 +272,61 @@ const Grid: object = {
 
     renderAdaptiveMenuItems: function (dataId: string) {
         const gridInstance = this.sfBlazor.getCompInstance(dataId);
+        if (isNullOrUndefined(gridInstance) || isNullOrUndefined(gridInstance.element)) { return;}
         const columnMenuElement: Element = document.getElementsByClassName(`e-${gridInstance.element.id}-column-menu`)[0];
         const element: HTMLElement = !isNullOrUndefined(columnMenuElement) ? columnMenuElement.getElementsByTagName('ul')[0] : null;
         const e: HTMLElement = document.getElementById(gridInstance.element.id + '_responsivetoolbaritems');
         const btnOffset: ClientRect = e.getBoundingClientRect();
         let left: number = btnOffset.left + scrollX;
+        let right: number = btnOffset.right + scrollX;
         let top: number = btnOffset.bottom + scrollY;
         const popupOffset: ClientRect = element.getBoundingClientRect();
         const docElement: HTMLElement = document.documentElement;
+        const popupWidth: number = popupOffset.width;
         if (btnOffset.bottom + popupOffset.height > docElement.clientHeight) {
             if (top - btnOffset.height - popupOffset.height > docElement.clientTop) {
                 top = top - btnOffset.height - popupOffset.height;
             }
         }
-        if (btnOffset.left + popupOffset.width > docElement.clientWidth) {
-            if (btnOffset.right - popupOffset.width > docElement.clientLeft) {
-                left = (left + btnOffset.width) - popupOffset.width;
+        if (gridInstance.options.enableRtl && !Browser.isDevice) {
+            if (right + popupWidth < docElement.clientWidth) {
+              right -= popupOffset.width;
             }
+            (columnMenuElement as HTMLElement).style.right = `${Math.max(0, Math.ceil(right))}px`;
         }
-        left = e.getAttribute('data-index') === '0' ? left - element.getBoundingClientRect().width + popupOffset.width : left - element.getBoundingClientRect().width + btnOffset.width - getScrollBarWidth();
-        (columnMenuElement as HTMLElement).style.left = Math.ceil(left + 1) + 'px';
+        else if(gridInstance.options.enableRtl && Browser.isDevice)
+        {
+            right = docElement.clientWidth - right;
+            if (btnOffset.right - popupOffset.width < docElement.clientLeft) {
+                right = right + btnOffset.width - popupOffset.width;
+            }
+            (columnMenuElement as HTMLElement).style.right = Math.ceil(right + 1) + 'px';
+        }
+        else{
+            if (btnOffset.left + popupOffset.width > docElement.clientWidth) {
+                if (btnOffset.right - popupOffset.width > docElement.clientLeft) {
+                    left = (left + btnOffset.width) - popupOffset.width;
+                }
+            }
+            if(!Browser.isDevice) {
+                left = e.getAttribute('data-index') === '0' ? left - element.getBoundingClientRect().width + popupOffset.width : left - element.getBoundingClientRect().width + btnOffset.width - getScrollBarWidth();
+            }
+            (columnMenuElement as HTMLElement).style.left = Math.ceil(left + 1) + 'px';
+        }
         (columnMenuElement as HTMLElement).style.top = Math.ceil(top + 1) + 'px';
     },
 
     filterPopupRender: function filterPopupRender(dataId: string, dlgID: string, uid: string, type: string, isColumnMenu: boolean) {
         const gridInstance = this.sfBlazor.getCompInstance(dataId);
         let positions = ['0', '0'];
-        if (!isNullOrUndefined(gridInstance.element) && !isNullOrUndefined(gridInstance.element.blazor__instance)) {
+        if (!isNullOrUndefined(gridInstance) && !isNullOrUndefined(gridInstance.element) && !isNullOrUndefined(gridInstance.element.blazor__instance)) {
             positions = gridInstance.element.blazor__instance.filterModule.filterPopupRender(dlgID, uid, type, isColumnMenu);
         }
         return positions;
     },
     clientHeight: function clientHeight(dataId: string) {
         const gridInstance = this.sfBlazor.getCompInstance(dataId);
-        if (!isNullOrUndefined(gridInstance.element) && !isNullOrUndefined(gridInstance.element.blazor__instance)) {
+        if (!isNullOrUndefined(gridInstance) && !isNullOrUndefined(gridInstance.element) && !isNullOrUndefined(gridInstance.element.blazor__instance)) {
             return Math.max(gridInstance.element.blazor__instance.content.clientHeight, window.innerHeight || 0);
         }
         return 0;
@@ -309,14 +334,14 @@ const Grid: object = {
     clientTransformUpdate: function clientTransformUpdate(dataId: string, xPosition: number, yPosition: number,
                                                           isOverscan: boolean = false, isBottomAdd: boolean = false) {
         const gridInstance = this.sfBlazor.getCompInstance(dataId);
-        if (!isNullOrUndefined(gridInstance.element) && !isNullOrUndefined(gridInstance.element.blazor__instance) &&
+        if (!isNullOrUndefined(gridInstance) && !isNullOrUndefined(gridInstance.element) && !isNullOrUndefined(gridInstance.element.blazor__instance) &&
             !isNullOrUndefined(gridInstance.element.blazor__instance.virtualContentModule)) {
             gridInstance.element.blazor__instance.virtualContentModule.updateTransform(xPosition, yPosition, isOverscan, isBottomAdd);
         }
     },
     autoFitColumns(dataId: string, columns: Column[], fieldNames: string | string[], isAutoFit: boolean, isColumnResized: boolean = false) {
         const gridInstance = this.sfBlazor.getCompInstance(dataId);
-        if (!isNullOrUndefined(gridInstance.element) && !isNullOrUndefined(gridInstance.element.blazor__instance)) {
+        if (!isNullOrUndefined(gridInstance) && !isNullOrUndefined(gridInstance.element) && !isNullOrUndefined(gridInstance.element.blazor__instance)) {
             const instance = gridInstance.element.blazor__instance;
             if (isAutoFit && !isNullOrUndefined(instance.resizeModule)) {
                 instance.options.columns = columns;
@@ -330,7 +355,7 @@ const Grid: object = {
     },
     autoFit(dataId: string) {
         const gridInstance = this.sfBlazor.getCompInstance(dataId);
-        if (!isNullOrUndefined(gridInstance.element) && !isNullOrUndefined(gridInstance.element.blazor__instance)) {
+        if (!isNullOrUndefined(gridInstance) && !isNullOrUndefined(gridInstance.element) && !isNullOrUndefined(gridInstance.element.blazor__instance)) {
             const instance = gridInstance.element.blazor__instance;
             instance.resizeModule.autoFit();
             instance.scrollModule.setPadding();
@@ -338,7 +363,7 @@ const Grid: object = {
     },
     refreshColumnIndex(dataId: string, columns: Column[]) {
         const gridInstance = this.sfBlazor.getCompInstance(dataId);
-        if (!isNullOrUndefined(gridInstance.element) && !isNullOrUndefined(gridInstance.element.blazor__instance)) {
+        if (!isNullOrUndefined(gridInstance) && !isNullOrUndefined(gridInstance.element) && !isNullOrUndefined(gridInstance.element.blazor__instance)) {
             const instance = gridInstance.element.blazor__instance;
             instance.options.columns = columns;
             instance.virtualContentModule.refreshColumnIndexes();
@@ -364,7 +389,7 @@ const Grid: object = {
         }
         const expandCollapseCell: boolean = cell.classList.contains('e-recordplusexpand') || cell.classList.contains('e-recordpluscollapse');
         const isTemplateCell: boolean = isSelectionMethodInvoked || ((keyCombination == null && action == null) ? !cell.classList.contains('e-templatecell'): true);
-        if (!isNullOrUndefined(gridInstance.element) && !isNullOrUndefined(gridInstance.element.blazor__instance)
+        if (!isNullOrUndefined(gridInstance) && !isNullOrUndefined(gridInstance.element) && !isNullOrUndefined(gridInstance.element.blazor__instance)
             && !isNullOrUndefined(cell) && isTemplateCell) {
             const instance = gridInstance.element.blazor__instance;
             const { enableVirtualization, enableColumnVirtualization } = instance.options;
@@ -382,7 +407,7 @@ const Grid: object = {
     scrollToFocusedCell(dataId: string) {
         const gridInstance = this.sfBlazor.getCompInstance(dataId);
         const element: Element | null = document.activeElement;
-        if (!element){
+        if (!element || isNullOrUndefined(gridInstance) || isNullOrUndefined(gridInstance.element)){
             return;// Ensure the focused element exists
         }
 
@@ -437,20 +462,33 @@ const Grid: object = {
      * @returns {void}
      * @hidden
      */
-    applyPrefillToInput(dataId: string, elementId: string, value: string): void {
+    applyPrefillToInput(dataId: string, elementId: string, value: string, cellUid: string | null, isFromNumericEdit: boolean): void {
         try {
             const gridInstance = this.sfBlazor.getCompInstance(dataId);
-            if (!isNullOrUndefined(gridInstance) && !isNullOrUndefined(gridInstance.element)) {   
-                const inputElement: HTMLInputElement | null = gridInstance.element.querySelector('#' + elementId);
+            if (!isNullOrUndefined(gridInstance) && !isNullOrUndefined(gridInstance.element)) {
+                let inputElement: HTMLInputElement | null = gridInstance.element.querySelector('#' + elementId);
+                if (isNullOrUndefined(inputElement) && cellUid !== null && cellUid.trim() !== "") {
+                    inputElement = gridInstance.element.querySelector("td[data-uid=\"".concat(cellUid, "\"] input:not([type=\"hidden\"]"));
+                }
                 if (!isNullOrUndefined(inputElement)) {
                     setTimeout(() => {
                         inputElement.value = value;
                         // Trigger the input event so the component (SfDatePicker/SfNumericTextBox/SfTextBox)
                         // becomes aware of the change and can update its internal state.
                         inputElement.dispatchEvent(new Event('input', { bubbles: true }));
+                        if (isFromNumericEdit) {
+                            let timeout = 10;
+                            if (gridInstance.options.isWebAssembly) {
+                                timeout = 50;
+                            }
+                            setTimeout(() => {
+                                inputElement.setSelectionRange(1, 1);
+                            }, timeout);
+                        }
                     }, 0);
                 }
             }
+        // eslint-disable-next-line @typescript-eslint/no-unused-vars
         } catch (e) {
             // Swallow errors silently - prefill is a UX enhancement, not a critical operation.
         }
@@ -482,7 +520,7 @@ const Grid: object = {
     },
     focusDetailTemplateElements(dataId: string, keyCombination: string, isDetailTemplateCell: boolean) {
         const gridInstance = this.sfBlazor.getCompInstance(dataId);
-        if (isNullOrUndefined(gridInstance.element) && isNullOrUndefined(gridInstance.element.blazor__instance) && isNullOrUndefined(parentsUntil(document.activeElement, 'e-grid'))) {
+        if (isNullOrUndefined(gridInstance) && isNullOrUndefined(gridInstance.element) && isNullOrUndefined(gridInstance.element.blazor__instance) && isNullOrUndefined(parentsUntil(document.activeElement, 'e-grid'))) {
             return;
         }
         const childGrid = document.activeElement.querySelector('.e-grid');
@@ -506,6 +544,7 @@ const Grid: object = {
     },
     updateFilterBarCell(dataId: string, filteredFields: string[], filteredActualValue: string[]) {
         const gridInstance = this.sfBlazor.getCompInstance(dataId);
+        if (isNullOrUndefined(gridInstance) || isNullOrUndefined(gridInstance.element)) { return;}
         const filterRow = gridInstance.element.querySelector('.e-filterbar');
         if (isNullOrUndefined(filterRow)) { return; }
         filteredFields.forEach((fieldName, i) => {
@@ -517,6 +556,7 @@ const Grid: object = {
     },
     focusFilterBar(dataId: string, keyCombination: string, isFilterTemplate: boolean, index: number) {
         const gridInstance = this.sfBlazor.getCompInstance(dataId);
+        if (isNullOrUndefined(gridInstance) || isNullOrUndefined(gridInstance.element)) { return;}
         const filterRow = gridInstance.element.querySelector('.e-filterbar');
         if (!isNullOrUndefined(gridInstance.element) && !isNullOrUndefined(gridInstance.element.blazor__instance)
             && !isNullOrUndefined(filterRow)) {
@@ -589,8 +629,9 @@ const Grid: object = {
                         } else {
                             (lastFilterElement.children[0] as HTMLElement).focus();
                         }
-                    } else if (!isNullOrUndefined(filterBar) && (filterBar as any).length > 0) {
-                        ((filterBar as any)[(filterBar as any).length - 1] as HTMLElement).focus();
+                    } else if (!isNullOrUndefined(filterBar) && (filterBar as NodeListOf<Element>).length > 0) {
+                        const filterBarList: NodeListOf<Element> = filterBar as NodeListOf<Element>;
+                        (filterBarList[filterBarList.length - 1] as HTMLElement).focus();
                     }
                 }
             }
@@ -615,7 +656,7 @@ const Grid: object = {
     focusAddForm: function (dataId: string, keyCombination: string) {
         const gridInstance = this.sfBlazor.getCompInstance(dataId);
         const showAddNewRow: HTMLTableRowElement = gridInstance.element.querySelector('.e-showAddNewRow');
-        if (!isNullOrUndefined(gridInstance.element) && !isNullOrUndefined(gridInstance.element.blazor__instance)
+        if (!isNullOrUndefined(gridInstance) && !isNullOrUndefined(gridInstance.element) && !isNullOrUndefined(gridInstance.element.blazor__instance)
             && !isNullOrUndefined(showAddNewRow)) {
             if (keyCombination === 'Tab') {
                 if ((document.activeElement as HTMLElement).classList.contains('e-headercell')) {
@@ -662,7 +703,7 @@ const Grid: object = {
     },
     focusFirstGroupHeader(dataId: string) {
         const gridInstance = this.sfBlazor.getCompInstance(dataId);
-        if (!isNullOrUndefined(gridInstance.element) && !isNullOrUndefined(gridInstance.element.blazor__instance)) {
+        if (!isNullOrUndefined(gridInstance) && !isNullOrUndefined(gridInstance.element) && !isNullOrUndefined(gridInstance.element.blazor__instance)) {
             const firstGroupHeader = gridInstance.element.querySelector('.e-groupheadercell');
             if (!isNullOrUndefined(firstGroupHeader)) {
                 firstGroupHeader.focus();
@@ -672,7 +713,7 @@ const Grid: object = {
     focusExcelInput(dataId: string, celluid: string) {
         const gridInstance = this.sfBlazor.getCompInstance(dataId);
         const excelPopup: HTMLElement = document.querySelector('#' + celluid + '_excelDlg');
-        if (!isNullOrUndefined(gridInstance.element) && !isNullOrUndefined(gridInstance.element.blazor__instance)
+        if (!isNullOrUndefined(gridInstance) && !isNullOrUndefined(gridInstance.element) && !isNullOrUndefined(gridInstance.element.blazor__instance)
             && !isNullOrUndefined(excelPopup)) {
             setTimeout(() => {
                 const searchElement = excelPopup.querySelector('#' + gridInstance.element.id + '_SearchBox') as HTMLElement;
@@ -684,14 +725,14 @@ const Grid: object = {
     },
     refreshOnDataChange(dataId: string) {
         const gridInstance = this.sfBlazor.getCompInstance(dataId);
-        if (!isNullOrUndefined(gridInstance.element) && !isNullOrUndefined(gridInstance.element.blazor__instance) &&
+        if (!isNullOrUndefined(gridInstance) && !isNullOrUndefined(gridInstance.element) && !isNullOrUndefined(gridInstance.element.blazor__instance) &&
             !isNullOrUndefined(gridInstance.element.blazor__instance.virtualContentModule)) {
             gridInstance.element.blazor__instance.virtualContentModule.refreshOnDataChange();
         }
     },
     updateAutofillPosition(dataId: string, cellindex: number, index: number) {
         const gridInstance = this.sfBlazor.getCompInstance(dataId);
-        if (!isNullOrUndefined(gridInstance.element) && !isNullOrUndefined(gridInstance.element.blazor__instance)) {
+        if (!isNullOrUndefined(gridInstance) && !isNullOrUndefined(gridInstance.element) && !isNullOrUndefined(gridInstance.element.blazor__instance)) {
             const _this = gridInstance.element.blazor__instance;
             return _this.selectionModule.updateAutofillPosition(cellindex, index);
         }
@@ -701,7 +742,7 @@ const Grid: object = {
     },
     createBorder(dataId: string, rowIndex: number, cellIndex: number) {
         const gridInstance = this.sfBlazor.getCompInstance(dataId);
-        if (!isNullOrUndefined(gridInstance.element) && !isNullOrUndefined(gridInstance.element.blazor__instance)) {
+        if (!isNullOrUndefined(gridInstance) && !isNullOrUndefined(gridInstance.element) && !isNullOrUndefined(gridInstance.element.blazor__instance)) {
             const _this = gridInstance.element.blazor__instance;
             return _this.selectionModule.createBorder(rowIndex, cellIndex);
         }
@@ -733,6 +774,7 @@ const Grid: object = {
     },
     focusChild(dataId: string, rowuid: string, celluid: string, cellColIndex: number = -1) {
         const gridInstance = this.sfBlazor.getCompInstance(dataId);
+        if (isNullOrUndefined(gridInstance) || isNullOrUndefined(gridInstance.element)) { return;}
         let cell: HTMLElement = getCellByRowUidAndColIndex(gridInstance.element, rowuid, cellColIndex);
         cell = cell == null ? gridInstance.element.querySelector('[data-uid=\'' + celluid + '\']') : cell;
         const childElements = cell.firstElementChild.children;
@@ -751,7 +793,7 @@ const Grid: object = {
         return !isNullOrUndefined(firstFocusableElement) ? true : false;
     },
     exportSave(filename: string, bytesBase64: string) {
-        var nav = navigator as any;
+        const nav = navigator as unknown as { msSaveBlob?: (blob: Blob, filename: string) => void };
         if (nav.msSaveBlob) {
             //Download document in Edge browser
             const data: string = window.atob(bytesBase64);
@@ -759,7 +801,7 @@ const Grid: object = {
             for (let i: number = 0; i < data.length; i++) {
                 bytes[parseInt(i.toString(), 10)] = data.charCodeAt(i);
             }
-            const blob = new Blob([bytes.buffer], { type: 'application/octet-stream' });
+            const blob = new Blob([bytes.buffer as ArrayBuffer], { type: 'application/octet-stream' });
             nav.msSaveBlob(blob, filename);
         }
         else {
@@ -771,18 +813,61 @@ const Grid: object = {
             document.body.removeChild(link);
         }
     },
+
+    /**
+     * WebMCP tool registration.
+     * Called by the C# side via InvokeMethod("sfBlazor.Grid.registerWebMcpTools", ...).
+     * Registers the tools with `document.modelContext.registerTool()` so AI agents
+     * can invoke them. Silently no-ops when document.modelContext is unavailable
+     * (standard browsers, no MCP host).
+     *
+     * @param dataId  The grid's dataId (e.g., "SfGrid-123")
+     * @param tools   Array of tool descriptors (Name, Description, InputSchema, etc.)
+     * @param prefix  Tool-name prefix for multi-instance scenarios (e.g., "sfgridqz2q34iovpg").
+     *                Forwarded by value - the `_` separator between prefix and tool name
+     *                is added by the WebMCP adapter, not by this caller.
+     */
+    registerWebMcpTools(dataId: string, tools: ToolDescriptor[], prefix: string): void {
+        try {
+            WebMcpAdapter.registerWebMcpTools(dataId, tools, prefix);
+        } catch (ex) {
+            if (typeof console !== 'undefined') {
+                console.warn('[WebMCP] Failed to execute registerWebMcpTools:', ex);
+            }
+        }
+    },
+
+    /**
+     * WebMCP tool unregistration.
+     * Called when a grid is disposed to free browser-side resources.
+     *
+     * @param dataId The grid's dataId
+     */
+    unregisterWebMcpTools(dataId: string): void {
+        try {
+            WebMcpAdapter.unregisterWebMcpTools(dataId);
+        } catch (ex) {
+            if (typeof console !== 'undefined') {
+                console.warn('[WebMCP] Failed to execute unregisterWebMcpTools:', ex);
+            }
+        }
+    },
+
     destroy(dataId: string, isRerendered: boolean): void {
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const gridInstance: any = this.sfBlazor.getCompInstance(dataId);
-        if (!isNullOrUndefined(gridInstance.element) && !isNullOrUndefined(gridInstance.element.blazor__instance)) {
+        if (!isNullOrUndefined(gridInstance) && !isNullOrUndefined(gridInstance.element) && !isNullOrUndefined(gridInstance.element.blazor__instance)) {
             gridInstance.element.blazor__instance.destroy(isRerendered);
         }
+        // unregister WebMCP tools when the grid is destroyed
+        // to prevent the browser from holding references to a vanished grid's handlers.
+        this.unregisterWebMcpTools(dataId);
     },
 
     validation(dataId: string, results: object[], isAdd: boolean, newRowPosition: string): void {
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const gridInstance: any = this.sfBlazor.getCompInstance(dataId);
-        if (!isNullOrUndefined(gridInstance.element) && !isNullOrUndefined(gridInstance.element.blazor__instance)) {
+        if (!isNullOrUndefined(gridInstance) && !isNullOrUndefined(gridInstance.element) && !isNullOrUndefined(gridInstance.element.blazor__instance)) {
             if (!isNullOrUndefined(newRowPosition) && newRowPosition !== '' && gridInstance.options.newRowPosition !== newRowPosition) {
                 gridInstance.options.newRowPosition = newRowPosition;
             }
@@ -829,7 +914,9 @@ const Grid: object = {
 
     CurrentPageFocus(dataId: string, key: string, currentPage: string) {
         const pagerInstance = this.sfBlazor.getCompInstance(dataId);
+        if (isNullOrUndefined(pagerInstance) || isNullOrUndefined(pagerInstance.element)) { return; }
         const numericContainer = pagerInstance.element.querySelector('.e-numericcontainer');
+        if (isNullOrUndefined(numericContainer)) { return; }
         if (key === 'PreviousPage' || (numericContainer.querySelectorAll('.e-link:last-child')[0] as HTMLElement).innerText !== currentPage) {
             (numericContainer.querySelector('.e-link') as HTMLElement).focus();
         } else {
@@ -839,6 +926,7 @@ const Grid: object = {
 
     pagerFocus(dataId: string, key: string) {
         const pagerInstance = this.sfBlazor.getCompInstance(dataId);
+        if (isNullOrUndefined(pagerInstance) || isNullOrUndefined(pagerInstance.element)) { return; }
         const pagerContainer: HTMLElement = pagerInstance.element.querySelector('.e-gridpager').querySelector('.e-pagercontainer');
         const numericContainer: HTMLElement = pagerContainer.querySelector('.e-numericcontainer');
         const firstPage: HTMLElement = pagerContainer.querySelector('.e-firstpage.e-pager-default');
@@ -934,47 +1022,68 @@ const Grid: object = {
         (element.querySelector('.e-frozencontent') as HTMLElement).style.height =
             (element.querySelector('.e-movablecontent') as HTMLElement).offsetHeight - getScrollBarWidth() + 'px';
     },
-
-    printGrid(dataId: string) {
+     
+    
+     printGrid(dataId: string, headerId?: string, footerId?: string) {
         const gridInstance = this.sfBlazor.getCompInstance(dataId);
-        if (!isNullOrUndefined(gridInstance.element) && !isNullOrUndefined(gridInstance.element.blazor__instance)) {
-            gridInstance.element.blazor__instance.print();
+        if (!isNullOrUndefined(gridInstance) && !isNullOrUndefined(gridInstance.element) && !isNullOrUndefined(gridInstance.element.blazor__instance)) {
+            gridInstance.element.blazor__instance.print(headerId, footerId);
         }
     },
+
     updateMediaColumns(dataId: string, mediaColumnsUid: { [uid: string]: boolean }) {
         const gridInstance = this.sfBlazor.getCompInstance(dataId);
-        if (!isNullOrUndefined(gridInstance.element) && !isNullOrUndefined(gridInstance.element.blazor__instance)) {
+        if (!isNullOrUndefined(gridInstance) && !isNullOrUndefined(gridInstance.element) && !isNullOrUndefined(gridInstance.element.blazor__instance)) {
             gridInstance.element.blazor__instance.columnChooserModule.updateMediaColumns(mediaColumnsUid);
         }
     },
     copyToClipBoard(dataId: string, withHeader?: boolean) {
         const gridInstance = this.sfBlazor.getCompInstance(dataId);
-        if (!isNullOrUndefined(gridInstance.element) && !isNullOrUndefined(gridInstance.element.blazor__instance)) {
+        if (!isNullOrUndefined(gridInstance) && !isNullOrUndefined(gridInstance.element) && !isNullOrUndefined(gridInstance.element.blazor__instance)) {
             gridInstance.element.blazor__instance.clipboardModule.copy(withHeader);
         }
     },
     preventCopyToClipBoard(dataId: string, cancelValue: boolean, value: string, action: string) {
         const gridInstance = this.sfBlazor.getCompInstance(dataId);
+        if (isNullOrUndefined(gridInstance)) { return;}
         const gridclipBoardElement = gridInstance.clipboardModule;
         if (!isNullOrUndefined(gridInstance.element) && !isNullOrUndefined(gridInstance.element.blazor__instance)) {
             if (action === 'Copy') {
                 gridclipBoardElement.clipBoardData(cancelValue, value);
             }
-            else if (action === 'Paste') {
-                gridclipBoardElement.pasteAction(value, gridclipBoardElement.getSelectedRowCellIndexes()[0].rowIndex,
-                                                 gridclipBoardElement.getSelectedRowCellIndexes()[0].cellIndexes[0], cancelValue);
+            else if (action === 'Paste' && !cancelValue) {
+                const selectedCells = gridclipBoardElement.getSelectedRowCellIndexes();
+                if (selectedCells && selectedCells.length > 0) {
+                    gridclipBoardElement.pasteBatch(selectedCells, value);
+                }
             }
         }
     },
-    preventPasteAction(dataId: string, rowIndex: number, columnField: string, value: string, columnIndex: number, cancelValue: boolean) {
-        const gridInstance = this.sfBlazor.getCompInstance(dataId);
-        if (!isNullOrUndefined(gridInstance.element) && !isNullOrUndefined(gridInstance.element.blazor__instance)) {
-            gridInstance.element.blazor__instance.clipboardModule.pasteData(rowIndex, columnField, value, columnIndex, cancelValue);
+    async pasteFromClipboard(dataId: string): Promise<void> {
+        try {
+            const gridInstance = this.sfBlazor.getCompInstance(dataId);
+            if (isNullOrUndefined(gridInstance) || isNullOrUndefined(gridInstance.clipboardModule)) {
+                return;
+            }
+            const selectedCells = gridInstance.clipboardModule.getSelectedRowCellIndexes();
+            if (!selectedCells?.length) {
+                return;
+            }
+            if (!navigator.clipboard?.readText) {
+                return;
+            }
+            const text = await navigator.clipboard.readText();
+            if (!text) {
+                return;
+            }
+            await gridInstance.clipboardModule.pasteBatch(selectedCells, text);
+        } catch {
+            // Clipboard permission denied or browser does not support Clipboard API.
         }
     },
     setMediaColumns: function setMediaColumns(dataId: string, isResetPersistData?: boolean) {
         const gridInstance = this.sfBlazor.getCompInstance(dataId);
-        if (!isNullOrUndefined(gridInstance.element) && !isNullOrUndefined(gridInstance.element.blazor__instance)) {
+        if (!isNullOrUndefined(gridInstance) && !isNullOrUndefined(gridInstance.element) && !isNullOrUndefined(gridInstance.element.blazor__instance)) {
             gridInstance.element.blazor__instance.columnChooserModule.setMediaColumns(isResetPersistData);
         }
     },
@@ -1051,8 +1160,9 @@ const Grid: object = {
     },
 
     updateClonedMaskTranslates(dataId: string) {
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const gridInstance: any = this.sfBlazor.getCompInstance(dataId);
+        if (isNullOrUndefined(gridInstance) || isNullOrUndefined(gridInstance.element)
+            || isNullOrUndefined(gridInstance.element.blazor__instance)) { return; }
         const gObj: SfGrid = gridInstance.element.blazor__instance;
         const gridContent = gObj.getContent();
         const maskedTable: HTMLElement = gridContent.querySelector('.e-masked-table');
@@ -1062,9 +1172,8 @@ const Grid: object = {
     },
 
     refreshScrollLeftPosition: function refreshScrollLeftPosition(dataId: string): void {
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const gridInstance: any = this.sfBlazor.getCompInstance(dataId);
-        if (!isNullOrUndefined(gridInstance.element) && !isNullOrUndefined(gridInstance.element.blazor__instance)) {
+        if (!isNullOrUndefined(gridInstance) && !isNullOrUndefined(gridInstance.element) && !isNullOrUndefined(gridInstance.element.blazor__instance)) {
             const gObj: SfGrid = gridInstance.element.blazor__instance;
             const scrollContent: HTMLElement = gObj.getContent();
             const scrollLeft: number = scrollContent.scrollLeft;
@@ -1082,6 +1191,8 @@ const Grid: object = {
     scrollIntoView(dataId: string, columnIndex: number, rowIndex: number, rowHeight: number, isAddBottom: boolean = false,
                    isFromAddForm: boolean = false) {
         const gridInstance = this.sfBlazor.getCompInstance(dataId);
+        if (isNullOrUndefined(gridInstance) || isNullOrUndefined(gridInstance.element)
+            || isNullOrUndefined(gridInstance.element.blazor__instance)) { return; }
         const gObj: SfGrid = gridInstance.element.blazor__instance;
         const scrollContent = gObj.getContent();
         const prevScrollTop: number = scrollContent.scrollTop;
@@ -1131,7 +1242,7 @@ const Grid: object = {
     lazyLoadGridHeight(dataId: string) {
         const gridInstance = this.sfBlazor.getCompInstance(dataId);
         let height: number = 0;
-        if (!isNullOrUndefined(gridInstance.getContent())) {
+        if (!isNullOrUndefined(gridInstance) && !isNullOrUndefined(gridInstance.getContent())) {
             height = gridInstance.getContent().offsetHeight;
         }
         return height;
@@ -1139,10 +1250,10 @@ const Grid: object = {
 
     resetExpandCollapseAllScroll(dataId: string, requestType: string) {
         const gridInstance = this.sfBlazor.getCompInstance(dataId);
+        if (isNullOrUndefined(gridInstance) || isNullOrUndefined(gridInstance.options)
+            || isNullOrUndefined(gridInstance.infiniteScrollModule)) { return; }
         gridInstance.options.requestType = requestType;
-        if (!isNullOrUndefined(gridInstance)) {
-            gridInstance.infiniteScrollModule.resetInfniniteScrollPositions();
-        }
+        gridInstance.infiniteScrollModule.resetInfniniteScrollPositions();
     },
 
     updateResizeCursor: function (dataId: string) {
@@ -1158,8 +1269,8 @@ const Grid: object = {
             return gridInstance.getContentCell(gridInstance.element , top , left);
         }
     },
-    focusNextFrame: function (dataId: string) {
-        const gridInstance = this.sfBlazor.getCompInstance(dataId);
+    focusNextFrame: function () {
+        // const gridInstance = this.sfBlazor.getCompInstance(dataId);
         return new Promise((resolve) => {
             requestAnimationFrame(() => {
                 requestAnimationFrame(() => resolve(true));
@@ -1168,6 +1279,7 @@ const Grid: object = {
     },
     forceUpdateTranslate: function (dataId: string, translateY: number) {
         const gridInstance = this.sfBlazor.getCompInstance(dataId);
+        if (isNullOrUndefined(gridInstance)) { return;}
         const gridElement = gridInstance.element;
         if (!isNullOrUndefined(gridElement)) {
             const gridBlazorInstance = gridElement.blazor__instance;
@@ -1191,19 +1303,54 @@ const Grid: object = {
             }
         }
     },
+    scrollActiveMatch: function (dataId: string, index: number, isVirtual: boolean, columnIndex: number) {
+        const gridInstance = this.sfBlazor.getCompInstance(dataId);
+        if (!isNullOrUndefined(gridInstance) && !isNullOrUndefined(gridInstance.element) 
+            && !isNullOrUndefined(gridInstance.element.blazor__instance) && !isNullOrUndefined(gridInstance.scrollModule)) {
+            const gridContent: HTMLElement = gridInstance.getContent() as HTMLElement;
+            if (!isNullOrUndefined(gridContent)) {
+                const currentActive: HTMLElement = gridContent.querySelectorAll('.e-find-highlight-active')[0] as HTMLElement;
+                const rowHeight: number = gridInstance.getRowHeight();
+                if (!isNullOrUndefined(currentActive) && !isVirtual) {
+                    const gridActiveRow: HTMLElement = parentsUntil(currentActive, 'e-row') as HTMLElement;
+                    if (!isNullOrUndefined(gridActiveRow) && !gridInstance.options.enableColumnVirtualization) {
+                        gridContent.scrollTop = gridActiveRow.offsetTop - (gridContent.clientHeight / 2) + (gridActiveRow.clientHeight / 2);
+                    }
+                    else {
+                        gridContent.scrollTop = index * rowHeight;
+                    }
+                }
+
+                if (isVirtual) {
+                    gridContent.scrollTop = index * rowHeight;
+                }
+                setTimeout(function () {
+                    if (gridInstance.options.enableColumnVirtualization) {
+                        const columnOffsets: { [x: number]: number } = gridInstance.virtualContentModule.vHelper.cOffsets;
+                        gridContent.scrollLeft = columnOffsets[columnIndex - 1];
+                    }
+                    else {
+                        if (!isNullOrUndefined(currentActive)) {
+                            gridInstance.scrollModule.scrollActiveCellHorizontally(currentActive, gridInstance.getContent(), gridInstance);
+                        }
+                    }
+                }, 100);
+            }
+        }
+    },
     IsInputfocus: function IsInputfocus()
     {
         setTimeout(function ()
         {
-            var activeElement = document.activeElement;
-            var isDropdownActive = activeElement.classList.contains('e-enhanced-operator-dropdown') ||
+            const activeElement = document.activeElement as Element;
+            const isDropdownActive: boolean = activeElement.classList.contains('e-enhanced-operator-dropdown') ||
                 activeElement.closest('span.e-enhanced-operator-dropdown') !== null;
             if (activeElement && isDropdownActive)
             {
-                var tdElement = activeElement.closest('td.e-filterbarcell');
+                const tdElement = activeElement.closest('td.e-filterbarcell') as HTMLElement;
                 if (tdElement)
                 {
-                        var inputElement = tdElement.querySelector('.e-enhanced-filter-input input.e-input') as HTMLElement;
+                        const inputElement = tdElement.querySelector('.e-enhanced-filter-input input.e-input') as HTMLElement;
                         if (inputElement)
                         {
                             inputElement.focus();
@@ -1225,7 +1372,8 @@ const Grid: object = {
             console.warn('Error detecting device mode:', error);
         }
         return false;
-    }
+    },
 };
+
 
 export default Grid;

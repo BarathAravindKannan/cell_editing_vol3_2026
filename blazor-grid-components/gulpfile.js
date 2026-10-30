@@ -5,6 +5,7 @@ module.exports = gulp;
 if(fs.existsSync('./node_modules/@syncfusion/ej2-staging')){
     const { publishReportforSources } = require("@syncfusion/ej2-staging/src/mail");
     require("@syncfusion/ej2-staging/src/blazor-publish");
+    require("@syncfusion/ej2-staging/src/sast-scan");
     require('require-dir')('node_modules/@syncfusion/ej2-staging/src/blazor-component-repo');  
     gulp.task("publish-report", publishReportforSources);    
 }

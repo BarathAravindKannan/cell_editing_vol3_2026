@@ -158,9 +158,13 @@ namespace Syncfusion.Blazor.Grids.Internal
             List<Row<object>> infiniteGroupedRows = new List<Row<object>>();
             if (enableCache && initialBlocks > maximumBlocks)
             {
+                var scrollSettings = _parent.InfiniteScrollSettings;
+                if (scrollSettings != null)
+                {
 #pragma warning disable BL0005 // Component parameter should not be set outside of its component.
-                _parent.InfiniteScrollSettings.InitialBlocks = initialBlocks = maximumBlocks;
+                    scrollSettings.InitialBlocks = initialBlocks = maximumBlocks;
 #pragma warning restore BL0005 // Component parameter should not be set outside of its component.
+                }
             }
             int loadSize = gridPageSize * initialBlocks;
             int skip = (currentPage - 1) * gridPageSize;
@@ -289,15 +293,15 @@ namespace Syncfusion.Blazor.Grids.Internal
         /// <returns>A task that represents the asynchronous operation.</returns>
         internal async Task GenerateInfiniteScrollDatas(ActionArgs action = null!, bool isBottom = false, bool isTop = false)
         {
-            RequestType = action?.RequestType!;
+            RequestType = action?.RequestType ?? string.Empty;
             IsDownScroll = isBottom;
             IsUpScroll = isTop;
             IsInfiniteInitialRender = false;
-            string[] groupSettingsColumns = _parent.GroupSettings?.Columns!;
+            string[]? groupSettingsColumns = _parent.GroupSettings?.Columns;
             int gridPageSize = _parent.PageSettings!.PageSize;
 
             //Normal Grouping and Normal grid infinite scrolling handling in if condition
-            if (!_parent.GroupSettings!.EnableLazyLoading || (groupSettingsColumns == null || groupSettingsColumns.Length == 0))
+            if (_parent.GroupSettings?.EnableLazyLoading != true || (groupSettingsColumns == null || groupSettingsColumns.Length == 0))
             {
                 int currentPageUpdate = _parent.PageSettings.CurrentPage;
                 if (_parent.EnableInfiniteScrolling && action?.RequestType == "InfiniteScrolling" && IsDownScroll)
@@ -347,7 +351,10 @@ namespace Syncfusion.Blazor.Grids.Internal
                         currentPageUpdate = currentPageUpdate <= 0 ? 1 : currentPageUpdate;
                     }
                 }
-                await _parent.PageSettings.UpdateProperties("CurrentPage", currentPageUpdate).ConfigureAwait(true);
+                if(_parent.PageSettings != null)
+                {
+                    await _parent.PageSettings.UpdateProperties("CurrentPage", currentPageUpdate).ConfigureAwait(true);
+                }
 
                 if (_parent.AllowGrouping && groupSettingsColumns != null && groupSettingsColumns.Length > 0)
                 {
@@ -403,7 +410,10 @@ namespace Syncfusion.Blazor.Grids.Internal
                     currentPageUpdate = (int)(Math.Ceiling((double)lastRowIndex / gridPageSize) + 1);
                 }
 
-                await _parent.PageSettings.UpdateProperties("CurrentPage", currentPageUpdate).ConfigureAwait(true);
+                if (_parent.PageSettings != null)
+                {
+                    await _parent.PageSettings.UpdateProperties("CurrentPage", currentPageUpdate).ConfigureAwait(true);
+                }
 
                 List<object> currentUiData = uiData.Skip(startIndex).Take(gridPageSize).ToList();
                 lazyRows = _parent.GroupModule?.GenerateLazyRowsobject(currentUiData)!;
@@ -421,10 +431,10 @@ namespace Syncfusion.Blazor.Grids.Internal
 
         internal async Task LoadLazyLoadChildData(ActionArgs action = null!, string middleRowUid = null!, string lastRowUid = null!)
         {
-            RequestType = action?.RequestType!;
+            RequestType = action?.RequestType ?? string.Empty;
             List<object> uiData = new List<object>();
             List<Row<object>> lazyRows = new List<Row<object>>();
-            string childUid = middleRowUid ?? lastRowUid;
+            string childUid = middleRowUid ?? lastRowUid ?? string.Empty;
             Row<object>? childRow = _parent.Rows?.FirstOrDefault(x => x.Uid == childUid);
             if (childRow == null)
             {
@@ -455,7 +465,7 @@ namespace Syncfusion.Blazor.Grids.Internal
                 {
                     return;
                 }
-                string? removeChildUid = middleRowUid ?? _parent.Rows?[middleRowIndex].Uid;
+                string? removeChildUid = middleRowUid ?? _parent.Rows?[middleRowIndex]?.Uid;
                 Row<object>? removeChildRow = _parent.Rows?.FirstOrDefault(x => x.Uid == removeChildUid);
                 if (removeChildRow != null)
                 {
@@ -700,7 +710,7 @@ namespace Syncfusion.Blazor.Grids.Internal
                 count++;
                 if (item is Group<T> nestedGroup)
                 {
-                    count += InfiniteScroll<T>.FetchGroupedChildCount(nestedGroup.Items);
+                    count += InfiniteScroll<T>.FetchGroupedChildCount(nestedGroup.Items!);
                 }
             }            
             return count;

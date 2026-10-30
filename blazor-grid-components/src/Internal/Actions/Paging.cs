@@ -55,11 +55,11 @@ namespace Syncfusion.Blazor.Grids.Internal
         /// <summary>
         /// Updates the pager filter status message based on applied filters.
         /// Displays filter information in the pager's external message area when filter bar status is enabled.
-        /// Supports both 'and' and 'or' filter predicates with appropriate symbols (&&, ||).
+        /// Supports both 'and' and 'or' filter predicates with appropriate symbols.
         /// Handles formatting of date/time columns and manages JsonElement type conversions.
         /// </summary>
         /// <param name="filterColumns">The list of applied filter columns.</param>
-        /// <param name="predicate">The filter predicate type: "and" (&&) or "or" (||).</param>
+        /// <param name="predicate">The filter predicate type: "and" or "or".</param>
         internal async void UpdateFilterMessage(List<GridFilterColumn> filterColumns, string predicate)
         {
             if (_parent.FilterSettings?.Type == FilterType.FilterBar && _parent.FilterSettings.ShowFilterBarStatus && _parent.PagerRef != null)
@@ -75,9 +75,14 @@ namespace Syncfusion.Blazor.Grids.Internal
                         var filteredColumn = GridUtils.GetColumnByFColUidOrField(filterColumns[i].Uid!, GridColumns);
                         if (filterColumns[i].Value is System.Text.Json.JsonElement)
                         {
+                            // Safe: Check ValueType before using it
+                            var valueType = filteredColumn?.ValueType;
+                            if (valueType != null && filterColumns[i].Value != null)
+                            {
 #pragma warning disable BL0005 // Component parameter should not be set outside of its component.
-                            filterColumns[i].Value = SfBaseUtils.ChangeType(filterColumns[i].Value, filteredColumn?.ValueType);
+                                filterColumns[i].Value = SfBaseUtils.ChangeType(filterColumns[i].Value!, valueType);
 #pragma warning restore BL0005 // Component parameter should not be set outside of its component.
+                            }
                         }
 
                         if (i == 0)
@@ -129,7 +134,7 @@ namespace Syncfusion.Blazor.Grids.Internal
             {
                 return ((TimeOnly)filteredColumn.Value).ToString(gridColumn?.Format, CultureInfo.CurrentCulture);
             }
-            return filteredColumn.Value?.ToString();
+            return filteredColumn.Value?.ToString() ?? "";
         }
 
         /// <summary>

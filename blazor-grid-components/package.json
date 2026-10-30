@@ -26,6 +26,7 @@
 		"publish": "gulp publish-nuget",
 		"coverage-analysis": "gulp coverage-local-analysis",
 		"code-analysis": "gulp show-codeanalysis-warnings",
+		"eslint-validation": "gulp blazor-es-lint",
 		"remove-markup-eval": "gulp prevent-xss"
 	},
 	"devDependencies": {

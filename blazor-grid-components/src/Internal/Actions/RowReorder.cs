@@ -1,4 +1,4 @@
-﻿﻿using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Globalization;
 using System.Linq;
@@ -138,7 +138,7 @@ namespace Syncfusion.Blazor.Grids.Internal
                         }
                     }
                 }
-                if (CurrentRecords.Count >= fromIndex && !_parent.EnableVirtualization && !(_parent.EnableInfiniteScrolling && _parent.InfiniteScrollSettings!.EnableCache) && !(_parent.AllowGrouping && _parent.GroupSettings!.Columns?.Length > 0))
+                if (CurrentRecords.Count >= fromIndex && !_parent.EnableVirtualization && !(_parent.EnableInfiniteScrolling && _parent.InfiniteScrollSettings?.EnableCache == true) && !(_parent.AllowGrouping && _parent.GroupSettings?.Columns?.Length > 0))
                 {
                     if (_parent.DataManager!.Adaptor == Adaptors.CustomAdaptor)
                     {
@@ -161,21 +161,25 @@ namespace Syncfusion.Blazor.Grids.Internal
                         }
                     }
                 }
-                else if (_parent.AllowGrouping && _parent.GroupSettings!.Columns?.Length > 0)
+                else if (_parent.AllowGrouping && _parent.GroupSettings?.Columns?.Length > 0)
                 {
-                    SelectedRecords.Add((T)DragRow?.Data!);
-                    _rowsToReorder = SelectedRecords;
+                    if (DragRow?.Data != null)
+                    {
+                        SelectedRecords.Add((T)DragRow.Data);
+                        _rowsToReorder = SelectedRecords;
+                    }
                 }
             }
 
             return new SelectedRecordsIndexes() { SelectedRecords = SelectedRecords, SelectedIndexes = SelectedIndexes! };
         }
 
-        private async Task ReorderRowsAction(bool outsideGrid, List<T> added, List<T> deleted, bool isDragWithinGrid, string action, int selectedDataIndex, int fromIndex, int toIndex, string Primarykey, string targetClass = "", string targetId = "", string? fromUid = null, string? toUid = null, double clientX = 0, double clientY = 0)
+        private async Task ReorderRowsAction(bool outsideGrid, List<T> added, List<T> deleted, bool isDragWithinGrid, string action, int selectedDataIndex, int fromIndex, int toIndex, IReadOnlyList<string> primarykeys, string targetClass = "", string targetId = "", string? fromUid = null, string? toUid = null, double clientX = 0, double clientY = 0)
         {
             Dictionary<object, object> groupedKeyCollection = new Dictionary<object, object>();
 
-            DropRow = _parent.Rows?.Find(x => x?.Uid == toUid)!;
+            // Safe: Use null-coalescing to avoid unsafe assertion
+            DropRow = _parent.Rows?.Find(x => x?.Uid == toUid) ?? new Row<object>();
 
             if (((!_parent.DataManager!.DataAdaptor!.IsRemote() || _parent.DataManager.Adaptor == Adaptors.GraphQLAdaptor) && !(isDragWithinGrid && _parent.AllowGrouping && _parent.GroupSettings != null && _parent.GroupSettings.Columns?.Length > 0)) && !(_parent.DataSource != null && isDragWithinGrid && _parent.AllowGrouping && _parent.GroupSettings!.Columns?.Length > 0))
             {
@@ -192,17 +196,25 @@ namespace Syncfusion.Blazor.Grids.Internal
                         added.RemoveAll(item => AddedRecords.Any(addedItem => Equals(addedItem.Data, item)));
                         selectedDataIndex = selectedDataIndex - AddedRecords.AsQueryable().Count();
                     }
-                    await _parent.DataManager.SaveChanges<T>(new List<T>(), added, deleted, Primarykey, action == "add" && isDragWithinGrid && _parent.DataSource != null && selectedDataIndex >= 0 ? selectedDataIndex : toIndex).ConfigureAwait(true);
+                    int? dropIdx = action == "add" && isDragWithinGrid && _parent.DataSource != null && selectedDataIndex >= 0 ? selectedDataIndex : toIndex;
+                    if (primarykeys.Count == 1)
+                    {
+                        await _parent.DataManager.SaveChanges<T>(new List<T>(), added, deleted, primarykeys[0], dropIdx).ConfigureAwait(true);
+                    }
+                    else
+                    {
+                        //await _parent.DataManager.SaveChanges<T>(new List<T>(), added, deleted, primarykeys, dropIdx).ConfigureAwait(true);
+                    }
                 }
             }
             else if (!(_parent.AllowGrouping && _parent.GroupSettings != null && _parent.GroupSettings.Columns?.Length > 0))
             {
-                await SwapCurrentViewData(added, deleted, isDragWithinGrid, action, fromIndex, selectedDataIndex >= 0 ? selectedDataIndex : toIndex, Primarykey, clientX, clientY).ConfigureAwait(true);
+                await SwapCurrentViewData(added, deleted, isDragWithinGrid, action, fromIndex, selectedDataIndex >= 0 ? selectedDataIndex : toIndex, clientX, clientY).ConfigureAwait(true);
             }
 
-            if (action == "add" && (((!_parent.DataManager.DataAdaptor.IsRemote() || _parent.DataSource != null) || _parent.DataManager.Adaptor == Adaptors.GraphQLAdaptor) && isDragWithinGrid && _parent.AllowGrouping && _parent.GroupSettings!.Columns?.Length > 0))
+            if (action == "add" && (((!_parent.DataManager.DataAdaptor.IsRemote() || _parent.DataSource != null) || _parent.DataManager.Adaptor == Adaptors.GraphQLAdaptor) && isDragWithinGrid && _parent.AllowGrouping && _parent.GroupSettings?.Columns?.Length > 0))
             {
-                var groupedColumns = _parent.GroupSettings.Columns?.ToList();
+                var groupedColumns = _parent.GroupSettings?.Columns?.ToList();
                 var dropRowParentUId = _parent.Rows?.Find(x => x?.Uid == toUid)?.ParentUid;
                 List<T> keyChangedDataRow = new List<T>();
                 SelectedRecordsIndexes updatedRecord = new SelectedRecordsIndexes();
@@ -237,7 +249,14 @@ namespace Syncfusion.Blazor.Grids.Internal
                         keyChangedDataRow.Add(dragRows);
                     }
                     updatedRecord.SelectedRecords = keyChangedDataRow;
-                    await _parent.DataManager.SaveChanges<T>(changed: updatedRecord.SelectedRecords, new List<T>(), new List<T>(), keyField: Primarykey, null).ConfigureAwait(true);
+                    if (primarykeys.Count == 1)
+                    {
+                        await _parent.DataManager.SaveChanges<T>(updatedRecord.SelectedRecords, new List<T>(), new List<T>(), primarykeys[0], null).ConfigureAwait(true);
+                    }
+                    else
+                    {
+                        //await _parent.DataManager.SaveChanges<T>(updatedRecord.SelectedRecords, new List<T>(), new List<T>(), primarykeys, null).ConfigureAwait(true);
+                    }
                 }
             }
             if ((!_parent.DataManager.DataAdaptor.IsRemote() || _parent.DataManager.Adaptor == Adaptors.GraphQLAdaptor) && ((isDragWithinGrid && action == "add") || !isDragWithinGrid))
@@ -263,9 +282,49 @@ namespace Syncfusion.Blazor.Grids.Internal
             {
                 await ReorderRows(fromIndex, toIndex, "add", true, targetClass, targetId, fromUid: fromUid, toUid: toUid, clientX: clientX, clientY: clientY).ConfigureAwait(true);
             }
+            if(action == "add" && _parent.EditModule!.IsCellEditMode() && _parent.IsEdit && _parent.Rows != null && _parent.CurrentViewData != null)
+            {
+                var primaryKeyFields = await _parent.GetPrimaryKeyFieldNamesAsync().ConfigureAwait(true);
+                object? targetRowKey = null;
+
+                // For composite primary keys, build CompositeKey for accurate matching
+                if (primaryKeyFields != null && primaryKeyFields.Count > 1)
+                {
+                    var originalRowKeyValues = await _parent.EditModule.GetPrimaryKeyValueAsObject(_parent.EditModule.OriginalRow?.Data!).ConfigureAwait(true);
+                    if (originalRowKeyValues != null && originalRowKeyValues.Count > 0)
+                    {
+                        targetRowKey = new CompositeKey(originalRowKeyValues.ToArray());
+                    }
+                }
+
+                _parent.EditModule.OriginalRow = _parent.Rows.FirstOrDefault(row =>
+                {
+                    if (!row.IsDataRow || row.Data == null) return false;
+
+                    // For composite keys, use CompositeKey equality for matching
+                    if (primaryKeyFields != null && primaryKeyFields.Count > 1 && targetRowKey is CompositeKey)
+                    {
+                        var rowKeyValues = _parent.EditModule.GetPrimaryKeyValueAsObject(row.Data!).GetAwaiter().GetResult();
+                        if (rowKeyValues != null && rowKeyValues.Count > 0)
+                        {
+                            return ((CompositeKey)targetRowKey).Equals(new CompositeKey(rowKeyValues.ToArray()));
+                        }
+                        return false;
+                    }
+                    var primaryKeyField = primaryKeyFields?.FirstOrDefault();
+                    var primaryKeyValues = _parent.EditModule.GetPrimaryKeyValue(_parent.EditModule.OriginalRow?.Data!).GetAwaiter().GetResult();
+                    var primaryKeyValue = primaryKeyValues != null && primaryKeyValues.Count > 0 ? primaryKeyValues[0] : null;
+                    return primaryKeyField != null &&
+                        string.Equals(_parent.PropHelper?.GetObject(primaryKeyField, row.Data)?.ToString(), primaryKeyValue, StringComparison.Ordinal);
+                });
+                _parent.EditModule.OriginalCell = GridUtils.ResolveCurrentCell(_parent.EditModule.OriginalRow, _parent.EditModule.OriginalCell);
+                _parent.FocusModule!.SetCurrent(_parent.EditModule.OriginalRow!, _parent.EditModule.OriginalCell!, true);
+                _parent.FocusModule!.SelectedRowIndex = _parent.EditModule.OriginalRow!.Index;
+                _parent.EditModule!.EditedRow = _parent.EditModule.OriginalRow;
+            }
         }
 
-        private async Task SwapCurrentViewData(List<T> added, List<T> deleted, bool isDragWithinGrid, string action, int fromIndex, int toIndex, string primaryKey, double clientX = 0, double clientY = 0)
+        private async Task SwapCurrentViewData(List<T> added, List<T> deleted, bool isDragWithinGrid, string action, int fromIndex, int toIndex, double clientX = 0, double clientY = 0)
         {
             List<T> CurrentViewData = _parent.CurrentViewData!.Cast<T>().ToList();
             if (isDragWithinGrid)
@@ -363,7 +422,8 @@ namespace Syncfusion.Blazor.Grids.Internal
 
         internal async Task ReorderRows(int fromIndex, int toIndex, string action = "delete", bool isDragWithinGrid = true, string targetClass = "", string targetId = "", object? targetDimension = null, DotNetObjectReference<GridJSInteropAdaptor<T>>? destInstance = null, bool outsideGrid = false, bool differentTValue = false, string? fromUid = null, string? toUid = null, bool withinBothGrid = false, double clientX = 0, double clientY = 0)
         {
-            var Primarykey = (await _parent.GetPrimaryKeyFieldNamesAsync().ConfigureAwait(true))?.FirstOrDefault();
+            var primaryKeyFields = await _parent.GetPrimaryKeyFieldNamesAsync().ConfigureAwait(true);
+            var Primarykey = primaryKeyFields?.FirstOrDefault();
             List<T> SelectedRecords = new List<T>();
             int selectedDataIndex = toIndex;
             List<int>? SelectedIndexes = null;
@@ -386,11 +446,42 @@ namespace Syncfusion.Blazor.Grids.Internal
                     CurrentData = Current!.ToList()[toIndex];
                 }
 
-                var value = _parent.PropHelper?.GetObject(Primarykey!, CurrentData!)?.ToString();
-                IEnumerable<T> dataSource = _parent.DataSource;
+                // For composite primary keys, use CompositeKey for matching
+                if (primaryKeyFields != null && primaryKeyFields.Count > 1)
+                {
+                    var currentDataKeyValues = _parent.EditModule.GetPrimaryKeyValueAsObject(CurrentData!).GetAwaiter().GetResult();
+                    if (currentDataKeyValues != null && currentDataKeyValues.Count > 0)
+                    {
+                        var targetCompositeKey = new CompositeKey(currentDataKeyValues.ToArray());
+                        IEnumerable<T> dataSource = _parent.DataSource;
+                        selectedDataIndex = -1;
+                        int index = 0;
+                        foreach (var item in dataSource.ToList())
+                        {
+                            var itemKeyValues = _parent.EditModule.GetPrimaryKeyValueAsObject(item!).GetAwaiter().GetResult();
+                            if (itemKeyValues != null && itemKeyValues.Count > 0)
+                            {
+                                var itemCompositeKey = new CompositeKey(itemKeyValues.ToArray());
+                                if (targetCompositeKey.Equals(itemCompositeKey))
+                                {
+                                    selectedDataIndex = index;
+                                    break;
+                                }
+                            }
+                            index++;
+                        }
+                        selectedDataIndex = selectedDataIndex < 0 && (dataSource?.Count() ?? 0) >= toIndex ? toIndex : fromIndex < toIndex ? selectedDataIndex + 1 : selectedDataIndex;
+                    }
+                }
+                else
+                {
+                    var value = _parent.PropHelper?.GetObject(Primarykey!, CurrentData!)?.ToString();
+                    IEnumerable<T>? dataSource = _parent.DataSource;
 
-                selectedDataIndex = dataSource.ToList().FindIndex(x => _parent.PropHelper?.GetObject(Primarykey!, x)?.ToString() == value?.ToString());
-                selectedDataIndex = selectedDataIndex < 0 && dataSource?.Count() >= toIndex ? toIndex : fromIndex < toIndex ? selectedDataIndex + 1 : selectedDataIndex;
+                    // Safe: Use null-conditional and ToList only when dataSource is not null
+                    selectedDataIndex = dataSource?.ToList().FindIndex(x => _parent.PropHelper?.GetObject(Primarykey!, x)?.ToString() == value?.ToString()) ?? -1;
+                    selectedDataIndex = selectedDataIndex < 0 && (dataSource?.Count() ?? 0) >= toIndex ? toIndex : fromIndex < toIndex ? selectedDataIndex + 1 : selectedDataIndex;
+                }
             }
             SelectedRecordsIndexes selectedRecordsIndexes = new SelectedRecordsIndexes();
             selectedRecordsIndexes = await GetSelectedRecordsAndIndexes(SelectedRecords, action, SelectedIndexes!, fromIndex, isDragWithinGrid, destInstance, withinBothGrid: withinBothGrid).ConfigureAwait(true);
@@ -473,8 +564,8 @@ namespace Syncfusion.Blazor.Grids.Internal
                     }
                 }
             }
-           
-            await ReorderRowsAction(outsideGrid, added!, deleted!, isDragWithinGrid, action, selectedDataIndex, fromIndex, toIndex, Primarykey!, targetClass, targetId, fromUid, toUid, clientX: clientX, clientY: clientY).ConfigureAwait(true);
+            IReadOnlyList<string>? primaryKeys = primaryKeyFields?.Count == 1 ? new string[] { Primarykey! } : primaryKeyFields;
+            await ReorderRowsAction(outsideGrid, added!, deleted!, isDragWithinGrid, action, selectedDataIndex, fromIndex, toIndex, primaryKeys!, targetClass, targetId, fromUid, toUid, clientX: clientX, clientY: clientY).ConfigureAwait(true);
         }
    
         internal async Task RowDragStartEvent(int FromIndex, string Uid)

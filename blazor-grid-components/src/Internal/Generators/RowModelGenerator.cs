@@ -244,14 +244,31 @@ namespace Syncfusion.Blazor.Grids.Internal
         public bool EnsureSelectionState(Row<object> row)
         {
             GridSelectionSettings? _settings = Parent.SelectionSettings;
-            string? pKey = Parent.SelectionModule?.PrimaryKey;
             var _helper = Parent.PropHelper;
-            if (_settings != null && _settings.PersistSelection)
+            if (_settings != null && _settings.PersistSelection && Parent.SelectionModule != null)
             {
-                object key = _helper?.GetObject(pKey!, row?.Data!)!;
-                if (key != null && Parent.SelectionModule != null && Parent.SelectionModule.PersistedData?.ContainsKey(key) == true)
+                var primaryKeyFields = Parent.SelectionModule.PrimaryKeys;
+                
+                if (primaryKeyFields != null && primaryKeyFields.Count > 0)
                 {
-                    return true;
+                    object? key = null;
+                    if (primaryKeyFields.Count == 1)
+                    {
+                        key = _helper?.GetObject(primaryKeyFields[0], row?.Data!);
+                    }
+                    else
+                    {
+                        var primaryKeyValues = Parent.EditModule!.GetPrimaryKeyValueAsObject(row?.Data!).GetAwaiter().GetResult();
+                        if (primaryKeyValues != null && primaryKeyValues.Count > 0)
+                        {
+                            key = new CompositeKey(primaryKeyValues.ToArray());
+                        }
+                    }
+
+                    if (key != null && Parent.SelectionModule.PersistedData?.ContainsKey(key) == true)
+                    {
+                        return true;
+                    }
                 }
             }
             if(row != null && Parent.EnableVirtualization && Parent.VirtualScrollModule!.CurrentGroupedData != null && Parent.VirtualScrollModule!.CurrentGroupedData.Count > 0)

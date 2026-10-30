@@ -1,10 +1,11 @@
-﻿using System;
-using System.Collections.Generic;
 using Syncfusion.Blazor.Data;
+using System;
+using System.Collections;
+using System.Collections.Generic;
+using System.Collections.Specialized;
 using System.Globalization;
 using System.Linq;
 using System.Threading.Tasks;
-using System.Collections.Specialized;
 
 namespace Syncfusion.Blazor.Grids.Internal
 {
@@ -72,8 +73,8 @@ namespace Syncfusion.Blazor.Grids.Internal
             // TODO: Reordering in Groupdrop
             var Column = GridUtils.GetColumnByField(ColumnName, GridUtils.GetColumns(Parent));
             IndentWidth = string.Empty;
-            if(Parent.RowReorderModule != null)
-            Parent.RowReorderModule.RowReorderIndentWidth = string.Empty;
+            if (Parent.RowReorderModule != null)
+                Parent.RowReorderModule.RowReorderIndentWidth = string.Empty;
             var GCols = Parent.GroupSettings!.Columns?.ToList();
             if (!Parent.AllowGrouping || !Column!.AllowGrouping || (GCols != null && GCols.IndexOf(ColumnName) > -1) || Column.FixedColumn)
             {
@@ -103,8 +104,8 @@ namespace Syncfusion.Blazor.Grids.Internal
             var Column = GridUtils.GetColumnByField(ColumnName, GridUtils.GetColumns(Parent));
             var temporaryIndentWidth = IndentWidth;
             IndentWidth = string.Empty;
-            if(Parent.RowReorderModule != null)
-            Parent.RowReorderModule.RowReorderIndentWidth = string.Empty;
+            if (Parent.RowReorderModule != null)
+                Parent.RowReorderModule.RowReorderIndentWidth = string.Empty;
             var GCols = Parent.GroupSettings!.Columns?.ToList();
             Parent.GroupStates.Clear();
             if (Column != null && Parent.AllowGrouping && GCols != null && GCols.IndexOf(ColumnName) > -1)
@@ -123,7 +124,7 @@ namespace Syncfusion.Blazor.Grids.Internal
                 Parent.RefreshColumnHeader = true;
                 var tempForceUpdate = Parent.ForceUpdate;
                 Parent.ForceUpdate = Parent.SelectedRowIndex >= 0 ? true : Parent.ForceUpdate;
-                await Parent.ModelChanged(new ActionEventArgs<T>() { ColumnName = ColumnName, RequestType = Action.UnGrouping }, eventArgs: new GroupingEventArgs() { ColumnName = ColumnName, Action = clearGroupingInvoked ? NotifyCollectionChangedAction.Reset : NotifyCollectionChangedAction.Remove }, requestType:"UnGrouping", temporaryIndentWidth : temporaryIndentWidth).ConfigureAwait(true);
+                await Parent.ModelChanged(new ActionEventArgs<T>() { ColumnName = ColumnName, RequestType = Action.UnGrouping }, eventArgs: new GroupingEventArgs() { ColumnName = ColumnName, Action = clearGroupingInvoked ? NotifyCollectionChangedAction.Reset : NotifyCollectionChangedAction.Remove }, requestType: "UnGrouping", temporaryIndentWidth: temporaryIndentWidth).ConfigureAwait(true);
                 Parent.ForceUpdate = tempForceUpdate;
             }
         }
@@ -149,7 +150,7 @@ namespace Syncfusion.Blazor.Grids.Internal
             Parent.SortModule?.GroupAddSortingQuery(ColumnName);
             await Parent.GroupSettings.UpdateProperties("Columns", GCols.ToArray()).ConfigureAwait(true);
             Parent.RefreshColumnHeader = true;
-            await Parent.ModelChanged(new ActionEventArgs<T>() { ColumnName = ColumnName, RequestType = Action.Grouping }, eventArgs: new GroupingEventArgs() { ColumnName = ColumnName, Action = NotifyCollectionChangedAction.Add }, requestType:"Grouping").ConfigureAwait(true);
+            await Parent.ModelChanged(new ActionEventArgs<T>() { ColumnName = ColumnName, RequestType = Action.Grouping }, eventArgs: new GroupingEventArgs() { ColumnName = ColumnName, Action = NotifyCollectionChangedAction.Add }, requestType: "Grouping").ConfigureAwait(true);
         }
 
         #endregion
@@ -164,10 +165,10 @@ namespace Syncfusion.Blazor.Grids.Internal
         {
             return Parent.GetReactiveAggregateModule().IsGroupCaptionTemplate();
         }
-        
+
         internal async void LazyPageSetting()
         {
-                await Parent.PageSettings!.UpdateProperties("CurrentPage", 1).ConfigureAwait(true);
+            await Parent.PageSettings!.UpdateProperties("CurrentPage", 1).ConfigureAwait(true);
         }
         private void CollapseGroupAndChildren(string targetUid, bool isExpanding)
         {
@@ -178,9 +179,9 @@ namespace Syncfusion.Blazor.Grids.Internal
             targetItem.IsExpand = isExpanding;
             Parent.VirtualScrollModule!.CurrentGroupedData[targetIndex] = targetItem;
 
-            if (Parent.GroupSettings.PersistGroupState && targetItem.Item is Group<T> itemGroup)
+            if (Parent.GroupSettings != null && Parent.GroupSettings.PersistGroupState && targetItem.Item is Group<T> itemGroup)
             {
-                string groupKey = (itemGroup.Key?.ToString() ?? string.Empty) + Grouping<T>.GetUniqueGroupKey(null, targetItem.ParentUid, Parent.VirtualScrollModule!.CurrentGroupedData);
+                string groupKey = (itemGroup.Key?.ToString() ?? string.Empty) + Grouping<T>.GetUniqueGroupKey(new List<Row<object>>(), targetItem.ParentUid!, Parent.VirtualScrollModule!.CurrentGroupedData);
                 Parent.GroupStates[groupKey] = isExpanding;
             }
 
@@ -206,7 +207,7 @@ namespace Syncfusion.Blazor.Grids.Internal
                 }
                 else
                 {
-                    bool parentExpanded = expandLookup[currentItem.ParentUid!].IsExpand;
+                    bool parentExpanded = expandLookup != null ? expandLookup[currentItem.ParentUid!].IsExpand : false;
                     bool allAncestorsExpanded = ancestorExpanded.ContainsKey(currentItem.Indent - 1) &&
                                                 ancestorExpanded[currentItem.Indent - 1];
                     newVisible = parentExpanded && allAncestorsExpanded;
@@ -228,7 +229,7 @@ namespace Syncfusion.Blazor.Grids.Internal
         /// <summary>
         /// Handles collapse operations for non-virtual row layouts.
         /// </summary>
-        private void CollapseRowsNonVirtual(Row<object> Row, List<Row<object>> Rows)
+        private static void CollapseRowsNonVirtual(Row<object> Row, List<Row<object>> Rows)
         {
             Row<object> closestParent = null!;
             for (var i = Rows.FindIndex(row => row == Row) + 1; i < Rows.Count; i++)
@@ -268,7 +269,7 @@ namespace Syncfusion.Blazor.Grids.Internal
         /// <summary>
         /// Handles collapse operations for virtual row layouts with CurrentGroupedData.
         /// </summary>
-        private void CollapseRowsVirtual(Row<object> Row, List<Row<object>> Rows)
+        private static void CollapseRowsVirtual(Row<object> Row, List<Row<object>> Rows)
         {
             var rows = Grouping<T>.CurrentExpandedRows(Rows, Row);
             foreach (var childrow in rows)
@@ -324,40 +325,47 @@ namespace Syncfusion.Blazor.Grids.Internal
         /// <returns>A task representing the asynchronous operation.</returns>
         internal async Task ExpandCollapse(Row<object> Row)
         {
-            bool isCurrentGroupedDataNotEmpty = Parent.VirtualScrollModule!.CurrentGroupedData != null && Parent.VirtualScrollModule!.CurrentGroupedData.Count > 0;
+            // Safe: Check VirtualScrollModule null before accessing its properties
+            bool isCurrentGroupedDataNotEmpty = Parent.VirtualScrollModule?.CurrentGroupedData?.Count > 0;
             if (isCurrentGroupedDataNotEmpty)
             {
                 CollapseGroupAndChildren(Row.Uid!, !Row.IsExpand);
-                
-                Parent.VisibleGroupedDataCount = Grouping<T>.GetVisibleGroupeddataCountInternal(Parent.VirtualScrollModule!.CurrentGroupedData, Parent.GroupStates, Parent.GroupSettings.PersistGroupState, Parent.VirtualScrollModule.CurrentGroupedDataCaptionRowMap);
+
+                // Safe: All accesses protected by previous null-check
+                Parent.VisibleGroupedDataCount = Grouping<T>.GetVisibleGroupeddataCountInternal(
+                    Parent.VirtualScrollModule!.CurrentGroupedData!,
+                    Parent.GroupStates,
+                    Parent.GroupSettings?.PersistGroupState ?? false,
+                    Parent.VirtualScrollModule.CurrentGroupedDataCaptionRowMap);
             }
-            var isEdit = Parent.EditSettings!.Mode.Equals(EditMode.Normal) && Parent.IsEdit;
+            var isEdit = Parent.EditSettings?.Mode.Equals(EditMode.Normal) == true && Parent.IsEdit;
             if (isEdit)
             {
                 await Parent.EditModule!.CloseEdit().ConfigureAwait(true);
             }
-            List<Row<object>> Rows = Parent.VirtualScrollModule?.GeneratedGroupedRows?.Count > 0 ? Parent.GroupSettings != null &&  Parent.GroupSettings.EnableLazyLoading && Parent.EnableVirtualization ? Parent.Rows : Parent.VirtualScrollModule.GeneratedGroupedRows
+            List<Row<object>> Rows = Parent.VirtualScrollModule?.GeneratedGroupedRows?.Count > 0 ? Parent.GroupSettings != null && Parent.GroupSettings.EnableLazyLoading && Parent.EnableVirtualization ? Parent.Rows : Parent.VirtualScrollModule.GeneratedGroupedRows
                                     : Parent.Rows;
             if (Parent.EnableInfiniteScrolling && Parent.GroupSettings != null && !Parent.GroupSettings.EnableLazyLoading && Parent.InfiniteScrollModule != null)
             {
                 Rows = Parent.InfiniteScrollModule.GeneratedInfiniteGroupedRows;
                 Parent.InfiniteScrollModule.RequestType = "GroupExpandCollapse";
             }
-            if(Parent.GroupSettings != null && Parent.GroupSettings.PersistGroupState && !isCurrentGroupedDataNotEmpty)
+            if (Parent.GroupSettings != null && Parent.GroupSettings.PersistGroupState && !isCurrentGroupedDataNotEmpty)
             {
                 var key = (Row.GroupKey!.ToString() ?? "") + Grouping<T>.GetUniqueGroupKey(Rows, Row.ParentUid ?? "");
                 Parent.GroupStates[key] = !Parent.GroupStates.GetValueOrDefault(key, Row.IsExpand);
             }
             IsGroupExpandAndCollapse = true;
-            if (Parent.GroupSettings != null && Parent.GroupSettings.EnableLazyLoading)
+            if (Parent.GroupSettings?.EnableLazyLoading == true)
             {
                 await LazyExpandCollapse(Row, Rows).ConfigureAwait(true);
             }
             else
             {
+                // Safe: Store collection count before accessing
                 int VisibleCount = Parent.EnableVirtualization ? Rows?.Where(vRow => vRow.Visible).ToList().Count ?? 0 : 0;
                 var index = Rows!.FindIndex(row => row == Row) + 1;
-                
+
                 // Collapse/expand row visibility based on layout type
                 if (!Parent.EnableVirtualization)
                 {
@@ -381,13 +389,13 @@ namespace Syncfusion.Blazor.Grids.Internal
                     int exactTopIndex = await virtualScrollModule.GetExactTopIndex(index, virtualRowsCount, VisibleCount).ConfigureAwait(true);
                     virtualScrollModule.SetCurrentViewGroupRows(exactTopIndex, exactTopIndex + Parent.PageSettings!.PageSize);
                 }
-                
+
                 // Handle infinite scroll expand/collapse
                 if (Parent.EnableInfiniteScrolling && Parent.InfiniteScrollModule != null)
                 {
                     await HandleInfiniteScrollExpandCollapse(Row).ConfigureAwait(true);
                 }
-                
+
                 // Trigger UI refresh
                 await TriggerExpandCollapseRefresh(isEdit).ConfigureAwait(true);
             }
@@ -419,8 +427,20 @@ namespace Syncfusion.Blazor.Grids.Internal
                 BuildLazyExpandFilterQuery(query, index, Rows!, Row);
                 BuildLazyExpandGroupQuery(query, Row);
                 query.Queries.LazyLoad = true;
-                var data = await Parent.DataManager.ExecuteQuery<T>(query).ConfigureAwait(true);
+                // Event-driven data source: invoke OnLoadData when subscribed, otherwise fall back to DataManager.
+                IEnumerable data;
+                if (Parent.GridEvents?.OnDataLoad.HasDelegate == true)
+                {
+                    var eventArgs = await EventDrivenDataHandler<T>.InvokeDataRequestAsync(query).ConfigureAwait(true);
+                    await Parent.GridEvents.OnDataLoad.InvokeAsync(eventArgs).ConfigureAwait(true);
+                    data = eventArgs?.Result ?? Enumerable.Empty<object>();
+                }
+                else
+                {
+                    data = (IEnumerable)await Parent.DataManager!.ExecuteQuery<T>(query).ConfigureAwait(true) ?? Enumerable.Empty<object>(); ;
+                }
                 (Row.Data as Group<T>)!.Items = (System.Collections.IEnumerable)data;
+
                 if (Parent.EnableVirtualization || Parent.AllowPaging)
                 {
                     Parent.VirtualScrollModule?.VirtualExpandCollapse(_expandedRowIndexes);
@@ -430,7 +450,11 @@ namespace Syncfusion.Blazor.Grids.Internal
                     int gridHeight = await Parent.InvokeMethod<int>("sfBlazor.Grid.lazyLoadGridHeight", false, Parent.DataId).ConfigureAwait(true);
                     Parent.InfiniteScrollModule.SetLazyLoadPageSize(gridHeight.ToString(CultureInfo.InvariantCulture));
                 }
-                LazyExpand(data, index, Row, _expandedRowIndexes);
+                // Safe: Only call with validated non-null data
+                if (data != null)
+                {
+                    LazyExpand(data, index, Row, _expandedRowIndexes);
+                }
             }
             else
             {
@@ -468,9 +492,9 @@ namespace Syncfusion.Blazor.Grids.Internal
 
         internal void AddUiData(Group<T> value, ref List<object> rows)
         {
-            IEnumerable<object> dataValues = (IEnumerable<object>)(value.Items);
+            IEnumerable<object> dataValues = (IEnumerable<object>)(value.Items ?? Enumerable.Empty<object>());
             bool isExpanded = false;
-            foreach (var item in dataValues)
+            foreach (var item in dataValues ?? Enumerable.Empty<object>())
             {
                 isExpanded = true;
                 if (item is Group<T> group)
@@ -483,9 +507,9 @@ namespace Syncfusion.Blazor.Grids.Internal
                     rows.Add(item);
                 }
             }
-            if(isExpanded)
+            if (isExpanded)
             {
-                rows = AddGroupFooter(rows,value);
+                rows = AddGroupFooter(rows, value);
             }
         }
 
@@ -494,7 +518,7 @@ namespace Syncfusion.Blazor.Grids.Internal
         /// <summary>
         /// Determines if data represents grouped objects rather than raw data.
         /// </summary>
-        private bool IsGroupedDataType(object data)
+        private static bool IsGroupedDataType(object data)
         {
             return data is Group<T> || data is List<Group<T>>;
         }
@@ -506,12 +530,12 @@ namespace Syncfusion.Blazor.Grids.Internal
         {
             int i = pagerIndex + index;
             (IQueryable<Row<object>>, int?) lazyLoadGroupedRows = Parent.InfiniteScrollModule!.LazyLoadExpandCollapse(data, Row, i);
-            
+
             if (lazyLoadGroupedRows.Item2 != null)
             {
                 return (int)lazyLoadGroupedRows.Item2 + 1;
             }
-            
+
             return 0;
         }
 
@@ -523,7 +547,7 @@ namespace Syncfusion.Blazor.Grids.Internal
             var i = pagerIndex + index;
             var dataValues = data as IEnumerable<object>;
             int groupCount = 0;
-            
+
             foreach (Group<T> obj in dataValues!)
             {
                 i++;
@@ -531,7 +555,7 @@ namespace Syncfusion.Blazor.Grids.Internal
                 LazyRows.Insert(i, (Row<object>)ExpandRow);
                 groupCount++;
             }
-            
+
             Parent.TotalItemCount = Parent.TotalItemCount + groupCount;
             return i + 1;
         }
@@ -542,13 +566,13 @@ namespace Syncfusion.Blazor.Grids.Internal
         private int LazyExpandInfiniteDataAsync(object data, int pagerIndex, int index, Row<object> Row)
         {
             (IQueryable<Row<object>>, int?) lazyLoadDataRows = Parent.InfiniteScrollModule!.LazyLoadExpandCollapse(data, Row);
-            
+
             if (lazyLoadDataRows.Item1 != null)
             {
                 LazyRows.InsertRange(pagerIndex + index + 1, lazyLoadDataRows.Item1);
                 return pagerIndex + index + 1 + lazyLoadDataRows.Item1.Count();
             }
-            
+
             return 0;
         }
 
@@ -561,15 +585,15 @@ namespace Syncfusion.Blazor.Grids.Internal
             var rowIndex = Parent.Rows?.FindIndex(row => row == Row) + 1;
             var startIndex = (Parent.PageSettings!.PageSize) * (Parent.PageSettings.CurrentPage - 1);
             var expandedData = (IEnumerable<object>)data;
-            
+
             if (rowIndex > Parent.PageSettings.PageSize)
             {
                 rowIndex = rowIndex - (Parent.PageSettings.PageSize * Parent.PageSettings.CurrentPage - 1);
             }
-            
+
             var pageSize = (int)(Parent.PageSettings.PageSize - rowIndex)!;
             CurrentPageData = expandedData.Take(pageSize);
-            
+
             GenerateRows(startIndex);
         }
 
@@ -580,10 +604,10 @@ namespace Syncfusion.Blazor.Grids.Internal
         {
             var ExpandRow = new GroupModelGenerator<T>(Parent).GenerateDataRows((IEnumerable<object>)data, Row.Indent + 1, Row.ParentId, Parent.Rows.Count, Row.Uid!);
             LazyRows.InsertRange(pagerIndex + index + 1, ExpandRow);
-            
+
             int rowCount = ExpandRow.Count();
             Parent.TotalItemCount = Parent.TotalItemCount + rowCount;
-            
+
             return pagerIndex + index + 1 + rowCount;
         }
 
@@ -650,12 +674,17 @@ namespace Syncfusion.Blazor.Grids.Internal
             // Insert aggregate footers if applicable
             AppendAggregateFooterRows(aggregateIndex, Row);
         }
-        internal int ProcessGroupedData(DataResult dataResult, string primaryKeyColumnName, object value)
+        
+        internal int ProcessGroupedData(DataResult dataResult, IReadOnlyList<string>? primaryKeyColumns, IReadOnlyList<object> values)
         {
             int index = 0;
+            // Composite-key aware logic: build a CompositeKey from target values when PK count > 1, else compare single
+            bool isComposite = primaryKeyColumns != null && primaryKeyColumns.Count > 1;
+            CompositeKey? targetCompositeKey = isComposite ? new CompositeKey(values.ToArray()) : null;
+
             bool FindInGroup(Group<T> group)
             {
-                var items = (Parent.GroupSettings != null &&  Parent.GroupSettings.EnableLazyLoading ? group.GroupedData : group.Items)?.Cast<object>()
+                var items = (Parent.GroupSettings != null && Parent.GroupSettings.EnableLazyLoading ? group.GroupedData : group.Items)?.Cast<object>()
                             ?? Enumerable.Empty<object>();
                 foreach (var item in items)
                 {
@@ -663,8 +692,19 @@ namespace Syncfusion.Blazor.Grids.Internal
                     {
                         case Group<T> nestedGroup when FindInGroup(nestedGroup):
                             return true;
-                        case T row when !GridUtils.CompareValues(Parent.PropHelper?.GetObject(primaryKeyColumnName, row), value):
-                            return true;
+                        case T row when isComposite && targetCompositeKey != null && primaryKeyColumns != null:
+                            {
+                                var rowKeyValues = Parent.EditModule?.GetPrimaryKeyValueAsObject(row).GetAwaiter().GetResult();
+                                if (rowKeyValues != null && rowKeyValues.Count > 0 &&
+                                    !targetCompositeKey.Equals(new CompositeKey(rowKeyValues.ToArray())))
+                                {
+                                    return true;
+                                }
+                                index++;
+                                break;
+                            }
+                        case T row when !isComposite && primaryKeyColumns != null && primaryKeyColumns.Count == 1:
+                            return !GridUtils.CompareValues(Parent.PropHelper?.GetObject(primaryKeyColumns[0], row), values[0]);
                         case T:
                             index++;
                             break;
@@ -672,11 +712,15 @@ namespace Syncfusion.Blazor.Grids.Internal
                 }
                 return false;
             }
-            foreach (var groupObj in dataResult.Result)
+            if (dataResult.Result != null)
             {
-                if (groupObj is Group<T> group && FindInGroup(group))
-                    return index;
+                foreach (var groupObj in dataResult.Result)
+                {
+                    if (groupObj is Group<T> group && FindInGroup(group))
+                        return index;
+                }
             }
+
             return -1;
         }
         internal int CalculatePageIndex(IEnumerable<object> currentViewData, int targetIndex, int pageSize)
@@ -727,8 +771,8 @@ namespace Syncfusion.Blazor.Grids.Internal
                 }
                 if (isExpanded)
                 {
-                   uiData =  AddGroupFooter(uiData, (childData as Group<T>)!);
-                    
+                    uiData = AddGroupFooter(uiData, (childData as Group<T>)!);
+
                 }
             }
 
@@ -761,7 +805,7 @@ namespace Syncfusion.Blazor.Grids.Internal
             List<Row<object>> rowObjects = new List<Row<object>>();
             foreach (var item in uiCollection)
             {
-                if(item is Row<object>)
+                if (item is Row<object>)
                 {
                     rowObjects.Add((item as Row<object>)!);
                 }
@@ -777,7 +821,7 @@ namespace Syncfusion.Blazor.Grids.Internal
                         Uid = infiniteCaptionRow?.Uid!;
                         captionParentUid = infiniteCaptionRow != null ? null! : parentUid!;
                     }
-                    int indent = Parent.GroupSettings!.Columns.IndexOf(captionItem.Field);
+                    int indent = Parent.GroupSettings!.Columns!.IndexOf(captionItem.Field);
                     Row<object> captionRow = new GroupModelGenerator<T>(Parent).GenerateCaptionRow(captionItem, indent, parentUid: captionParentUid, uid: Uid);
                     rowObjects.Add(captionRow);
                 }
@@ -806,7 +850,7 @@ namespace Syncfusion.Blazor.Grids.Internal
                 originalStartIndex = virtualScrollModule.RowStartIndex;
                 originalEndIndex = virtualScrollModule.RowQueryEndIndex;
             }
-            
+
             if (Parent.AllowPaging)
             {
                 originalStartIndex = (Parent.PageSettings!.CurrentPage - 1) * Parent.PageSettings.PageSize;
@@ -823,9 +867,9 @@ namespace Syncfusion.Blazor.Grids.Internal
                 var sIndex = originalEndIndex - Parent.PageSettings!.PageSize;
                 originalStartIndex = sIndex < 0 ? 0 : sIndex;
             }
-            
+
             List<object> collapsedRows = uiData.Skip(originalStartIndex).Take(originalEndIndex).ToList();
-            Parent.TotalItemCount = uiData.Count; 
+            Parent.TotalItemCount = uiData.Count;
             Parent.Rows = Parent.GroupModule?.GenerateLazyRowsobject(collapsedRows, virtualScrollModule!.RowStartIndex)!;
         }
 
@@ -838,13 +882,13 @@ namespace Syncfusion.Blazor.Grids.Internal
             {
                 var childRow = Rows?[i];
                 var childRowCount = (childRow?.Data as Group<T>)?.Items?.Cast<object>().Count();
-                
+
                 if (childRowCount > 0)
                 {
                     var Child = LazyRows?.Where(chunk => chunk.ParentUid == childRow?.Uid).ToList();
                     LazyCollapse(Child!);
                 }
-                
+
                 LazyRows?.Remove(childRow!);
             }
         }
@@ -918,7 +962,7 @@ namespace Syncfusion.Blazor.Grids.Internal
                         Group<T>? customDatas = childRow.Data as Group<T>;
                         var gColumn = GridUtils.GetColumns(Parent)?.FirstOrDefault(_ => _.Field == customDatas?.Field);
                         var filterValues = new List<object>();
-                        var currentGroupedData = customDatas?.GroupedData.Cast<object>().Count();
+                        var currentGroupedData = customDatas?.GroupedData?.Cast<object>().Count();
                         for (var j = 0; j < currentGroupedData; j++)
                         {
                             var customData = (customDatas?.GroupedData as List<T>)![j];
@@ -955,7 +999,7 @@ namespace Syncfusion.Blazor.Grids.Internal
         /// <param name="Row">The group caption row being expanded, used to determine the grouping level.</param>
         private void BuildLazyExpandGroupQuery(Query query, Row<object> Row)
         {
-            var level = Parent.GroupSettings!.Columns.IndexOf((Row.Data as Group<T>)?.Field) + 1;
+            var level = Parent.GroupSettings!.Columns!.IndexOf((Row.Data as Group<T>)?.Field) + 1;
             if (Parent.GroupSettings.Columns?.Length > 0 && Parent.GroupSettings.Columns.Length != level)
             {
                 var gCols = new List<string>();
@@ -996,7 +1040,7 @@ namespace Syncfusion.Blazor.Grids.Internal
 #pragma warning restore BL0005 // Component parameter should not be set outside of its component.
                 if (Parent.PageModule != null)
                 {
-                    await Parent.PageModule.RefreshPagerAsync();
+                    await Parent.PageModule.RefreshPagerAsync().ConfigureAwait(true);
                 }
             }
             else
@@ -1163,13 +1207,14 @@ namespace Syncfusion.Blazor.Grids.Internal
                             data.IsExpand = true;
                             if (Parent.GroupSettings != null && Parent.GroupSettings.PersistGroupState && data.Item is Group<T> itemGroup)
                             {
-                                string groupKey = (itemGroup.Key?.ToString() ?? string.Empty) + Grouping<T>.GetUniqueGroupKey(null, data.ParentUid, Parent.VirtualScrollModule!.CurrentGroupedData);
+                                string groupKey = (itemGroup.Key?.ToString() ?? string.Empty) + Grouping<T>.GetUniqueGroupKey(new List<Row<object>>(), data.ParentUid!, Parent.VirtualScrollModule!.CurrentGroupedData);
                                 Parent.GroupStates[groupKey] = true;
                             }
                         }
                         data.Visible = true;
                     }
-                    Parent.VisibleGroupedDataCount = Grouping<T>.GetVisibleGroupeddataCountInternal(Parent.VirtualScrollModule!.CurrentGroupedData, Parent.GroupStates, Parent.GroupSettings.PersistGroupState, Parent.VirtualScrollModule.CurrentGroupedDataCaptionRowMap);
+                    if (Parent.GroupSettings != null)
+                        Parent.VisibleGroupedDataCount = Grouping<T>.GetVisibleGroupeddataCountInternal(Parent.VirtualScrollModule!.CurrentGroupedData, Parent.GroupStates, Parent.GroupSettings.PersistGroupState, Parent.VirtualScrollModule.CurrentGroupedDataCaptionRowMap);
 
                     Parent.VirtualScrollModule!.SetGeneratedData((int)Parent.VirtualScrollModule.RowStartIndex, (int)Parent.VirtualScrollModule.RowEndIndex, Parent.VirtualScrollModule.QueriedCurrentViewData!);
                 }
@@ -1217,7 +1262,7 @@ namespace Syncfusion.Blazor.Grids.Internal
             {
                 return;
             }
-            if(Parent.EnableInfiniteScrolling)
+            if (Parent.EnableInfiniteScrolling)
             {
                 Parent.ForceUpdate = true;
                 Parent.InfiniteScrollModule!.RequestType = "GroupExpandCollapseAll";
@@ -1249,14 +1294,13 @@ namespace Syncfusion.Blazor.Grids.Internal
                         data.IsExpand = false;
                         if (data.IsCaptionRow && Parent.GroupSettings != null && Parent.GroupSettings.PersistGroupState && data.Item is Group<T> itemGroup)
                         {
-                            string groupKey = (itemGroup.Key?.ToString() ?? string.Empty) + Grouping<T>.GetUniqueGroupKey(null, data.ParentUid, Parent.VirtualScrollModule!.CurrentGroupedData);
+                            string groupKey = (itemGroup.Key?.ToString() ?? string.Empty) + Grouping<T>.GetUniqueGroupKey(new List<Row<object>>(), data.ParentUid!, Parent.VirtualScrollModule!.CurrentGroupedData);
                             Parent.GroupStates[groupKey] = false;
                         }
 
                         Parent.VirtualScrollModule!.CurrentGroupedData[i] = data;
                     }
-
-                    Parent.VisibleGroupedDataCount = Grouping<T>.GetVisibleGroupeddataCountInternal(Parent.VirtualScrollModule!.CurrentGroupedData!, Parent.GroupStates, Parent.GroupSettings.PersistGroupState, Parent.VirtualScrollModule.CurrentGroupedDataCaptionRowMap);
+                    Parent.VisibleGroupedDataCount = Grouping<T>.GetVisibleGroupeddataCountInternal(Parent.VirtualScrollModule!.CurrentGroupedData!, Parent.GroupStates, Parent.GroupSettings!.PersistGroupState, Parent.VirtualScrollModule.CurrentGroupedDataCaptionRowMap);
 
                     Parent.VirtualScrollModule!.SetGeneratedData(
                         (int)Parent.VirtualScrollModule.RowStartIndex,
@@ -1285,14 +1329,14 @@ namespace Syncfusion.Blazor.Grids.Internal
                         }
                     }
                 }
-                if(Parent.EnableVirtualization)
+                if (Parent.EnableVirtualization)
                 {
                     Parent.ForceUpdate = true;
                 }
                 await Parent.CallStateHasChangedAsync().ConfigureAwait(true);
                 if (Parent.EnableInfiniteScrolling)
                 {
-                    await Parent.InvokeMethod("sfBlazor.Grid.resetExpandCollapseAllScroll", new object[] { Parent.DataId, Parent.InfiniteScrollModule?.RequestType!}).ConfigureAwait(true);
+                    await Parent.InvokeMethod("sfBlazor.Grid.resetExpandCollapseAllScroll", new object[] { Parent.DataId, Parent.InfiniteScrollModule?.RequestType! }).ConfigureAwait(true);
                 }
             }
         }
@@ -1305,18 +1349,18 @@ namespace Syncfusion.Blazor.Grids.Internal
         /// Internal static helper for calculating unique group keys.
         /// Used for group state persistence and group identification.
         /// </summary>
-        internal static string GetUniqueGroupKey(List<Row<object>> rows, string parentUid, IEnumerable<GroupedDataItem> currentGroupedDataItems = null)
+        internal static string GetUniqueGroupKey(List<Row<object>> rows, string parentUid, IEnumerable<GroupedDataItem> currentGroupedDataItems = null!)
         {
             if (string.IsNullOrEmpty(parentUid))
             {
                 return string.Empty;
             }
-            if(currentGroupedDataItems != null)
+            if (currentGroupedDataItems != null)
             {
-                var parentDataItem = currentGroupedDataItems?.FirstOrDefault(dataItem => dataItem.Uid == parentUid);
+                var parentDataItem = currentGroupedDataItems.FirstOrDefault(dataItem => dataItem.Uid == parentUid);
                 if (parentDataItem != null && parentDataItem.Item is Group<T> parentDataGroupItem)
                 {
-                    return parentDataGroupItem is null ? string.Empty : parentDataGroupItem.Key?.ToString() + GetUniqueGroupKey(null, parentDataItem.ParentUid!, currentGroupedDataItems);
+                    return parentDataGroupItem.Key?.ToString() + GetUniqueGroupKey(new List<Row<object>>(), parentDataItem.ParentUid!, currentGroupedDataItems);
                 }
             }
             var parentRow = rows?.FirstOrDefault(row => row.Uid == parentUid);
@@ -1327,7 +1371,7 @@ namespace Syncfusion.Blazor.Grids.Internal
         /// Internal static helper for calculating visible grouped data count.
         /// Applies group state persistence and calculates total visible rows including captions.
         /// </summary>
-        internal static int GetVisibleGroupeddataCountInternal(IEnumerable<GroupedDataItem> groupedData, Dictionary<string, bool> groupStates = null, bool isPersistGroupState = false, Dictionary<string, GroupedDataItem>? parentLookup = null)
+        internal static int GetVisibleGroupeddataCountInternal(IEnumerable<GroupedDataItem> groupedData, Dictionary<string, bool> groupStates = null!, bool isPersistGroupState = false, Dictionary<string, GroupedDataItem>? parentLookup = null)
         {
             if (groupedData == null)
                 return 0;
@@ -1335,12 +1379,12 @@ namespace Syncfusion.Blazor.Grids.Internal
             bool isGroupStatePersist = isPersistGroupState && groupStates != null;
             foreach (var item in groupedData)
             {
-                if(isGroupStatePersist)
+                if (isGroupStatePersist)
                 {
                     if (item.Item is Group<T> itemGroup)
                     {
-                        string groupKey = (itemGroup.Key?.ToString() ?? string.Empty) + GetUniqueGroupKey(null, item.ParentUid, groupedData);
-                        if (groupStates.TryGetValue(groupKey, out var isExpand))
+                        string groupKey = (itemGroup.Key?.ToString() ?? string.Empty) + GetUniqueGroupKey(new List<Row<object>>(), item.ParentUid!, groupedData);
+                        if (groupStates != null && groupStates.TryGetValue(groupKey, out var isExpand))
                         {
                             item.IsExpand = isExpand;
                         }

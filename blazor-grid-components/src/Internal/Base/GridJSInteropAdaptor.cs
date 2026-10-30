@@ -90,7 +90,7 @@ namespace Syncfusion.Blazor.Grids.Internal
         [JSInvokable]
         public async ValueTask ColumnReordered(object? args)
         {
-            await Parent.ReorderModule!.ColumnReordered(args);
+            await Parent.ReorderModule!.ColumnReordered(args).ConfigureAwait(true);
         }
 
         [JSInvokable]
@@ -124,8 +124,8 @@ namespace Syncfusion.Blazor.Grids.Internal
         public async Task SetMinWidth(IDictionary<string, string> minWidthValues)
         {
             Parent.MinWidth = minWidthValues;
-            Parent.EventAggregator.Trigger("ColumnWidthStateChange", null!);
-            await Parent.FreezeModule!.InvokeClientFrozenHeight();
+            await Parent.EventAggregator.NotifyAsync("ColumnWidthStateChange", null!).ConfigureAwait(true);
+            await Parent.FreezeModule!.InvokeClientFrozenHeight().ConfigureAwait(true);
         }
 
         [JSInvokable]
@@ -189,7 +189,7 @@ namespace Syncfusion.Blazor.Grids.Internal
                 await Parent.SetLocalStorage().ConfigureAwait(true);
             }
             Parent.ForceUpdate = true;
-            Parent.EventAggregator.Trigger("ColumnWidthStateChange", args);
+            await Parent.EventAggregator.NotifyAsync("ColumnWidthStateChange", args).ConfigureAwait(true);
             if (Parent.FreezeModule!.GetFrozenCount() > 0)
             {
                 if (columnResizeStop.AllowStopEvent)
@@ -277,13 +277,13 @@ namespace Syncfusion.Blazor.Grids.Internal
         [JSInvokable]
         public async Task InvokeFreezeLineMoving(object args)
         {
-            await Parent.FreezeModule!.InvokeFreezeLineMoving(args);
+            await Parent.FreezeModule!.InvokeFreezeLineMoving(args).ConfigureAwait(true);
         }
 
         [JSInvokable]
         public async Task InvokeFreezeLineMoved(object args)
         {
-            await Parent.FreezeModule!.InvokeFreezeLineMoved(args);
+            await Parent.FreezeModule!.InvokeFreezeLineMoved(args).ConfigureAwait(true);
 
         }
 
@@ -317,19 +317,19 @@ namespace Syncfusion.Blazor.Grids.Internal
         [JSInvokable]
         public async Task FilterPopupClose()
         {
-            await Parent.FilterModule!.FilterPopupClose();
+            await Parent.FilterModule!.FilterPopupClose().ConfigureAwait(true);
         }
 
         [JSInvokable]
         public async Task CloseEnhancedOperatorDropdown()
         {
-            await Parent.FilterModule!.CloseEnhancedOperatorDropdown();
+            await Parent.FilterModule!.CloseEnhancedOperatorDropdown().ConfigureAwait(true);
         }
 
         [JSInvokable]
         public async void FilterMouseOverHandler(string uid, bool showDialog)
         {
-            await Parent.FilterModule!.FilterMouseOverHandler(uid, showDialog);
+            await Parent.FilterModule!.FilterMouseOverHandler(uid, showDialog).ConfigureAwait(true);
         }
         [JSInvokable]
         public void PreventColumnMenuClose(bool IsPrevent)
@@ -344,13 +344,42 @@ namespace Syncfusion.Blazor.Grids.Internal
         [JSInvokable]
         public async void UpdateChanges()
         {
+            if(Parent.EditModule!.IsCellEditMode())
+            {
+                await Parent.EditModule!.EndEdit().ConfigureAwait(true);
+                return;
+            }
             await Parent.EditModule!.SaveCell().ConfigureAwait(true);
         }
 
         [JSInvokable]
         public async Task UpdateCell(double rowIndex, string fieldName, string value)
         {
+
+            var targetRow = Parent.Rows?.Find(_ => _.Index == (int)rowIndex);
+            var prePasteValue = targetRow != null
+                ? Parent.PropHelper?.GetObject(fieldName, targetRow.Data!)
+                : null;
+
             await Parent.EditModule!.UpdateCopyCell(rowIndex, fieldName, value).ConfigureAwait(true);
+
+            if (Parent.UndoRedoManager != null && Parent.EditSettings != null && Parent.EditSettings.EnableUndoRedo == true && Parent.EditSettings.Mode == EditMode.Batch)
+            {
+                var dataField = await Parent.GetColumnByFieldAsync(fieldName).ConfigureAwait(true);
+                if (dataField != null)
+                {
+                    var columnIndex = targetRow?.Cells
+                        ?.Find(_ => _.Column?.Field?.Equals(fieldName, StringComparison.Ordinal) == true)
+                        ?.Index ?? -1;
+                    Parent.UndoRedoManager.RecordOrBufferCellChange(
+                        (int)rowIndex,
+                        (int)columnIndex,
+                        fieldName,
+                        prePasteValue,
+                        value,
+                        dataField);
+                }
+            }
         }
 
         [JSInvokable]
@@ -377,6 +406,73 @@ namespace Syncfusion.Blazor.Grids.Internal
             {
                 await Parent.EditModule!.UpdateAutofillCell(rowIndex, fieldName, columnName, valueIndex).ConfigureAwait(true);
             }
+        }
+
+        /// <summary>
+        /// Begins an autofill batch. Called from JS when the user starts
+        /// dragging the autofill handle, BEFORE the first UpdateAutofillCell.
+        /// While a batch is active, per-cell changes are buffered rather than
+        /// pushed as individual undo actions.
+        /// </summary>
+        [JSInvokable]
+        public async Task BeginAutoFillBatch()
+        {
+            Parent.UndoRedoManager?.BeginBatch(UndoRedoActionType.AutoFill);
+        }
+
+        /// <summary>
+        /// Commits the currently buffered autofill batch as a single atomic
+        /// UndoRedoAction on the undo stack. Called from JS on the
+        /// mouseup that ends the autofill drag. No-op if no batch is active
+        /// or the batch is empty.
+        /// </summary>
+        [JSInvokable]
+        public async Task CommitAutoFillBatch()
+        {
+            Parent.UndoRedoManager?.CommitBatch();
+        }
+
+        /// <summary>
+        /// Discards the currently buffered autofill batch without recording
+        /// anything. Called from JS when the autofill drag is cancelled
+        /// (e.g. by Escape, or when BeforeAutoFill is cancelled).
+        /// </summary>
+        [JSInvokable]
+        public async Task DiscardAutoFillBatch()
+        {
+            Parent.UndoRedoManager?.DiscardBatch();
+        }
+
+        /// <summary>
+        /// Begins a paste batch. Called from JS BEFORE the first pasted
+        /// cell UpdateCell so that the whole paste is coalesced into one
+        /// atomic Paste undo action.
+        /// </summary>
+        [JSInvokable]
+        public async Task BeginPasteBatch()
+        {
+            Parent.UndoRedoManager?.BeginBatch(UndoRedoActionType.Paste);
+        }
+
+        /// <summary>
+        /// Commits the currently buffered paste batch as a single atomic
+        /// UndoRedoAction on the undo stack. Called from JS when the paste
+        /// operation ends.
+        /// </summary>
+        [JSInvokable]
+        public async Task CommitPasteBatch()
+        {
+            Parent.UndoRedoManager?.CommitBatch();
+        }
+
+        /// <summary>
+        /// Discards the currently buffered paste batch without recording
+        /// anything. Called from JS when the paste is cancelled.
+        /// </summary>
+        [JSInvokable]
+        public async Task DiscardPasteBatch()
+        {
+            Parent.UndoRedoManager?.DiscardBatch();
         }
 
         [JSInvokable]
@@ -582,12 +678,12 @@ namespace Syncfusion.Blazor.Grids.Internal
         }
 
         [JSInvokable]
-        public async ValueTask GridKeyDown(object args, bool value, bool isPagerFocused, bool isToolbarFocused, int? cellIndex, int? rowIndex = null, int? templateCellIndex = null, bool focusColumnTemplate = false, bool isMultiSelectPopUpOpened = false)
+        public async ValueTask GridKeyDown(object args, bool value, bool isPagerFocused, bool isToolbarFocused, int? cellIndex, int? rowIndex = null, int? templateCellIndex = null, bool focusColumnTemplate = false, bool isPopUpOpened = false)
         {
             KeyboardEventArgs? action = JsonSerializer.Deserialize<KeyboardEventArgs>(args?.ToString()!, _jsonSettings);
             if (Parent.FocusModule != null)
             {
-                Parent.FocusModule.isMultiSelectPopUpOpened = isMultiSelectPopUpOpened;
+                Parent.FocusModule.isPopUpOpened = isPopUpOpened;
                 await Parent.FocusModule.ProcessGridKeyDown(action!, null!, isPagerFocused, isToolbarFocused, cellIndex, rowIndex, templateCellIndex, focusColumnTemplate).ConfigureAwait(true);
             }
         }
@@ -616,6 +712,24 @@ namespace Syncfusion.Blazor.Grids.Internal
         }
 
         [JSInvokable]
+        public async Task DomVirtualScroll(int scrollTop)
+        {
+            if (Parent.EnableDomVirtualization)
+            {
+                await Parent.EventAggregator.NotifyAsync("DomVirtualScroll", scrollTop).ConfigureAwait(true);
+            }
+        }
+
+        [JSInvokable]
+        public async Task SetDomVirtualMaxHeight(int maxHeight)
+        {
+            if (Parent.EnableDomVirtualization)
+            {
+                await Parent.EventAggregator.NotifyAsync("DomVirtualMaxHeightChanged", maxHeight).ConfigureAwait(true);
+            }
+        }
+
+        [JSInvokable]
         public async Task LoadInfiniteData(object args, bool isBottom = false, bool isTop = false, bool isLazyLoadChild = false, string middleRowUid = null!, string lastRowUid = null!, int middleRowIndex = 0, bool keyInteractionScroll = false)
         {
             ActionArgs? action = JsonSerializer.Deserialize<ActionArgs>(args?.ToString()!);
@@ -636,9 +750,10 @@ namespace Syncfusion.Blazor.Grids.Internal
         #endregion
 
         #region Clipboard Operations
+
         [JSInvokable]
         public async Task InvokeCopyPasteAction(object args, string name)
-        {        
+        {
             BeforeCopyPasteEventArgs? copy = JsonSerializer.Deserialize<BeforeCopyPasteEventArgs>(args.ToString()!);
             if (Parent.GridEvents?.BeforeCopyPaste.HasDelegate == true || Parent.IsRenderedFromTreeGrid)
             {
@@ -648,7 +763,7 @@ namespace Syncfusion.Blazor.Grids.Internal
                     Cancel = false,
                     ClipboardText = copy?.ClipboardText!
                 };
-                if(Parent.IsRenderedFromTreeGrid)
+                if (Parent.IsRenderedFromTreeGrid)
                     await Parent.EventAggregator.NotifyAsync("BeforeCopyPaste", eventArgs).ConfigureAwait(true);
                 else
                     await (Parent.GridEvents?.BeforeCopyPaste.InvokeAsync(eventArgs))!.ConfigureAwait(true)!;
@@ -658,39 +773,418 @@ namespace Syncfusion.Blazor.Grids.Internal
             {
                 await Parent.InvokeMethod("sfBlazor.Grid.preventCopyToClipBoard", new object[] { Parent.DataId, false, copy?.ClipboardText!, name }).ConfigureAwait(true);
             }
-
-
         }
 
         [JSInvokable]
-        public async Task InvokePasteAction(object args, int rowIndex, int columnIndex, string columnField)
+        public async Task<List<PasteCell>> InvokeBatchPasteAction(List<PasteCell> pasteCells)
         {
-            BeforeCellPasteEventArgs<T>? paste = JsonSerializer.Deserialize<BeforeCellPasteEventArgs<T>>(args.ToString()!);
-            Row<object>? row = Parent.Rows.Find(x => x.Index == rowIndex);
-            if (Parent.GridEvents?.BeforeCellPaste.HasDelegate == true || Parent.IsRenderedFromTreeGrid)
+            var processedCells = new List<PasteCell>();
+            if (pasteCells == null || pasteCells.Count == 0 || Parent.EditModule == null)
             {
-                BeforeCellPasteEventArgs<T> eventArgs = new BeforeCellPasteEventArgs<T>()
+                return processedCells;
+            }
+            bool isCellEditMode = Parent.EditSettings?.Mode == EditMode.Cell;
+            string? primaryKeyField = null;
+            if (isCellEditMode)
+            {
+                var primaryKeyFields = await Parent.GetPrimaryKeyFieldNamesAsync().ConfigureAwait(true);
+                primaryKeyField = primaryKeyFields?.FirstOrDefault();
+                if (string.IsNullOrWhiteSpace(primaryKeyField))
                 {
-                    Cancel = false,
-                    CellValue = paste?.CellValue!,
-                    RowIndex = rowIndex,
-                    ColumnName = columnField,
-                    ColumnIndex = columnIndex,
-                    Data = (T)row!.Data!
-                };
-                if(Parent.IsRenderedFromTreeGrid)
-                    await Parent.EventAggregator.NotifyAsync("BeforeCellPaste", eventArgs).ConfigureAwait(true);
-                else
-                    await (Parent.GridEvents?.BeforeCellPaste.InvokeAsync(eventArgs))!.ConfigureAwait(true)!;
-                await Parent.InvokeMethod("sfBlazor.Grid.preventPasteAction", new object[] { Parent.DataId, eventArgs.RowIndex, eventArgs.ColumnName, eventArgs.CellValue, eventArgs.ColumnIndex, eventArgs.Cancel }).ConfigureAwait(true);
+                    return processedCells;
+                }
             }
-            else
+            var cellUpdates = new List<CellUpdate>();
+            var pendingCellModeResults = new List<PasteCell>();
+            foreach (PasteCell pasteCell in pasteCells)
             {
-                await Parent.InvokeMethod("sfBlazor.Grid.preventPasteAction", new object[] { Parent.DataId, rowIndex, columnField, paste?.CellValue!, columnIndex, false }).ConfigureAwait(true);
-            }
+                if (pasteCell == null)
+                {
+                    continue;
+                }
+                int rowIndex = pasteCell.RowIndex;
+                int columnIndex = pasteCell.ColumnIndex;
+                string columnField = pasteCell.ColumnField ?? string.Empty;
+                string cellValue = pasteCell.Value ?? string.Empty;
+                if (string.IsNullOrWhiteSpace(columnField))
+                {
+                    continue;
+                }
+                Row<object>? row = Parent.Rows?.Find(item => item.Index == rowIndex);
+                if (row?.Data == null)
+                {
+                    continue;
+                }
+                if (Parent.GridEvents?.BeforeCellPaste.HasDelegate == true || Parent.IsRenderedFromTreeGrid)
+                {
+                    var eventArgs = new BeforeCellPasteEventArgs<T>
+                    {
+                        Cancel = false,
+                        CellValue = cellValue,
+                        RowIndex = rowIndex,
+                        ColumnName = columnField,
+                        ColumnIndex = columnIndex,
+                        Data = (T)row.Data
+                    };
 
+                    if (Parent.IsRenderedFromTreeGrid)
+                    {
+                        await Parent.EventAggregator.NotifyAsync("BeforeCellPaste", eventArgs).ConfigureAwait(true);
+                    }
+                    else
+                    {
+                        await Parent.GridEvents!.BeforeCellPaste.InvokeAsync(eventArgs).ConfigureAwait(true);
+                    }
+                    if (eventArgs.Cancel)
+                    {
+                        continue;
+                    }
+
+                    rowIndex = eventArgs.RowIndex;
+                    columnIndex = eventArgs.ColumnIndex;
+                    columnField = eventArgs.ColumnName ?? columnField;
+                    cellValue = eventArgs.CellValue ?? string.Empty;
+                    if (string.IsNullOrWhiteSpace(columnField))
+                    {
+                        continue;
+                    }
+                    if (rowIndex != pasteCell.RowIndex)
+                    {
+                        row = Parent.Rows?.Find(item => item.Index == rowIndex);
+                        if (row?.Data == null)
+                        {
+                            continue;
+                        }
+                    }
+                }
+
+                if (isCellEditMode)
+                {
+                    object? primaryKeyValue = Parent.PropHelper?.GetObject(primaryKeyField!, row.Data);
+                    if (primaryKeyValue == null)
+                    {
+                        continue;
+                    }
+                    object? sanitizedValue = await Parent.EditModule.GetCellPasteValueAsync(columnField, cellValue).ConfigureAwait(true);
+                    cellUpdates.Add(new CellUpdate
+                    {
+                        PrimaryKeyValue = primaryKeyValue,
+                        ColumnField = columnField,
+                        NewValue = sanitizedValue
+                    });
+
+                    pendingCellModeResults.Add(
+                        new PasteCell
+                        {
+                            RowIndex = rowIndex,
+                            ColumnIndex = columnIndex,
+                            ColumnField = columnField,
+                            Value = cellValue
+                        });
+                }
+                else
+                {
+                    await Parent.EditModule.UpdateCopyCell(rowIndex, columnField, cellValue).ConfigureAwait(true);
+                    processedCells.Add(new PasteCell
+                    {
+                        RowIndex = rowIndex,
+                        ColumnIndex = columnIndex,
+                        ColumnField = columnField,
+                        Value = cellValue
+                    });
+                }
+            }
+            if (isCellEditMode && cellUpdates.Count > 0)
+            {
+                await Parent.SetCellValueAsync(cellUpdates).ConfigureAwait(true);
+                processedCells.AddRange(pendingCellModeResults);
+            }
+            return processedCells;
         }
+
         #endregion
 
+        #region InitModules
+
+        [JSInvokable]
+        public async Task SetGridInitInfo(string? width, bool? isRowDragCell, int? rowHeight, bool? isMacDevice)
+        {
+            if (!string.IsNullOrEmpty(width))
+            {
+                await Parent.RefreshIndentWidth(width, isRowDragCell ?? false).ConfigureAwait(true);
+            }
+
+            if (rowHeight.HasValue && Parent.VirtualScrollModule != null)
+            {
+                Parent.VirtualScrollModule.RHeight = rowHeight.Value;
+                Parent.EventAggregator.Trigger("VirtualComponentUpdate", null!);
+            }
+
+            Parent.IsMacDevice = isMacDevice;
+        }
+
+        #endregion
+
+        #region WebMCP Bridge (JS -> C# invokable)
+
+        private static readonly JsonSerializerOptions WebMcpJsonOptions = new()
+        {
+            PropertyNamingPolicy = JsonNamingPolicy.CamelCase
+        };
+
+        /// <summary>
+        /// Maximum wire size, in bytes, of a single WebMCP tool response
+        /// after UTF-8 serialization. This is the single enforcement
+        /// point for the response-size cap — every response that leaves
+        /// <see cref="InvokeWebMcpToolExecute"/> is checked against this
+        /// constant.
+        /// </summary>
+        /// <remarks>
+        /// <para>
+        /// 1 MB is a safe ceiling for the union of transport constraints
+        /// the bridge sits behind:
+        /// </para>
+        /// <list type="bullet">
+        /// <item><description>
+        /// SignalR's default <c>MaximumReceiveMessageSize</c> is 32 KB;
+        /// most production Blazor Server hosts raise this to 1 MB or
+        /// higher, so 1 MB is the upper bound that flows without
+        /// transport reconfiguration.
+        /// </description></item>
+        /// <item><description>
+        /// Common MCP client SDKs (Anthropic, OpenAI, the official
+        /// TypeScript SDK) accept payloads of at least 1 MB by default.
+        /// A larger cap would silently fail on some clients.
+        /// </description></item>
+        /// <item><description>
+        /// 1 MB holds roughly 5,000 records of 200 characters each —
+        /// well past the point where an LLM can reason over the result
+        /// regardless of transport. The cap is a correctness signal, not
+        /// just a memory signal.
+        /// </description></item>
+        /// </list>
+        /// <para>
+        /// When the cap is exceeded, the bridge throws
+        /// <see cref="InvalidOperationException"/> so the failure is
+        /// visible at the JS-interop boundary — not silently truncated,
+        /// not converted to a vague error. The exception message includes
+        /// the actual byte count for diagnostics.
+        /// </para>
+        /// </remarks>
+        private const int MaxResponseBytes = 1_048_576; // 1 MB
+
+        /// <summary>
+        /// Serializes <paramref name="response"/> to UTF-8 once and
+        /// throws <see cref="InvalidOperationException"/> if the result
+        /// exceeds <see cref="MaxResponseBytes"/>.
+        /// </summary>
+        /// <param name="response">The dispatcher-built response payload.</param>
+        /// <returns>The JSON-serialized string ready for JS-interop return.</returns>
+        /// <exception cref="InvalidOperationException">
+        /// Thrown when the serialized UTF-8 payload exceeds
+        /// <see cref="MaxResponseBytes"/>.
+        /// </exception>
+        private static string SerializeAndEnforceCap(WebMcpToolResponse response)
+        {
+            byte[] payload = JsonSerializer.SerializeToUtf8Bytes(response, WebMcpJsonOptions);
+            if (payload.Length > MaxResponseBytes)
+            {
+                throw new InvalidOperationException(
+                    $"WebMCP tool response exceeds the {MaxResponseBytes:N0}-byte limit " +
+                    $"(actual: {payload.Length:N0} bytes). ");
+            }
+            return Encoding.UTF8.GetString(payload);
+        }
+
+        /// <summary>
+        /// JS-invokable bridge from the browser's <c>document.modelContext.registerTool()</c> handler.
+        /// When an AI agent invokes a tool, the browser forwards the call to this method which delegates to
+        /// the <see cref="Syncfusion.Blazor.Grids.Actions.WebMcpAdapter{TValue}"/> dispatcher.
+        /// </summary>
+        /// <param name="command">The fully-prefixed tool name (e.g., <c>SfGrid-123_sortByColumn</c>).</param>
+        /// <param name="argsJson">JSON-serialized dictionary of arguments from the agent.</param>
+        /// <returns>A JSON-serialized <see cref="WebMcpToolResponse"/> for the agent to consume.</returns>
+        /// <remarks>
+        /// The JS layer is responsible for:
+        /// <list type="bullet">
+        /// <item><description>Receiving the agent's call from <c>document.modelContext</c></description></item>
+        /// <item><description>Stripping its own prefix and forwarding the base tool name</description></item>
+        /// <item><description>JSON-serializing args into a plain dictionary</description></item>
+        /// </list>
+        /// The dispatcher then handles event firing, validation, cancellation, and routing.
+        /// </remarks>
+        [JSInvokable]
+        public async Task<string> InvokeWebMcpToolExecute(string command, string argsJson)
+        {
+            // Early-out: if WebMCP is disabled or adapter is null, return a clean error
+            var adapter = Parent._webMcpAdapter;
+            if (adapter == null)
+            {
+                var disabledResponse = new WebMcpToolResponse
+                {
+                    IsError = true,
+                    Content = new List<WebMcpToolResponse.ContentItem>
+                    {
+                        new() { Type = "text",
+                            Text = "{\"errorCode\":1002,\"errorName\":\"ExecutionFailed\",\"message\":\"WebMCP is not enabled for this grid (set EnableWebMcp=true).\"}"
+                        }
+                    }
+                };
+                return SerializeAndEnforceCap(disabledResponse);
+            }
+
+            Dictionary<string, object> args;
+            try
+            {
+                // Deserialize to a Dictionary of JsonElement first so we can
+                // walk the tree deterministically and convert each leaf into
+                // its native CLR type. Without this pass, every handler
+                // would have to call ((JsonElement)args["x"]).GetString() etc.
+                Dictionary<string, object>? raw = string.IsNullOrWhiteSpace(argsJson)
+                    ? new Dictionary<string, object>()
+                    : JsonSerializer.Deserialize<Dictionary<string, object>>(argsJson);
+                args = raw == null
+                    ? new Dictionary<string, object>()
+                    : ConvertArgsDictionary(raw);
+            }
+            catch (JsonException ex)
+            {
+                var parseErrorResponse = new WebMcpToolResponse
+                {
+                    IsError = true,
+                    Content = new List<WebMcpToolResponse.ContentItem>
+                    {
+                        new() { Type = "text",
+                            Text = $"{{\"errorCode\":1001,\"errorName\":\"InvalidArgument\",\"message\":\"Failed to parse tool args JSON: {ex.Message}\"}}"
+                        }
+                    }
+                };
+                return SerializeAndEnforceCap(parseErrorResponse);
+            }
+
+            WebMcpToolResponse response = await adapter.ExecuteHandler(command, args).ConfigureAwait(true);
+
+            // Byte-cap enforcement. When the serialized response exceeds
+            // MaxResponseBytes, SerializeAndEnforceCap throws
+            // InvalidOperationException so the failure is visible at the
+            // JS-interop boundary rather than silently truncated. The
+            // exception propagates out of this [JSInvokable] method and
+            // surfaces as a Blazor interop error to the calling JavaScript.
+            return SerializeAndEnforceCap(response);
+        }
+
+        /// <summary>
+        /// Walks the deserialized args dictionary and rewrites every leaf
+        /// from <see cref="JsonElement"/> to its native CLR equivalent so
+        /// user-supplied handlers can read <c>ctx.Args["x"]</c> as a
+        /// <see cref="string"/> / <see cref="int"/> / <see cref="bool"/> /
+        /// nested <see cref="Dictionary{TKey, TValue}"/> without casting.
+        /// </summary>
+        /// <remarks>
+        /// Number coercion uses <see cref="JsonElement.TryGetInt64(out long)"/>
+        /// then <see cref="JsonElement.TryGetDouble(out double)"/> — the former
+        /// avoids floating-point drift on whole-number JSON, the latter
+        /// preserves the precision of fractional values. Property names are
+        /// preserved verbatim (camelCase / PascalCase both round-trip).
+        /// </remarks>
+        private static Dictionary<string, object> ConvertArgsDictionary(Dictionary<string, object> source)
+        {
+            var result = new Dictionary<string, object>(source.Count);
+            foreach (var kvp in source)
+            {
+                // CS8601: ConvertJsonValue returns object? (because null JSON
+                // values land in the tree). The runtime dictionary is
+                // non-nullable; the assignment is safe because the value is
+                // either a real CLR object or null which serialises to JSON
+                // null and is consumed by the dispatcher as such.
+                result[kvp.Key] = ConvertJsonValue(kvp.Value)!;
+            }
+            return result;
+        }
+
+        private static object? ConvertJsonValue(object? value)
+        {
+            switch (value)
+            {
+                case null:
+                    return null;
+
+                case JsonElement element:
+                    return ConvertJsonElement(element);
+
+                case List<object> list:
+                    // STJ sometimes deserializes into List<object> already
+                    // (e.g. when array elements are heterogeneous objects).
+                    var converted = new List<object?>(list.Count);
+                    foreach (var item in list)
+                    {
+                        converted.Add(ConvertJsonValue(item));
+                    }
+                    return converted;
+
+                // Already a native CLR type — pass through.
+                default:
+                    return value;
+            }
+        }
+
+        private static object? ConvertJsonElement(JsonElement element)
+        {
+            switch (element.ValueKind)
+            {
+                case JsonValueKind.String:
+                    // Plain strings land here. JSON null inside a string
+                    // position is treated as the string "null" by STJ,
+                    // matching what the browser sent — we do not second-guess.
+                    return element.GetString();
+
+                case JsonValueKind.Number:
+                    if (element.TryGetInt64(out var asLong))
+                    {
+                        return asLong;
+                    }
+                    return element.GetDouble();
+
+                case JsonValueKind.True:
+                    return true;
+
+                case JsonValueKind.False:
+                    return false;
+
+                case JsonValueKind.Null:
+                case JsonValueKind.Undefined:
+                    return null;
+
+                case JsonValueKind.Object:
+                    {
+                        var nested = new Dictionary<string, object>();
+                        foreach (var prop in element.EnumerateObject())
+                        {
+                            // CS8601: ConvertJsonElement returns object? —
+                            // the dictionary value is non-nullable, but the
+                            // contract is "absent → null" and consumers read
+                            // through Dictionary<string, object> which
+                            // already tolerates nulls.
+                            nested[prop.Name] = ConvertJsonElement(prop.Value)!;
+                        }
+                        return nested;
+                    }
+
+                case JsonValueKind.Array:
+                    {
+                        var items = new List<object?>();
+                        foreach (var child in element.EnumerateArray())
+                        {
+                            items.Add(ConvertJsonElement(child));
+                        }
+                        return items;
+                    }
+
+                default:
+                    return null;
+            }
+        }
+
+        #endregion
     }
 }

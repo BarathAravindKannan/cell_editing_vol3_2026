@@ -5,6 +5,7 @@ obj/
 *.sln
 Nuget/
 .vscode/
+wwwroot/
 nuget.exe
 node_modules/
 scripts/bundles/
@@ -16,3 +17,11 @@ scripts/modules/sf-import-script.js
 
 # spec-gen analysis artifacts
 .spec-gen/
+
+# Gate evidence artifacts: tracked for harness tasks (T-XXX/), ignored for
+# ad-hoc verification runs (adhoc/). Logs and gate-summary.json carry the
+# verdict; trx/cobertura/md stay local.
+.agent/evidence/**/*.xml
+.agent/evidence/**/*.trx
+.agent/evidence/**/*.md
+.agent/evidence/adhoc/

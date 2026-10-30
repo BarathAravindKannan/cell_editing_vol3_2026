@@ -1,4 +1,5 @@
 ﻿using Microsoft.AspNetCore.Components;
+using System.Globalization;
 
 namespace Syncfusion.Blazor.Grids.Internal
 {
@@ -51,7 +52,7 @@ namespace Syncfusion.Blazor.Grids.Internal
             // <td ...>
             builder.OpenElement(0, "td");
             builder.AddAttribute(1, "class", classNames);
-            builder.AddAttribute(2, "tabindex", -1);
+            builder.AddAttribute(2, "tabindex", (-1).ToString(CultureInfo.InvariantCulture));
             builder.AddAttribute(3, "data-uid", cell.Uid);
             if (styleText != null)
                 builder.AddAttribute(4, "data-sf-style", styleText);

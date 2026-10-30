@@ -1,7 +1,7 @@
-import { Browser, isUndefined, createElement, closest, classList } from '@syncfusion/ej2-base';
+import { Browser, isUndefined, createElement, closest , isNullOrUndefined} from '@syncfusion/ej2-base';
 import { parentsUntil } from './util';
 import { SfGrid } from './sf-grid-fn';
-import { Column, ISelectedCell } from './interfaces';
+import { Column, ISelectedCell, IPasteCell } from './interfaces';
 
 /**
  * The `Clipboard` module is used to handle clipboard copy action.
@@ -27,9 +27,11 @@ export class Clipboard {
 
     public pasteHandler(): void {
         const grid: SfGrid = this.parent;
-        const target: HTMLElement = closest(document.activeElement, '.e-rowcell') as HTMLElement;
-        if (!target || !grid.options.allowEditing || grid.options.editMode !== 'Batch' ||
-            grid.options.selectionMode !== 'Cell' || grid.options.cellSelectionMode === 'Flow' ||
+        const active = document.activeElement as HTMLElement | null;
+        const target = (active && closest(active, '.e-rowcell')) as HTMLElement
+            ?? (this.parent.element.querySelector('.e-rowcell.e-cellselectionbackground') as HTMLElement)
+            ?? (this.parent.element.querySelector('.e-rowcell[tabindex="0"]') as HTMLElement);
+        if (!target || !this.isPasteAllowed() ||
             (target.classList.contains('e-editedbatchcell') && grid.options.cellSelectionMode === 'Box')) {
             return;
         }
@@ -49,91 +51,203 @@ export class Clipboard {
             }, 10);
     }
 
-    public pasteAction(data: string, rowIndex: number, colIndex: number, cancel: boolean): void {
-        if (!cancel && data !== '') {
-            this.paste(data, rowIndex, colIndex);
+    /**
+     * When a single cell value is copied and pasted, the value is applied
+     * to all selected target cells in Batch Edit mode. The method reuses
+     * that validation, BeforeCellPaste events, UpdateCell processing,
+     * and dirty tracking continue to work without modification.
+     *
+     * @param selection Collection of selected cell ranges.
+     * @param value Clipboard value to be applied to each selected cell.
+     */
+
+    private getSelectionPasteCells(selection: ISelectedCell[], value: string): IPasteCell[] {
+        const pasteCells: IPasteCell[] = [];
+
+        if (!this.isPasteAllowed() || !selection || selection.length === 0) {
+            return pasteCells;
         }
+
+        for (const cellGroup of selection) {
+            const rowIndex: number = cellGroup.rowIndex;
+
+            for (const cellIndex of cellGroup.cellIndexes) {
+                const column: Column =
+                    this.parent.getColumnByIndex(cellIndex);
+
+                if (!this.isValidPasteTarget(column)) {
+                    continue;
+                }
+
+                pasteCells.push({ rowIndex: rowIndex, columnIndex: cellIndex, columnField: column.field, value: value });
+            }
+        }
+
+        return pasteCells;
     }
 
-    public paste(data: string, rowIndex: number, colIndex: number): void {
+    private isValidPasteTarget(column: Column): boolean {
+        return !!column &&
+            column.allowEditing &&
+            !column.isPrimaryKey &&
+            !column.template &&
+            !column.commands;
+    }
+
+    private isValidCopyTarget(column: Column): boolean {
+        return !!column &&
+            !column.template &&
+            !column.commands;
+    }
+
+    private isEditModeAllowed(): boolean {
+        return this.parent.options.editMode === 'Batch' || this.parent.options.editMode === 'Cell';
+    }
+
+    private isPasteAllowed(): boolean {
+        return this.parent.options.allowEditing &&
+            this.isEditModeAllowed() &&
+            this.parent.options.selectionMode === 'Cell' &&
+            this.parent.options.cellSelectionMode !== 'Flow';
+    }
+
+    private getMatrixPasteCells(data: string, rowIndex: number, colIndex: number): IPasteCell[] {
         const grid: SfGrid = this.parent;
-        let cIdx: number = colIndex;
-        let rIdx: number = rowIndex;
-        let col: Column;
-        let value: string;
-        let isAvail: Element | boolean;
-        if (!grid.options.allowEditing || grid.options.editMode !== 'Batch' ||
-            grid.options.selectionMode !== 'Cell' || grid.options.cellSelectionMode === 'Flow') {
-            return;
+        const pasteCells: IPasteCell[] = [];
+        let currentRowIndex: number = rowIndex;
+        if (!this.isPasteAllowed()) {
+            return pasteCells;
         }
-        // Check if the data represents a single cell with multiline content
-        const isSingleCellMultiline: boolean = data.trim().startsWith('"') && data.trim().endsWith('"');
+        /*
+         * Preserve the existing single-cell multiline handling.
+         */
+        const trimmedData: string = data.trim();
+
+        const isSingleCellMultiline: boolean = trimmedData.startsWith('"') && trimmedData.endsWith('"');
 
         if (isSingleCellMultiline) {
-            // Handle single cell multiline paste
-            const pasteData: string = data.trim().slice(1, -1).replace(/\\n/g, '\n'); // Remove quotes and decode newlines
-            const column: Column = grid.getColumnByIndex(cIdx);
-            this.invokePasteAction(rIdx, cIdx, pasteData, column);
-            return;
-        }
-        const rows: string[] = data.split('\n');
-        let cols: string[];
-        const dataRows: HTMLElement[] = grid.getDataRows() as HTMLElement[];
-        let mRows: HTMLElement[];
-        const isFrozen: number = this.parent.options.frozenColumns;
-        if (isFrozen) {
-            mRows = grid.getMovableDataRows() as HTMLElement[];
+            const value: string = trimmedData.slice(1, -1).replace(/\\n/g, '\n');
+            const column: Column = grid.getColumnByIndex(colIndex);
+
+            if (!isNullOrUndefined(column) && this.isValidPasteTarget(column)) {
+                pasteCells.push({ rowIndex: rowIndex, columnIndex: colIndex, columnField: column.field, value: value });
+            }
+
+            return pasteCells;
         }
 
-        for (let r: number = 0; r < rows.length; r++) {
-            cols = rows[parseInt(r.toString(), 10)].split('\t');
-            cIdx = colIndex;
-            if ((r === rows.length - 1 && rows[parseInt(r.toString(), 10)] === '') || isUndefined(grid.getRowByIndex(rIdx))) {
-                cIdx++;
+        const rows: string[] = data.split('\n');
+        const dataRows: HTMLElement[] = grid.getDataRows() as HTMLElement[];
+        let movableRows: HTMLElement[] = [];
+        const isFrozen: number = this.parent.options.frozenColumns;
+
+        if (isFrozen) {
+            movableRows = grid.getMovableDataRows() as HTMLElement[];
+        }
+
+        for (let row: number = 0; row < rows.length; row++) {
+            // eslint-disable-next-line security/detect-object-injection
+            const rowValue: string = rows[row];
+
+            if (
+                row === rows.length - 1 &&
+                rowValue === ''
+            ) {
                 break;
             }
-            for (let c: number = 0; c < cols.length; c++) {
-                isAvail = grid.getCellFromIndex(rIdx, cIdx);
+
+            if (isUndefined(grid.getRowByIndex(currentRowIndex))) {
+                break;
+            }
+
+            const columns: string[] = rowValue.split('\t');
+            let currentColumnIndex: number = colIndex;
+
+            for (
+                let columnIndex: number = 0;
+                columnIndex < columns.length;
+                columnIndex++
+            ) {
+                let isAvailable: Element | boolean = grid.getCellFromIndex(currentRowIndex, currentColumnIndex);
+
                 if (isFrozen) {
-                    const fTr: HTMLElement = dataRows[parseInt(rIdx.toString(), 10)] as HTMLElement;
-                    const mTr: HTMLElement = mRows[parseInt(rIdx.toString(), 10)] as HTMLElement;
-                    isAvail = !fTr.querySelector('[aria-colindex="' + (cIdx + 1) + '"]') ?
-                        mTr.querySelector('[aria-colindex="' + (cIdx + 1) + '"]') : true;
+                    // eslint-disable-next-line security/detect-object-injection
+                    const frozenRow: HTMLElement = dataRows[currentRowIndex];
+                    // eslint-disable-next-line security/detect-object-injection
+                    const movableRow: HTMLElement = movableRows[currentRowIndex];
+
+                    if (!frozenRow || !movableRow) {
+                        break;
+                    }
+
+                    isAvailable = !frozenRow.querySelector('[aria-colindex="' + (currentColumnIndex + 1) + '"]')
+                        ? movableRow.querySelector('[aria-colindex="' + (currentColumnIndex + 1) + '"]')
+                        : true;
                 }
-                if (!isAvail) {
-                    cIdx++;
+
+                if (!isAvailable) {
                     break;
                 }
-                col = grid.getColumnByIndex(cIdx);
-                value = cols[parseInt(c.toString(), 10)];
-                this.invokePasteAction(rIdx, cIdx, value, col);
-                cIdx++;
-            }
-            rIdx++;
-        }
-    }
 
-    private invokePasteAction(rowIndex: number, columnIndex: number, pasteValue: string, column: Column): void {
-        const grid: SfGrid = this.parent;
-        if (column.allowEditing && !column.isPrimaryKey && !column.template) {
-            grid.dotNetRef.invokeMethodAsync('InvokePasteAction', {
-                cellValue: pasteValue
-            }, rowIndex, columnIndex, column.field);
-        }
-    }
+                const column: Column =
+                    grid.getColumnByIndex(currentColumnIndex);
 
-    public pasteData(rowIndex: number, columnField: string, value: string, columnIndex: number, cancel: boolean): void {
-        if (!cancel) {
-            if (this.parent.editModule) {
-                {
-                    this.parent.dotNetRef.invokeMethodAsync('UpdateCell', rowIndex, columnField, value);
+                if (this.isValidPasteTarget(column)) {
+                    // eslint-disable-next-line security/detect-object-injection
+                    pasteCells.push({ rowIndex: currentRowIndex, columnIndex: currentColumnIndex, columnField: column.field, value: columns[columnIndex] });
                 }
+
+                currentColumnIndex++;
             }
-            const cell: Element = this.parent.getCellFromIndex(rowIndex, columnIndex);
-            if (cell) {
-                classList(cell, ['e-focus', 'e-focused'], []);
-            }
+
+            currentRowIndex++;
         }
+
+        return pasteCells;
+    }
+
+    private async invokeBatchPasteAction(pasteCells: IPasteCell[]): Promise<boolean> {
+        if (!pasteCells || pasteCells.length === 0) {
+            return false;
+        }
+
+        try {
+            const processedCells: IPasteCell[] = await (this.parent.dotNetRef.invokeMethodAsync('InvokeBatchPasteAction', pasteCells) as unknown as Promise<IPasteCell[]>);
+            if (!processedCells || processedCells.length === 0) {
+                return false;
+            }
+            return true;
+        } catch (error) {
+            // Keep during development to expose interop/deserialization errors.
+            console.error('InvokeBatchPasteAction failed.', error);
+            return false;
+        }
+    }
+
+    public async pasteBatch(selectedCells: ISelectedCell[], value: string): Promise<boolean> {
+        if (!selectedCells || selectedCells.length === 0 || !value
+        ) {
+            return Promise.resolve(false);
+        }
+        const isSingleCellSource: boolean = !value.includes('\n') && !value.includes('\t');
+        let pasteCells: IPasteCell[];
+        if (isSingleCellSource) {
+            if(this.parent.options.enableUndoRedo && this.parent.options.editMode === 'Batch') {
+                await this.parent.dotNetRef.invokeMethodAsync('BeginPasteBatch');
+            }
+            pasteCells = this.getSelectionPasteCells(selectedCells, value);
+        } else {
+            if(this.parent.options.enableUndoRedo && this.parent.options.editMode === 'Batch') {
+                await this.parent.dotNetRef.invokeMethodAsync('BeginPasteBatch');
+            }
+            pasteCells = this.getMatrixPasteCells(value, selectedCells[0].rowIndex, selectedCells[0].cellIndexes[0]);
+        }
+
+        const result = await this.invokeBatchPasteAction(pasteCells);
+        if(this.parent.options.enableUndoRedo && this.parent.options.editMode === 'Batch') {
+            await this.parent.dotNetRef.invokeMethodAsync('CommitPasteBatch');
+        }
+        return result;
     }
 
     protected setCopyData(withHeader?: boolean): void {
@@ -199,10 +313,12 @@ export class Clipboard {
             const clipboardFocus: Element | null = document.activeElement;
             const selectedText: string = window.getSelection().toString();
             if (selectedText) {
-                (navigator as any).clipboard.writeText(selectedText).then(() => {
-                    this.clipBoardTextArea.blur();
-                    (clipboardFocus as HTMLElement).focus();
-                });
+                if (navigator.clipboard) {
+                    navigator.clipboard.writeText(selectedText).then(() => {
+                        this.clipBoardTextArea.blur();
+                        (clipboardFocus as HTMLElement).focus();
+                    });
+                }
             }
         }
     }
@@ -218,8 +334,8 @@ export class Clipboard {
                 this.clipBoardTextArea.setSelectionRange(0, this.clipBoardTextArea.value.length);
             }
             this.isSelect = true;
-            if ((navigator as any).clipboard) {
-                (navigator as any).clipboard.writeText(this.copyContent).then(() => {
+            if (navigator.clipboard) {
+                navigator.clipboard.writeText(this.copyContent).then(() => {
                     this.clipBoardTextArea.blur();
                     (clipboardFocus as HTMLElement).focus({ preventScroll: true });
                 });
@@ -234,9 +350,16 @@ export class Clipboard {
     private getCopyData(cells: HTMLElement[] | string[], isCell: boolean, splitKey: string, withHeader?: boolean): void {
         const isElement: boolean = typeof cells[0] !== 'string';
         for (let j: number = 0; j < cells.length; j++) {
+            if (isElement) {
+                // eslint-disable-next-line security/detect-object-injection
+                const colIndex: number = parseInt((cells[j] as HTMLElement).getAttribute('aria-colindex'), 10) - 1;
+                const column: Column = this.parent.getColumnByIndex(colIndex);
+                if (!this.isValidCopyTarget(column)) {
+                    continue;
+                }
+            }
             if (withHeader && isCell) {
                 this.copyContent += (this.parent.getColumns() as Column[])[parseInt((cells[parseInt(j.toString(), 10)] as HTMLElement).getAttribute('aria-colindex'), 10) - 1].headerText + '\n';
-
             }
             if (isElement) {
                 if (!(cells[parseInt(j.toString(), 10)] as HTMLElement).classList.contains('e-hide')) {
@@ -260,7 +383,7 @@ export class Clipboard {
     }
 
     public copy(withHeader?: boolean): void {
-        if ((navigator as any).clipboard) {
+        if (navigator.clipboard) {
             this.setCopyData(withHeader);
         }
     }
@@ -269,13 +392,16 @@ export class Clipboard {
         const gridObj: SfGrid = this.parent;
         const rowCellIndxes: ISelectedCell[] = [];
         const rows: Element[] = gridObj.getRows();
-        let mrows: Element[];
+        let mrows: Element[] = [];
         if (gridObj.options.frozenColumns) {
-            mrows = gridObj.getMovableDataRows();
+            const movableDataRows = gridObj.getMovableDataRows();
+            if (!isNullOrUndefined(movableDataRows)) {
+                mrows = movableDataRows;
+            }
         }
         for (let i: number = 0; i < rows.length; i++) {
             let tempCells: NodeList = rows[parseInt(i.toString(), 10)].querySelectorAll('.e-cellselectionbackground');
-            if (gridObj.options.frozenColumns && !tempCells.length) {
+            if (gridObj.options.frozenColumns && !tempCells.length && mrows.length > i) {
                 tempCells = mrows[parseInt(i.toString(), 10)].querySelectorAll('.e-cellselectionbackground');
             }
             if (tempCells.length) {

@@ -4,43 +4,66 @@
 @using Syncfusion.Blazor.Data
 
 <div class="e-print-offscreen">
-        <SfGrid @ref="_printGrid" TValue="T" ID="@($"{Parent?.ID}_sfprint")" class="e-print-grid-layout"
-                Query="Parent?.Query?.Clone()"
-                DataSource="Parent?.DataSource"
-                AllowSorting="Parent?.AllowSorting ?? false"
-                AllowFiltering="Parent?.AllowFiltering ?? false"
-                AllowGrouping="Parent?.AllowGrouping ?? false"
-                AllowMultiSorting="Parent?.AllowMultiSorting ?? false"
-                AllowTextWrap="Parent?.AllowTextWrap ?? false"
-                Columns="Parent?.Columns"
-                TextWrapSettings="Parent?.TextWrapSettings"
-                SearchSettings="Parent?.SearchSettings"
-                Aggregates="Parent?.Aggregates"
-                ColumnQueryMode="Parent?.ColumnQueryMode ?? ColumnQueryModeType.All"
-                EnableAltRow="Parent?.EnableAltRow ?? true"
-                EnableRtl="Parent?.EnableRtl ?? false"
-                AllowSelection="Parent?.AllowSelection ?? false"
-                GridLines="Parent?.GridLines ?? GridLine.Default"
-                RowHeight="Parent?.RowHeight ?? default"
-                AutoSpan="Parent!.AutoSpan"
-                AllowPaging="Parent.PrintMode.Equals(PrintMode.CurrentPage)"
-                Height="auto" Width="auto" Toolbar="@(null)">
-                @if (isDataManager)
-                {
-                    <SfDataManager @attributes="dmAttr">
-                        @Parent?.DataManager!.ChildContent
-                    </SfDataManager>
-                }
-                <GridPageSettings CurrentPage="Parent.PageSettings!.CurrentPage"
-                                  PageSize="Parent.PageSettings.PageSize"></GridPageSettings>
+
+    @if (_headerTemplate != null)
+    {
+        <div id="@($"{Parent?.ID}_printheader")">
+            @_headerTemplate
+        </div>
+    }
+
+    <SfGrid @ref="_printGrid" TValue="T" ID="@($"{Parent?.ID}_sfprint")" class="e-print-grid-layout"
+            Query="@(PrintDataSource?.Any() == true ? new Query() : Parent?.Query?.Clone())"
+            DataSource="@(PrintDataSource?.Any() == true ? PrintDataSource : Parent?.DataSource)"
+            AllowSorting="Parent?.AllowSorting ?? false"
+            AllowFiltering="Parent?.AllowFiltering ?? false"
+            AllowGrouping="Parent?.AllowGrouping ?? false"
+            AllowMultiSorting="Parent?.AllowMultiSorting ?? false"
+            AllowTextWrap="Parent?.AllowTextWrap ?? false"
+            Columns="Parent?.Columns"
+            TextWrapSettings="Parent?.TextWrapSettings"
+            SearchSettings="@(PrintDataSource?.Any() == true ? new GridSearchSettings() : Parent?.SearchSettings)"
+            Aggregates="Parent?.Aggregates"
+            ColumnQueryMode="Parent?.ColumnQueryMode ?? ColumnQueryModeType.All"
+            EnableAltRow="Parent?.EnableAltRow ?? true"
+            EnableRtl="Parent?.EnableRtl ?? false"
+            AllowSelection="Parent?.AllowSelection ?? false"
+            GridLines="Parent?.GridLines ?? GridLine.Default"
+            RowHeight="Parent?.RowHeight ?? default"
+            AutoSpan="Parent!.AutoSpan"
+            AllowPaging="PrintDataSource?.Any() == true ? false : Parent.PrintMode.Equals(PrintMode.CurrentPage)"
+            Height="auto" Width="auto" Toolbar="@(null)">
+        @if (isDataManager)
+        {
+            <SfDataManager @attributes="dmAttr">
+                @Parent?.DataManager!.ChildContent
+            </SfDataManager>
+        }
+       
+        @if (PrintDataSource == null && PrintDataSource?.Any() != true)
+        {
+            <GridPageSettings CurrentPage="Parent.PageSettings!.CurrentPage"
+                              PageSize="Parent.PageSettings.PageSize"></GridPageSettings>
             <GridGroupSettings ShowGroupedColumn="Parent.GroupSettings!.ShowGroupedColumn"
                                Columns="Parent.GroupSettings?.Columns"
                                ShowDropArea="Parent.GroupSettings?.Columns?.Count() > 0"></GridGroupSettings>
-            <GridFilterSettings Columns="Parent.FilterSettings!.Columns"></GridFilterSettings>
-            <GridSortSettings Columns="Parent.SortSettings!.Columns"></GridSortSettings>
-            <GridTemplates RowTemplate="((IGrid)Parent).GridTemplates?.RowTemplate" DetailTemplate="((IGrid)Parent).GridTemplates?.DetailTemplate"></GridTemplates>
-            <EventRegister Name="InternalDataBound" Handler="InvokePrint" T="T"></EventRegister>
-        </SfGrid>
+            <GridFilterSettings Columns="Parent?.FilterSettings?.Columns"></GridFilterSettings>
+            <GridSortSettings Columns="Parent?.SortSettings!.Columns"></GridSortSettings>
+        }
+        else if(Parent?.AllowGrouping==true && PrintDataSource.Any()==true)
+        {
+            <GridGroupSettings ShowDropArea="false"></GridGroupSettings>
+        }
+        <GridTemplates RowTemplate="((IGrid)Parent!).GridTemplates?.RowTemplate" DetailTemplate="((IGrid)Parent).GridTemplates?.DetailTemplate"></GridTemplates>
+        <EventRegister Name="InternalDataBound" Handler="InvokePrint" T="T"></EventRegister>
+    </SfGrid>
+
+    @if (_footerTemplate != null)
+    {
+        <div id="@($"{Parent?.ID}_printfooter")">
+            @_footerTemplate
+        </div>
+    }
 </div>
 @code
 {
@@ -57,21 +80,25 @@
 
     private bool isDataManager = false;
     private IDictionary<string, object> dmAttr = new Dictionary<string, object>();
+    private RenderFragment? _headerTemplate;
+    private RenderFragment? _footerTemplate;
 
+    private IEnumerable<T>? PrintDataSource { get; set; }
     #endregion
 
     #region Lifecycle
 
     protected override void OnInitialized()
     {
-        InitializeDataManagerAttributes();
+        _ = InitializeDataManagerAttributes();
+
     }
 
     #endregion
 
     #region Initialization Helpers
 
-    private void InitializeDataManagerAttributes()
+    private async Task InitializeDataManagerAttributes()
     {
         if (Parent?.DataManager != null && Parent.DataManager.IsDataManager)
         {
@@ -94,15 +121,47 @@
                 { nameof(DataManager.GraphQLAdaptorOptions), dm.GraphQLAdaptorOptions! }
             };
         }
+
+        var printingArgs = new PrintingEventArgs
+        {
+            Cancel = false,
+            PrintDataSource = null,
+            HeaderTemplate = null,
+            FooterTemplate = null
+        };
+
+        if (Parent?.GridEvents?.Printing.HasDelegate == true)
+        {
+            await Parent!.GridEvents.Printing.InvokeAsync(printingArgs)!.ConfigureAwait(true);
+        }
+
+        if (printingArgs.Cancel)
+        {
+            Parent!.IsPrinting = false;
+            return;
+        }
+
+        if (printingArgs?.PrintDataSource != null && printingArgs.PrintDataSource.Any())
+        {
+            PrintDataSource = (IEnumerable<T>)printingArgs.PrintDataSource;
+        }
+
+        _headerTemplate = printingArgs?.HeaderTemplate;
+        _footerTemplate = printingArgs?.FooterTemplate;
+
     }
 
     #endregion
 
     #region Event Handlers / Actions
 
-    private void InvokePrint(object args)
+    private async void InvokePrint(object args)
     {
-        _printGrid?.InvokeMethod("sfBlazor.Grid.printGrid", new object[] { _printGrid.DataId }).GetAwaiter();
+        _printGrid?.InvokeMethod("sfBlazor.Grid.printGrid", new object[] { _printGrid.DataId, _headerTemplate != null ? $"{Parent!.ID}_printheader" : null!, _footerTemplate != null ? $"{Parent!.ID}_printfooter" : null! }).GetAwaiter();
+        if (Parent?.GridEvents?.Printed.HasDelegate == true)
+        {
+            await Parent!.GridEvents!.Printed.InvokeAsync()!.ConfigureAwait(true);
+        }
         Parent!.IsPrinting = false;
         Parent.CallStateHasChanged();
     }

@@ -3,6 +3,7 @@
 @using Syncfusion.Blazor.Navigations
 @using Syncfusion.Blazor.DropDowns
 @using Syncfusion.Blazor.Grids
+@using Syncfusion.Blazor.Grids.Internal
 @using System.Collections.ObjectModel
 @using AngleSharp.Dom
 @using System.Linq;
@@ -841,5 +842,252 @@
         var currentRecords = await cut.Instance.GetCurrentViewRecordsAsync();
         Assert.NotNull(currentRecords);
         Assert.Equal(GridData.Count, currentRecords.Count);
+    }
+}
+<SfFixture @ref="fixturePasteBatch" TestAsync="GridClipboardBatchMode" Description="Clipboard Batch Mode">
+    <ComponentUnderTest>
+        <SfGrid @ref="BatchGrid" DataSource="GetOrders()">
+
+            <GridSelectionSettings Type="Syncfusion.Blazor.Grids.SelectionType.Multiple"
+                                   Mode="Syncfusion.Blazor.Grids.SelectionMode.Cell"
+                                   CellSelectionMode="Syncfusion.Blazor.Grids.CellSelectionMode.Box">
+            </GridSelectionSettings>
+
+            <GridEditSettings AllowEditing="true" Mode="EditMode.Batch">
+            </GridEditSettings>
+
+            <GridColumns>
+                <GridColumn Field=@nameof(Order1.OrderID)
+                            IsPrimaryKey="true">
+                </GridColumn>
+
+                <GridColumn Field=@nameof(Order1.CustomerID)>
+                </GridColumn>
+
+                <GridColumn Field=@nameof(Order1.Freight)>
+                </GridColumn>
+            </GridColumns>
+
+        </SfGrid>
+
+    </ComponentUnderTest>
+</SfFixture>
+@code {
+
+    SfFixture fixturePasteBatch { get; set; }
+
+    private SfGrid<Order1> BatchGrid;
+
+    public async Task GridClipboardBatchMode(Fixture fixture)
+    {
+        var cut = fixture.GetComponentUnderTest<SfGrid<Order1>>();
+
+        Assert.NotNull(cut.Instance);
+
+        await cut.Instance.SelectCellsByRangeAsync((0, 1), (1, 2));
+
+        await cut.Instance.CopyAsync();
+
+        await cut.Instance.PasteAsync();
+
+        Assert.Equal(EditMode.Batch, cut.Instance.EditSettings.Mode);
+    }
+    private List<Order1> GetOrders()
+    {
+        return Enumerable.Range(1, 10)
+            .Select(x => new Order1
+            {
+                OrderID = 1000 + x,
+                CustomerID = $"CUST{x}",
+                Freight = x * 10
+            })
+            .ToList();
+    }
+
+    public class Order1
+    {
+        public int OrderID { get; set; }
+
+        public string CustomerID { get; set; } = string.Empty;
+
+        public double Freight { get; set; }
+    }
+}
+
+<SfFixture @ref="fixturePasteCell"
+           TestAsync="GridClipboardCellMode"
+           Description="Clipboard Cell Mode">
+    <ComponentUnderTest>
+
+        <SfGrid @ref="CellGrid"
+                DataSource="GetOrders2()">
+
+            <GridSelectionSettings Type="Syncfusion.Blazor.Grids.SelectionType.Multiple"
+                                   Mode="Syncfusion.Blazor.Grids.SelectionMode.Cell"
+                                   CellSelectionMode="Syncfusion.Blazor.Grids.CellSelectionMode.Box">
+            </GridSelectionSettings>
+
+            <GridEditSettings AllowEditing="true"
+                              Mode="Syncfusion.Blazor.Grids.EditMode.Cell"
+                              AllowEditOnSingleClick="true">
+            </GridEditSettings>
+
+            <GridColumns>
+                <GridColumn Field=@nameof(Order2.OrderID)
+                            IsPrimaryKey="true">
+                </GridColumn>
+
+                <GridColumn Field=@nameof(Order2.CustomerID)>
+                </GridColumn>
+
+                <GridColumn Field=@nameof(Order2.Freight)>
+                </GridColumn>
+            </GridColumns>
+
+        </SfGrid>
+
+    </ComponentUnderTest>
+</SfFixture>
+@code {
+
+    SfFixture fixturePasteCell { get; set; }
+
+    private SfGrid<Order2> CellGrid;
+
+    public async Task GridClipboardCellMode(Fixture fixture)
+    {
+        var cut = fixture.GetComponentUnderTest<SfGrid<Order2>>();
+
+        Assert.NotNull(cut.Instance);
+
+        await cut.Instance.SelectCellsByRangeAsync((0, 1), (0, 1));
+
+        await cut.Instance.CopyAsync();
+
+        await cut.Instance.PasteAsync();
+
+        Assert.Equal(EditMode.Cell,
+            cut.Instance.EditSettings.Mode);
+    }
+    private List<Order2> GetOrders2()
+    {
+        return Enumerable.Range(1, 10)
+            .Select(x => new Order2
+            {
+                OrderID = 1000 + x,
+                CustomerID = $"CUST{x}",
+                Freight = x * 10
+            })
+            .ToList();
+    }
+
+    public class Order2
+    {
+        public int OrderID { get; set; }
+
+        public string CustomerID { get; set; } = string.Empty;
+
+        public double Freight { get; set; }
+    }
+}
+<SfFixture @ref="fixtureInvokeBatchPaste"
+           TestAsync="GridBasicRendering20"
+           Description="InvokeBatchPasteAction Cell Mode">
+    <ComponentUnderTest>
+
+        <SfGrid @ref="Gridpaste"
+                DataSource="GetOrders11()"
+                AllowSelection="true">
+
+            <GridEditSettings AllowAdding="true"
+                              AllowEditing="true"
+                              AllowDeleting="true"
+                              Mode="Syncfusion.Blazor.Grids.EditMode.Cell">
+            </GridEditSettings>
+
+            <GridSelectionSettings Type="Syncfusion.Blazor.Grids.SelectionType.Multiple"
+                                   Mode="Syncfusion.Blazor.Grids.SelectionMode.Cell"
+                                   CellSelectionMode="Syncfusion.Blazor.Grids.CellSelectionMode.Box">
+            </GridSelectionSettings>
+
+            <GridColumns>
+                <GridColumn Field=@nameof(Order11.OrderID)
+                            IsPrimaryKey="true">
+                </GridColumn>
+
+                <GridColumn Field=@nameof(Order11.CustomerID)>
+                </GridColumn>
+
+                <GridColumn Field=@nameof(Order11.Freight)>
+                </GridColumn>
+            </GridColumns>
+
+        </SfGrid>
+
+    </ComponentUnderTest>
+</SfFixture>
+
+@code {
+
+    SfFixture fixtureInvokeBatchPaste { get; set; }
+
+    private SfGrid<Order11> Gridpaste;
+
+    public async Task GridBasicRendering20(Fixture fixture)
+    {
+        var cut = fixture.GetComponentUnderTest<SfGrid<Order11>>();
+
+        Assert.True(cut.Instance.Rows.Count > 0);
+
+        var result = await cut.Instance._jsAdaptor.InvokeBatchPasteAction(
+        [
+            new PasteCell
+            {
+                RowIndex = 0,
+                ColumnIndex = 1,
+                ColumnField = nameof(Order11.CustomerID),
+                Value = "ALFKI"
+            },
+            new PasteCell
+            {
+                RowIndex = 0,
+                ColumnIndex = 2,
+                ColumnField = nameof(Order11.Freight),
+                Value = "200.50"
+            }
+        ]);
+
+        Assert.Equal(2, result.Count);
+
+        Assert.Equal(nameof(Order11.CustomerID), result[0].ColumnField);
+        Assert.Equal("ALFKI", result[0].Value);
+
+        Assert.Equal(nameof(Order11.Freight), result[1].ColumnField);
+        Assert.Equal("200.50", result[1].Value);
+
+        var records = await cut.Instance.GetCurrentViewRecordsAsync();
+
+        Assert.Equal("ALFKI", records[0].CustomerID);
+    }
+
+    private List<Order11> GetOrders11()
+    {
+        return Enumerable.Range(1, 10)
+            .Select(x => new Order11
+            {
+                OrderID = 1000 + x,
+                CustomerID = $"CUST{x}",
+                Freight = x * 10
+            })
+            .ToList();
+    }
+
+    public class Order11
+    {
+        public int OrderID { get; set; }
+
+        public string CustomerID { get; set; } = string.Empty;
+
+        public double Freight { get; set; }
     }
 }

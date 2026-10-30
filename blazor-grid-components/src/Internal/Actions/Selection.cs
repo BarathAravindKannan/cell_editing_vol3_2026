@@ -35,6 +35,8 @@ namespace Syncfusion.Blazor.Grids.Internal
 
         private string? _primaryKey;
 
+        private List<string>? _primaryKeys;
+
         private Dictionary<object, object> _persistedData { get; set; } = new Dictionary<object, object>();
 
         private Dictionary<object, object> _filteredOrSearchedData { get; set; } = new Dictionary<object, object>();
@@ -100,6 +102,18 @@ namespace Syncfusion.Blazor.Grids.Internal
             }
         }
 
+        internal IReadOnlyList<string> PrimaryKeys
+        {
+            get
+            {
+                if (_primaryKeys == null)
+                {
+                    _primaryKeys = Parent.GetPrimaryKeyFieldNamesAsync().GetAwaiter().GetResult();
+                }
+                return _primaryKeys;
+            }
+        }
+
         internal static readonly string[] sourceArray = new string[] { "CtrlA", "Delete", "ShiftTab" };
 
         #endregion
@@ -137,7 +151,12 @@ namespace Syncfusion.Blazor.Grids.Internal
                 }
                 if (Parent.SelectedRowIndexes?.IndexOf(Parent.SelectedRowIndex) == -1 && Parent.SelectedRowIndex >= 0)
                 {
-                    await (Parent.SelectionModule?.SelectRow(Parent.SelectedRowIndex)!).ConfigureAwait(true);
+                    // Safe: SelectRow is validated with null-conditional before await
+                    var selectRowTask = Parent.SelectionModule?.SelectRow(Parent.SelectedRowIndex);
+                    if (selectRowTask != null)
+                    {
+                        await selectRowTask.ConfigureAwait(true);
+                    }
                 }
             }
         }
@@ -190,7 +209,7 @@ namespace Syncfusion.Blazor.Grids.Internal
 
         public async Task SelectRow(double index, Nullable<bool> isToggle = null, bool isSelectionMethodInvoked = false, bool isScrollIntoView = false, int focusColumnIndex = -1)
         {
-            if (!Parent.AllowSelection || (Parent.SelectionSettings!.Mode.Equals(SelectionMode.Cell) && Parent.EditSettings != null && Parent.EditSettings.Mode != EditMode.Batch))
+            if (!Parent.AllowSelection || (Parent.SelectionSettings!.Mode.Equals(SelectionMode.Cell) && Parent.EditSettings != null && (!Parent.EditModule!.IsBatchEditMode() && !Parent.EditModule!.IsCellEditMode())))
             {
                 return;
             }
@@ -315,7 +334,16 @@ namespace Syncfusion.Blazor.Grids.Internal
                 }
 
                 rowToSelect.IsSelected = true;
-                if (!IsBothMode())
+
+                if (IsCellMode() && Parent.EditModule!.IsCellEditMode() == true)
+                {
+                    var cellToSelect = rowToSelect.Cells?.FirstOrDefault(_ => _.Index == (int)Parent?.FocusModule!.SelectedCellIndex!);
+                    if (cellToSelect != null)
+                    {
+                        cellToSelect.IsSelected = true;
+                    }
+                }
+                else if (!IsBothMode())
                 {
                     rowToSelect.Cells.ForEach(cell => cell.IsSelected = true);
                 }
@@ -334,7 +362,14 @@ namespace Syncfusion.Blazor.Grids.Internal
                 }
                 if (!Parent.IsEdit && Parent.FocusModule?.SelectedCellIndex != null && isSelectionMethodInvoked && Parent.FocusModule != null)
                 {
-                    await Parent.FocusModule.HandleRowSelectionFocus(rowToSelect, isScrollIntoView, isSelectionMethodInvoked, Parent.IsCellClicked, Parent.IsAdd, Parent.EditModule!.IsCancelAction).ConfigureAwait(true);
+                    if (Parent.EditModule!.IsCellEditMode() && !Parent.EditModule!.IsCancelAction)
+                    {
+                        await Parent.FocusModule.HandleRowSelectionFocus(rowToSelect, isScrollIntoView, isSelectionMethodInvoked, Parent.IsCellClicked, Parent.IsAdd, true).ConfigureAwait(true);
+                    }
+                    else
+                    {
+                        await Parent.FocusModule.HandleRowSelectionFocus(rowToSelect, isScrollIntoView, isSelectionMethodInvoked, Parent.IsCellClicked, Parent.IsAdd, Parent.EditModule!.IsCancelAction).ConfigureAwait(true);
+                    }
                 }
                 if (evt?.Click != null && Parent.FocusModule != null)
                 {
@@ -392,6 +427,10 @@ namespace Syncfusion.Blazor.Grids.Internal
                 {
                     Parent.EventAggregator.Trigger("ToolbarStateChanged", null!);
                 }
+            }
+            else if(rowToSelect != null && Parent.EditModule!.IsCellEditMode() && IsCheckBoxPersistSelection())
+            {
+                await Parent.FocusModule!.HandleRowSelectionFocus(rowToSelect, isScrollIntoView, isSelectionMethodInvoked, Parent.IsCellClicked, Parent.IsAdd, Parent.EditModule!.IsCancelAction).ConfigureAwait(true);
             }
         }
 
@@ -665,12 +704,12 @@ namespace Syncfusion.Blazor.Grids.Internal
             {     
                 if (IsGroupOrSummaryCell(f.Cell)&& IsGroupOrSummaryRow(f.Row)&& _lastSelectedRow?.IsDataRow == true&& _lastSelectedRow?.IsSelected == true && !keyCombination.Contains(combination))
                 {
-                    await Parent.ClearSelectionAsync();
+                    await Parent.ClearSelectionAsync().ConfigureAwait(true);
                 }
                 _lastSelectedRow = Parent.Rows?[(int)Parent.FocusModule?.SelectedRowIndex!]!;
             }
         }
-        private bool IsGroupOrSummaryCell(Cell<object>? cell)
+        private static bool IsGroupOrSummaryCell(Cell<object>? cell)
         {
             return cell?.CellType switch
             {
@@ -678,7 +717,7 @@ namespace Syncfusion.Blazor.Grids.Internal
                 _ => false
             };
         }
-        private bool IsGroupOrSummaryRow(Row<object>? row)
+        private static bool IsGroupOrSummaryRow(Row<object>? row)
         {
             return row?.RowType switch
             {
@@ -1089,7 +1128,7 @@ namespace Syncfusion.Blazor.Grids.Internal
                 foreach (var rowData in FilteredData)
                 {
                     SetDeSelectPersistData(isAdd: true, data: rowData.Value);
-                    object? key = Parent.PropHelper?.GetObject(PrimaryKey, rowData.Value);
+                    var key = GetPrimaryKeyFromData(rowData.Value!);
                     if (key != null)
                     {
                         _persistedData?.Remove(key);
@@ -1159,7 +1198,7 @@ namespace Syncfusion.Blazor.Grids.Internal
 
                 if (_row != null && Parent != null && Parent.SelectionSettings != null && Parent.SelectionSettings.AllowDragSelection && Parent.SelectionSettings.PersistSelection)
                 {
-                    object? key = Parent.PropHelper?.GetObject(PrimaryKey, _row.Data!);
+                    var key = GetPrimaryKeyFromData(_row.Data!);
                     if (key != null)
                     {
                         _persistedData.Remove(key);
@@ -1520,7 +1559,6 @@ namespace Syncfusion.Blazor.Grids.Internal
 
         public void SetPersistData(Row<object>? targetRow = null, CheckState? state = null, int filterValue = 0, string? requestType = null)
         {
-            var _helper = Parent.PropHelper;
             if (Parent.SelectionSettings != null && !Parent.SelectionSettings.PersistSelection)
             {
                 _persistedData?.Clear();
@@ -1536,14 +1574,18 @@ namespace Syncfusion.Blazor.Grids.Internal
                     {
                         foreach (var item in _list)
                         {
-                            object? key = _helper?.GetObject(PrimaryKey, item);
+                            object? key = GetPrimaryKeyFromData(item!);
+
                             if (IsRemoteDataPersistSelection() && IsDataInDeselectedCollection(item!) && Parent.CheckBoxState == CheckState.Check)
                             {
                                 SetDeSelectPersistData(IsRemove: true, data: item!);
                             }
                             if (Parent.DataSource != null || (Parent.DataSource == null && !IsDataInDeselectedCollection((object)item!)))
                             {
-                                _persistedData?.AddOrUpdateItem(key!, item!);
+                                if (key != null)
+                                {
+                                    _persistedData?.AddOrUpdateItem(key, item!);
+                                }
                             }
                         }
                     }
@@ -1573,7 +1615,8 @@ namespace Syncfusion.Blazor.Grids.Internal
 
             if (targetRow != null)
             {
-                object? key = _helper?.GetObject(PrimaryKey, targetRow.Data!);
+                var key = GetPrimaryKeyFromData(targetRow.Data!);
+
                 if (key != null)
                 {
                     if (targetRow.IsSelected)
@@ -1594,7 +1637,9 @@ namespace Syncfusion.Blazor.Grids.Internal
             {
                 return;
             }
-            object? key = Parent.PropHelper?.GetObject(PrimaryKey, data);
+
+            var key = GetPrimaryKeyFromData(data!);
+
             if (key != null)
             {
                 if (isAdd)
@@ -1606,6 +1651,26 @@ namespace Syncfusion.Blazor.Grids.Internal
                     DeSelectedPersistData.Remove(key);
                 }
             }
+        }
+
+        private object? GetPrimaryKeyFromData(object data)
+        {
+            if (data == null)
+            {
+                return null;
+            }
+
+            var primaryKeyFields = PrimaryKeys;
+            if (primaryKeyFields != null && primaryKeyFields.Count > 1)
+            {
+                var primaryKeyValues = Parent.EditModule!.GetPrimaryKeyValueAsObject(data).GetAwaiter().GetResult();
+                if (primaryKeyValues != null && primaryKeyValues.Count > 0)
+                {
+                    return new CompositeKey(primaryKeyValues.ToArray());
+                }
+                return null;
+            }
+            return Parent.PropHelper?.GetObject(PrimaryKey, data);
         }
 
         #endregion
@@ -1761,7 +1826,7 @@ namespace Syncfusion.Blazor.Grids.Internal
                 return;
             }
 
-            object currrentCellValue = string.IsNullOrEmpty(rowToSelect?.Cells?[cellIndex]?.Column?.Field) ? null! : DataUtil.GetObject(rowToSelect?.Cells?[cellIndex]?.Column?.Field, rowToSelect?.Data);
+            object currrentCellValue = string.IsNullOrEmpty(rowToSelect?.Cells?[cellIndex]?.Column?.Field) ? null! : DataUtil.GetObject(rowToSelect?.Cells?[cellIndex]?.Column?.Field ?? "", rowToSelect?.Data ?? new object());
             if (Parent.GridEvents?.CellSelecting.HasDelegate == true || Parent.IsRenderedFromTreeGrid || Parent.IsRenderedFromPivotTable)
             {
                 var arg = new CellSelectingEventArgs<T>()
@@ -2262,7 +2327,7 @@ namespace Syncfusion.Blazor.Grids.Internal
                             _row!.IsSelected = false;
                         }
 
-                        var key = Parent.PropHelper?.GetObject(PrimaryKey, _row?.Data!);
+                        var key = GetPrimaryKeyFromData(_row?.Data!);
                         if (key != null && !(IsBothMode() && Parent.SelectionSettings != null && Parent.SelectionSettings.PersistSelection && expect?.Uid == _row?.Uid))
                         {
                             PersistedData?.Remove(key);
@@ -2623,8 +2688,11 @@ namespace Syncfusion.Blazor.Grids.Internal
 
             bool selectedRowIsLast = Parent.Rows?.LastOrDefault()?.Index == _lastSelectedRow.Index;
             bool selectedRowIsFirst = Parent.Rows?.FirstOrDefault()?.Index == _lastSelectedRow.Index;
-            bool isSelectionUpwards = !selectedRowIsFirst && Parent.Rows?[(int)_lastSelectedRow.Index! - 1]?.Cells?.Any(e => e.IsSelected) == true;
-            bool isSelectionDownwards = !selectedRowIsLast && Parent.Rows?[(int)_lastSelectedRow.Index! + 1]?.Cells?.Any(e => e.IsSelected) == true;
+            // Safe: Use ElementAtOrDefault to avoid out-of-range access
+            int upwardsIndex = (int)_lastSelectedRow.Index! - 1;
+            int downwardsIndex = (int)_lastSelectedRow.Index! + 1;
+            bool isSelectionUpwards = !selectedRowIsFirst && upwardsIndex >= 0 && upwardsIndex < (Parent.Rows?.Count ?? 0) && Parent.Rows?[upwardsIndex]?.Cells?.Any(e => e.IsSelected) == true;
+            bool isSelectionDownwards = !selectedRowIsLast && downwardsIndex >= 0 && downwardsIndex < (Parent.Rows?.Count ?? 0) && Parent.Rows?[downwardsIndex]?.Cells?.Any(e => e.IsSelected) == true;
             var firstCellIndex = Parent.Rows?.FirstOrDefault(e => e.IsDataRow)?.Cells?.FirstOrDefault(e => e.Visible)?.Index;
             var lastCellIndex = Parent.Rows?.FirstOrDefault(e => e.IsDataRow)?.Cells?.LastOrDefault(e => e.Visible)?.Index;
 
@@ -2833,7 +2901,7 @@ namespace Syncfusion.Blazor.Grids.Internal
                 {
                     Row.IsSelected = false;
                     Row.Cells?.ForEach(x => x.IsSelected = false);
-                    object? key = Parent.PropHelper?.GetObject(PrimaryKey, Row?.Data!);
+                    var key = GetPrimaryKeyFromData(Row?.Data!);
                     if (key != null)
                     {
                         _persistedData?.Remove(key);
@@ -2959,7 +3027,8 @@ namespace Syncfusion.Blazor.Grids.Internal
 
 
         /// <summary>
-        /// Checks if the specified data is represented in the given dictionary by its primary key.
+        /// Checks if the specified data is represented in the given dictionary by its primary key(s).
+        /// Supports both single and composite primary keys.
         /// </summary>
         private bool DoesDataExistInDictionary(object data, Dictionary<object, object> dictionary)
         {
@@ -2968,9 +3037,25 @@ namespace Syncfusion.Blazor.Grids.Internal
                 return false; // Return early if data is null
             }
 
-            object? key = Parent.PropHelper?.GetObject(Parent.SelectionModule?.PrimaryKey!, data);
-            // Check if the key exists in the dictionary
-            return key != null && dictionary.ContainsKey(key);
+            var primaryKeyFields = PrimaryKeys;
+
+            if (primaryKeyFields == null || primaryKeyFields.Count == 0)
+            {
+                return false;
+            }
+            if (primaryKeyFields.Count == 1)
+            {
+                object? key = Parent.PropHelper?.GetObject(primaryKeyFields[0], data);
+                return key != null && dictionary.ContainsKey(key);
+            }
+
+            var primaryKeyValues = Parent.EditModule!.GetPrimaryKeyValueAsObject(data).GetAwaiter().GetResult();
+            if (primaryKeyValues != null && primaryKeyValues.Count > 0)
+            {
+                var compositeKey = new CompositeKey(primaryKeyValues.ToArray());
+                return dictionary.ContainsKey(compositeKey);
+            }
+            return false;
         }
 
         #endregion
@@ -3013,7 +3098,8 @@ namespace Syncfusion.Blazor.Grids.Internal
                 {
                     foreach (var item in dataList)
                     {
-                        object? key = Parent.PropHelper?.GetObject(PrimaryKey, item);
+                        var key = GetPrimaryKeyFromData(item!);
+
                         if (key != null && !DoesDataExistInDictionary(item!, _filteredOrSearchedData))
                         {
                             _filteredOrSearchedData.AddOrUpdateItem(key, item!);
@@ -3072,11 +3158,10 @@ namespace Syncfusion.Blazor.Grids.Internal
             {
                 if (isDeleteAction && actionArgs.Data != null)
                 {
-                    var primaryKey = (await Parent.GetPrimaryKeyFieldNamesAsync().ConfigureAwait(true)).FirstOrDefault();
-                    var primaryKeyValue = primaryKey != null ? Parent.PropHelper!.GetValue(actionArgs.Data, primaryKey) : null;
-                    if (primaryKeyValue != null)
+                    var key = GetPrimaryKeyFromData(actionArgs.Data);
+                    if (key != null)
                     {
-                        PersistedData.Remove(primaryKeyValue);
+                        PersistedData.Remove(key);
                     }
                 }
                 else
@@ -3225,13 +3310,13 @@ namespace Syncfusion.Blazor.Grids.Internal
             {
                 if (Parent.SelectionModule != null && Parent.SelectionModule.IsBothMode())
                 {
-                    await Parent.SelectionModule.ClearSelection();
-                    await Parent.SelectionModule.RowCellSelectionClickHandler(null!, (rowObject, rowObject.Cells[cellIndex], targetColumn?.Type == ColumnType.CheckBox));
+                    await Parent.SelectionModule.ClearSelection().ConfigureAwait(true);
+                    await Parent.SelectionModule.RowCellSelectionClickHandler(null!, (rowObject, rowObject.Cells[cellIndex], targetColumn?.Type == ColumnType.CheckBox)).ConfigureAwait(true);
                 }
                 else if (!rowObject.IsSelected && Parent.SelectionModule != null)
                 {
-                    await Parent.SelectionModule.ClearRowSelection();
-                    await Parent.SelectionModule.SelectRow((int)rowObject.Index!);
+                    await Parent.SelectionModule.ClearRowSelection().ConfigureAwait(true);
+                    await Parent.SelectionModule.SelectRow((int)rowObject.Index!).ConfigureAwait(true);
                 }
             }
         }

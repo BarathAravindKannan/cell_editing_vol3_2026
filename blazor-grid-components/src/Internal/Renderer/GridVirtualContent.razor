@@ -1,4 +1,4 @@
-﻿@namespace Syncfusion.Blazor.Grids.Internal
+@namespace Syncfusion.Blazor.Grids.Internal
 @using Syncfusion.Blazor.Data;
 @typeparam TContent
 @implements IRenderer
@@ -48,7 +48,13 @@
                         </tr>
                     }
                 }
-                @foreach (Row<object> Row in Rows)
+                @{
+                    // For virtual scrolling: Rows already contain RowStartIndex-RowEndIndex window
+                    // Virtual scroll module handles the rendering window computation
+                    var rowsToRender = Rows;
+                }
+
+                @foreach (Row<object> Row in rowsToRender)
                 {
                     var rowParameters = new GridRowParameters()
                     {
@@ -56,7 +62,7 @@
                     };
                     if (Row.IsExpand && Row.IsDetailRow)
                     {
-                        <GridDetailRow TRow="TContent" RowParameters="@rowParameters"></GridDetailRow>
+                        <GridDetailRow TRow="TContent" RowParameters="@rowParameters" @key="GetRowKey(Row)"></GridDetailRow>
                     }
                     else if (Row.Visible)
                     {
@@ -64,7 +70,7 @@
                         {
                             rowParameters.IsLastRow = true;
                         }
-                        <GridRow TRow="TContent" RowParameters="@rowParameters"></GridRow>
+                        <GridRow TRow="TContent" RowParameters="@rowParameters" @key="GetRowKey(Row)"></GridRow>
                     }
                 }
                 @if (Parent != null && Parent.EnableVirtualMaskRow && Parent.EnableVirtualization && Parent.VirtualScrollModule?.RowEndIndex != 0 && MaskRowCount() > 0 && Parent.TotalItemCount > Parent.PageSettings!.PageSize)
@@ -217,17 +223,22 @@
         }
 
         await Parent.VirtualScrollModule.HandlePostRenderOperationsAsync(VirtualContentParameter.RowEndIndex);
+
+
     }
 
     protected override void OnParametersSet()
     {
         Data = VirtualContentParameter?.Data!;
+        if (Parent != null && Parent.FindHightLightModule != null && !Parent!.FindHightLightModule!.IsStateChangeRefresh)
+        {
+            Parent.FindHightLightModule.GlobalMatchCounter = 0;
+        }
         if (((Data != null && Data != _data) || Parent!.ForceUpdate) && Parent?.VirtualScrollModule != null)
         {
             _data = VirtualContentParameter?.Data!;
             int virtualRowStartIndex = Parent.VirtualScrollModule.RowStartIndex;
             int gridPageSize = Parent.PageSettings!.PageSize;
-
             Parent.VirtualScrollModule!.VirtualRowIndex = Parent.IsRowReordered && Parent.OverscanCount == 0 ? virtualRowStartIndex : Parent.VirtualScrollModule.RowQueryStartIndex;
             var groupCount = this.Parent.GroupSettings!.Columns?.Count() > 0 ? this.Parent.GroupSettings.Columns.Count() : 0;
             if (Parent.AllowGrouping && groupCount > 0 && groupCount != this.Parent.GroupSettings.Columns?.Where(column => string.IsNullOrEmpty(column)).Count())
@@ -375,10 +386,26 @@
         OnParametersSet();
         StateHasChanged();
     }
-
     #endregion
 
     #region Private Methods
+
+    /// <summary>
+    /// Gets a stable key for a row to enable Blazor component reuse via @key directive.
+    /// Combines RowType and record ID to ensure uniqueness across different row types.
+    /// </summary>
+    private string GetRowKey(Row<object> row)
+    {
+        if (row == null) return string.Empty;
+        
+        // Use Uid if available (most stable), fall back to Index
+        string recordId = !string.IsNullOrEmpty(row.Uid) 
+            ? row.Uid 
+            : row.Index?.ToString() ?? string.Empty;
+        
+        // Combine RowType and recordId for uniqueness
+        return $"{row.RowType}_{recordId}";
+    }
 
     private List<GridColumn>? GetVisibleColumns(List<GridColumn> columns)
     {

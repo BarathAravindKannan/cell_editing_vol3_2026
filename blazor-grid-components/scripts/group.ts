@@ -5,7 +5,6 @@ import { SfGrid } from './sf-grid-fn';
 import { Column } from './interfaces';
 import { parentsUntil } from './util';
 
-// eslint-disable-next-line valid-jsdoc, jsdoc/require-param
 /**
  *
  * The `Group` module is used to handle group action.
@@ -28,7 +27,7 @@ export class Group {
      * @param {HTMLElement} e.sender - The sender element of the event.
      * @returns {void}
      */
-    private helper: Function = (e: { sender: MouseEvent }) => {
+    private helper: (e: { sender: MouseEvent }) => HTMLElement | false = (e: { sender: MouseEvent }) => {
         const gObj: SfGrid = this.parent;
         const target: Element = (e.sender.target as Element);
         const element: HTMLElement = target.classList.contains('e-groupheadercell') ? target as HTMLElement :
@@ -55,12 +54,12 @@ export class Group {
         gObj.element.appendChild(this.visualElement);
         return this.visualElement;
     }
-    private dragStart: Function = (e: BlazorDragEventArgs): void => {
+    private dragStart: (e: BlazorDragEventArgs) => void = (e: BlazorDragEventArgs): void => {
         this.parent.element.classList.add('e-ungroupdrag');
         document.body.classList.add('e-prevent-select');
         e.bindEvents(e.dragElement);
     }
-    private drag: Function = (e: { target: HTMLElement, event: MouseEventArgs }): void => {
+    private drag: (e: { target: HTMLElement, event: MouseEventArgs }) => void = (e: { target: HTMLElement, event: MouseEventArgs }): void => {
         // if (this.groupSettings.allowReordering) {
         //     this.animateDropper(e);
         // }
@@ -74,7 +73,7 @@ export class Group {
             }
         }
     }
-    private dragStop: Function = (e: { target: HTMLElement, event: MouseEventArgs, helper: Element }) => {
+    private dragStop: (e: { target: HTMLElement, event: MouseEventArgs, helper: Element }) => void = (e: { target: HTMLElement, event: MouseEventArgs, helper: Element }) => {
         document.body.classList.remove('e-prevent-select');
         this.parent.element.classList.remove('e-ungroupdrag');
         const preventDrop: boolean = !(parentsUntil(e.target, 'e-gridcontent') || parentsUntil(e.target, 'e-gridheader'));
@@ -140,24 +139,39 @@ export class Group {
     //     this.updateModel();
     // }
 
-    public preventTouchOnWindow: Function = (e: TouchEvent) => {
+    public preventTouchOnWindow: (e: TouchEvent) => void = (e: TouchEvent) => {
         e.preventDefault();
     }
 
-    private drop: Function = (e: DropEventArgs) => {
+    private drop: (e: DropEventArgs) => void = (e: DropEventArgs) => {
         const gObj: SfGrid = this.parent;
         const column: Column = gObj.getColumnByUid(e.droppedElement.getAttribute('e-mappinguid'));
-        gObj.element.querySelector('.e-groupdroparea').classList.remove('e-hover');
+        const groupDropArea = gObj.element.querySelector('.e-groupdroparea');
+        if (!isNullOrUndefined(groupDropArea)) {
+            groupDropArea.classList.remove('e-hover');
+        }
         remove(e.droppedElement);
         if (gObj.options.allowGrouping) {
             // eslint-disable-next-line @typescript-eslint/no-explicit-any
             EventHandler.remove(window as any, 'touchmove', this.preventTouchOnWindow);
         }
-        this.parent.element.querySelector('.e-groupdroparea').removeAttribute('aria-dropeffect');
-        this.parent.element.querySelector('[aria-grabbed=true]').setAttribute('aria-grabbed', 'false');
-        if (isNullOrUndefined(column) || column.allowGrouping === false
-            || parentsUntil(gObj.getColumnHeaderByUid(column.uid), 'e-grid').getAttribute('id') !==
-             gObj.element.getAttribute('id')) {
+        const groupDropAreaDropEffect = this.parent.element.querySelector('.e-groupdroparea');
+        if (!isNullOrUndefined(groupDropAreaDropEffect)) {
+            groupDropAreaDropEffect.removeAttribute('aria-dropeffect');
+        }
+        const ariaGrabbedElem = this.parent.element.querySelector('[aria-grabbed=true]');
+        if (!isNullOrUndefined(ariaGrabbedElem)) {
+            ariaGrabbedElem.setAttribute('aria-grabbed', 'false');
+        }
+        if (isNullOrUndefined(column) || column.allowGrouping === false) {
+            return;
+        }
+        const columnHeaderElement = gObj.getColumnHeaderByUid(column.uid);
+        if (isNullOrUndefined(columnHeaderElement)) {
+            return;
+        }
+        const gridElement = parentsUntil(columnHeaderElement, 'e-grid');
+        if (isNullOrUndefined(gridElement) || gridElement.getAttribute('id') !== gObj.element.getAttribute('id')) {
             return;
         }
         gObj.dotNetRef.invokeMethodAsync('GroupColumn', column.field, 'Group');
@@ -186,6 +200,9 @@ export class Group {
         }
         const gObj: SfGrid = this.parent;
         const cloneElement: HTMLElement = gObj.element.querySelector('.e-cloneproperties') as HTMLElement;
+        if (isNullOrUndefined(cloneElement)) {
+            return;
+        }
         const column: Column = gObj.getColumnByUid(cloneElement.getAttribute('e-mappinguid'));
         if (parentsUntil(e.target as Element, 'e-groupdroparea')) {
             classList(cloneElement, ['e-defaultcur'], ['e-notallowedcur']);
@@ -198,7 +215,10 @@ export class Group {
         }
         if (gObj.options.showDropArea) {
             if (e.target.classList.contains('e-groupdroparea')) {
-                gObj.element.querySelector('.e-groupdroparea').classList.add('e-hover');
+                const groupDropAreaHover = gObj.element.querySelector('.e-groupdroparea');
+                if (!isNullOrUndefined(groupDropAreaHover)) {
+                    groupDropAreaHover.classList.add('e-hover');
+                }
             }
             else {
                 gObj.element.querySelector('.e-groupdroparea').classList.remove('e-hover');

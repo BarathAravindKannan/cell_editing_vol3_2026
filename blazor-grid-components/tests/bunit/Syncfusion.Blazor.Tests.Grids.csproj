@@ -1,4 +1,4 @@
-﻿<Project Sdk="Microsoft.NET.Sdk.Razor">
+<Project Sdk="Microsoft.NET.Sdk.Razor">
 
   <PropertyGroup>
     <SignAssembly>true</SignAssembly>
@@ -16,7 +16,7 @@
 		<IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
 		<PrivateAssets>all</PrivateAssets>
 	</PackageReference>
-	<PackageReference Include="Syncfusion.Blazor.Grid" Version="100.2.1" />
+    <PackageReference Include="Syncfusion.Blazor.Grid" Version="100.2.1" />
 	<!--<PackageReference Include="Syncfusion.Blazor" Version="*" />-->
 	<PackageReference Include="bunit" Version="1.10.14" />
 	<PackageReference Include="bunit.web.testcomponents" Version="1.10.14" />
