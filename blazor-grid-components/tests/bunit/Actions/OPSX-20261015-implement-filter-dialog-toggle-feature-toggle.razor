@@ -1,0 +1,383 @@
+@inherits GridTestBase
+@using Syncfusion.Blazor.Grids
+@using Syncfusion.Blazor.Grids.Internal
+@using System.Reflection
+
+<SfFixture @ref="fixture" Test="FilterMenuToggleTest" Description="Toggle filter dialog on Menu filter type">
+    <ComponentUnderTest>
+        <SfGrid @ref="GridMenuFilter" DataSource="GenerateOrderData()" AllowFiltering="true">
+            <GridFilterSettings Type="Syncfusion.Blazor.Grids.FilterType.Menu"></GridFilterSettings>
+            <GridColumns>
+                <GridColumn Field="OrderID" Width="150"></GridColumn>
+                <GridColumn Field="CustomerID" Width="150"></GridColumn>
+                <GridColumn Field="Freight" Width="150" Format="c2"></GridColumn>
+            </GridColumns>
+        </SfGrid>
+    </ComponentUnderTest>
+</SfFixture>
+
+@code {
+    SfFixture fixture { get; set; }
+    private SfGrid<Order> GridMenuFilter;
+
+    async void FilterMenuToggleTest(Fixture fixture)
+    {
+        var cut = fixture.GetComponentUnderTest<SfGrid<Order>>();
+        var grid = cut.Instance;
+
+        // WHEN: User clicks filter icon on a column
+        var filterIcons = cut.FindAll(".e-filtericon");
+        Assert.True(filterIcons.Count > 0, "Filter icons should exist");
+        var filterIcon = filterIcons[0];
+        
+        // Click to open dialog
+        await filterIcon.TriggerEventAsync("onclick", new());
+        cut.WaitForState(() => GetFilterIconIsClicked(grid), TimeSpan.FromSeconds(5));
+        
+        // THEN: Dialog opens and state tracks the column as open
+        Assert.True(GetFilterIconIsClicked(grid), "Dialog should be marked as clicked");
+        var headerCells = cut.FindAll(".e-headercell");
+        Assert.True(headerCells.Count > 1, "Header cells should exist");
+        string columnUid = headerCells[1].GetAttribute("data-uid");
+        Assert.True(IsFilterDialogOpen(grid, columnUid), "Column dialog state should be tracked as open");
+        
+        // WHEN: User clicks the same filter icon again  
+        filterIcons = cut.FindAll(".e-filtericon");
+        filterIcon = filterIcons[0];
+        await filterIcon.TriggerEventAsync("onclick", new());
+        cut.WaitForState(() => !GetFilterIconIsClicked(grid), TimeSpan.FromSeconds(5));
+        
+        // THEN: Dialog closes and state is reset
+        Assert.False(GetFilterIconIsClicked(grid), "Dialog should be marked as not clicked after toggle");
+        Assert.False(IsFilterDialogOpen(grid, columnUid), "Column dialog state should be reset");
+        Assert.Null(GetOpenFilterColumnUid(grid));
+    }
+}
+
+<SfFixture @ref="fixture2" Test="FilterExcelToggleTest" Description="Toggle filter dialog on Excel filter type">
+    <ComponentUnderTest>
+        <SfGrid @ref="GridExcelFilter" DataSource="GenerateOrderData()" AllowFiltering="true">
+            <GridFilterSettings Type="Syncfusion.Blazor.Grids.FilterType.Excel"></GridFilterSettings>
+            <GridColumns>
+                <GridColumn Field="OrderID" Width="150"></GridColumn>
+                <GridColumn Field="CustomerID" Width="150"></GridColumn>
+                <GridColumn Field="Freight" Width="150" Format="c2"></GridColumn>
+            </GridColumns>
+        </SfGrid>
+    </ComponentUnderTest>
+</SfFixture>
+
+@code {
+    SfFixture fixture2 { get; set; }
+    private SfGrid<Order> GridExcelFilter;
+
+    async void FilterExcelToggleTest(Fixture fixture)
+    {
+        var cut = fixture.GetComponentUnderTest<SfGrid<Order>>();
+        var grid = cut.Instance;
+
+        // WHEN: User clicks filter icon on Excel filter
+        var filterIcons = cut.FindAll(".e-filtericon");
+        Assert.True(filterIcons.Count > 0, "Filter icons should exist for Excel filter");
+        var filterIcon = filterIcons[0];
+        
+        // Click to open dialog
+        await filterIcon.TriggerEventAsync("onclick", new());
+        cut.WaitForState(() => GetFilterIconIsClicked(grid), TimeSpan.FromSeconds(5));
+        
+        // THEN: Excel dialog state is tracked
+        Assert.True(GetFilterIconIsClicked(grid), "Excel dialog should be marked as clicked");
+        var headerCells = cut.FindAll(".e-headercell");
+        Assert.True(headerCells.Count > 1, "Header cells should exist");
+        string columnUid = headerCells[1].GetAttribute("data-uid");
+        Assert.True(IsFilterDialogOpen(grid, columnUid), "Column dialog state should be tracked as open");
+        
+        // WHEN: User clicks same icon to toggle close
+        filterIcons = cut.FindAll(".e-filtericon");
+        filterIcon = filterIcons[0];
+        await filterIcon.TriggerEventAsync("onclick", new());
+        cut.WaitForState(() => !GetFilterIconIsClicked(grid), TimeSpan.FromSeconds(5));
+        
+        // THEN: Dialog closes via toggle
+        Assert.False(GetFilterIconIsClicked(grid), "Excel dialog should be marked as not clicked after toggle");
+        Assert.False(IsFilterDialogOpen(grid, columnUid), "Column dialog state should be reset");
+    }
+}
+
+<SfFixture @ref="fixture3" Test="FilterCheckBoxToggleTest" Description="Toggle filter dialog on CheckBox filter type">
+    <ComponentUnderTest>
+        <SfGrid @ref="GridCheckBoxFilter" DataSource="GenerateOrderData()" AllowFiltering="true">
+            <GridFilterSettings Type="Syncfusion.Blazor.Grids.FilterType.CheckBox"></GridFilterSettings>
+            <GridColumns>
+                <GridColumn Field="OrderID" Width="150"></GridColumn>
+                <GridColumn Field="CustomerID" Width="150"></GridColumn>
+                <GridColumn Field="Freight" Width="150" Format="c2"></GridColumn>
+            </GridColumns>
+        </SfGrid>
+    </ComponentUnderTest>
+</SfFixture>
+
+@code {
+    SfFixture fixture3 { get; set; }
+    private SfGrid<Order> GridCheckBoxFilter;
+
+    async void FilterCheckBoxToggleTest(Fixture fixture)
+    {
+        var cut = fixture.GetComponentUnderTest<SfGrid<Order>>();
+        var grid = cut.Instance;
+
+        // WHEN: User clicks filter icon on CheckBox filter
+        var filterIcons = cut.FindAll(".e-filtericon");
+        Assert.True(filterIcons.Count > 0, "Filter icons should exist for CheckBox filter");
+        var filterIcon = filterIcons[0];
+        
+        // Click to open dialog
+        await filterIcon.TriggerEventAsync("onclick", new());
+        cut.WaitForState(() => GetFilterIconIsClicked(grid), TimeSpan.FromSeconds(5));
+        
+        // THEN: CheckBox dialog state is tracked
+        Assert.True(GetFilterIconIsClicked(grid), "CheckBox dialog should be marked as clicked");
+        var headerCells = cut.FindAll(".e-headercell");
+        Assert.True(headerCells.Count > 1, "Header cells should exist");
+        string columnUid = headerCells[1].GetAttribute("data-uid");
+        Assert.True(IsFilterDialogOpen(grid, columnUid), "Column dialog state should be tracked as open");
+        
+        // WHEN: User clicks same icon to toggle close
+        filterIcons = cut.FindAll(".e-filtericon");
+        filterIcon = filterIcons[0];
+        await filterIcon.TriggerEventAsync("onclick", new());
+        cut.WaitForState(() => !GetFilterIconIsClicked(grid), TimeSpan.FromSeconds(5));
+        
+        // THEN: Dialog closes via toggle
+        Assert.False(GetFilterIconIsClicked(grid), "CheckBox dialog should be marked as not clicked after toggle");
+        Assert.False(IsFilterDialogOpen(grid, columnUid), "Column dialog state should be reset");
+    }
+}
+
+<SfFixture @ref="fixture4" Test="FilterToggleDifferentColumnsTest" Description="Toggle between different column filters">
+    <ComponentUnderTest>
+        <SfGrid @ref="GridDifferentColumns" DataSource="GenerateOrderData()" AllowFiltering="true">
+            <GridFilterSettings Type="Syncfusion.Blazor.Grids.FilterType.Menu"></GridFilterSettings>
+            <GridColumns>
+                <GridColumn Field="OrderID" Width="150"></GridColumn>
+                <GridColumn Field="CustomerID" Width="150"></GridColumn>
+                <GridColumn Field="Freight" Width="150" Format="c2"></GridColumn>
+            </GridColumns>
+        </SfGrid>
+    </ComponentUnderTest>
+</SfFixture>
+
+@code {
+    SfFixture fixture4 { get; set; }
+    private SfGrid<Order> GridDifferentColumns;
+
+    async void FilterToggleDifferentColumnsTest(Fixture fixture)
+    {
+        var cut = fixture.GetComponentUnderTest<SfGrid<Order>>();
+        var grid = cut.Instance;
+
+        // WHEN: User clicks filter icon on first column
+        var filterIcons = cut.FindAll(".e-filtericon");
+        Assert.True(filterIcons.Count > 1, "Multiple filter icons should exist");
+        await filterIcons[0].TriggerEventAsync("onclick", new());
+        cut.WaitForState(() => GetFilterIconIsClicked(grid), TimeSpan.FromSeconds(5));
+        
+        var headerCells = cut.FindAll(".e-headercell");
+        Assert.True(headerCells.Count > 1, "Header cells should exist");
+        string columnUid1 = headerCells[1].GetAttribute("data-uid");
+        Assert.True(IsFilterDialogOpen(grid, columnUid1), "First column dialog should be open");
+        
+        // WHEN: User clicks filter icon on second column (different column)
+        filterIcons = cut.FindAll(".e-filtericon");
+        await filterIcons[1].TriggerEventAsync("onclick", new());
+        cut.WaitForState(() => GetFilterIconColumn(grid)?.Field == "CustomerID", TimeSpan.FromSeconds(5));
+        
+        // THEN: First column state is reset, second column state is tracked
+        headerCells = cut.FindAll(".e-headercell");
+        Assert.True(headerCells.Count > 2, "Third header cell should exist");
+        string columnUid2 = headerCells[2].GetAttribute("data-uid");
+        Assert.False(IsFilterDialogOpen(grid, columnUid1), "First column dialog should be closed");
+        Assert.True(IsFilterDialogOpen(grid, columnUid2), "Second column dialog should be open");
+    }
+}
+
+<SfFixture @ref="fixture5" Test="FilterEscapeKeyCloseToggleTest" Description="Toggle survives Escape key close">
+    <ComponentUnderTest>
+        <SfGrid @ref="GridEscapeClose" DataSource="GenerateOrderData()" AllowFiltering="true">
+            <GridFilterSettings Type="Syncfusion.Blazor.Grids.FilterType.Menu"></GridFilterSettings>
+            <GridColumns>
+                <GridColumn Field="OrderID" Width="150"></GridColumn>
+                <GridColumn Field="CustomerID" Width="150"></GridColumn>
+                <GridColumn Field="Freight" Width="150" Format="c2"></GridColumn>
+            </GridColumns>
+        </SfGrid>
+    </ComponentUnderTest>
+</SfFixture>
+
+@code {
+    SfFixture fixture5 { get; set; }
+    private SfGrid<Order> GridEscapeClose;
+
+    async void FilterEscapeKeyCloseToggleTest(Fixture fixture)
+    {
+        var cut = fixture.GetComponentUnderTest<SfGrid<Order>>();
+        var grid = cut.Instance;
+
+        // STEP 1: Click filter icon to open dialog
+        var filterIcons = cut.FindAll(".e-filtericon");
+        Assert.True(filterIcons.Count > 0, "Filter icons should exist");
+        await filterIcons[0].TriggerEventAsync("onclick", new());
+        cut.WaitForState(() => GetFilterIconIsClicked(grid), TimeSpan.FromSeconds(5));
+        
+        // STEP 2: Verify dialog is open
+        var headerCells = cut.FindAll(".e-headercell");
+        Assert.True(headerCells.Count > 1, "Header cells should exist");
+        string columnUid = headerCells[1].GetAttribute("data-uid");
+        Assert.True(IsFilterDialogOpen(grid, columnUid), "Dialog should be open");
+        Assert.True(GetFilterIconIsClicked(grid), "FilterIconIsClicked should be true");
+        
+        // STEP 3: Simulate Escape key close (reset state as FilterPopupClose would do)
+        ResetColumnDialogState(grid, columnUid);
+        SetFilterIconIsClicked(grid, false);
+        await Task.Delay(50);
+        
+        // STEP 4: Click same filter icon again
+        filterIcons = cut.FindAll(".e-filtericon");
+        await filterIcons[0].TriggerEventAsync("onclick", new());
+        cut.WaitForState(() => GetFilterIconIsClicked(grid), TimeSpan.FromSeconds(5));
+        
+        // STEP 5: Verify dialog opens (toggle works after Escape)
+        Assert.True(GetFilterIconIsClicked(grid), "Dialog should open after Escape key close");
+        Assert.True(IsFilterDialogOpen(grid, columnUid), "Toggle state should be properly restored");
+    }
+}
+
+@code {
+    // Helper methods for reflection-based access to internal Filter properties/methods
+    
+    private bool GetFilterIconIsClicked(SfGrid<Order> grid)
+    {
+        try
+        {
+            var gridType = grid.GetType();
+            var fmProp = gridType.GetProperty("FilterModule",
+                BindingFlags.NonPublic | BindingFlags.Instance);
+            if (fmProp == null) return false;
+            var fm = fmProp.GetValue(grid);
+            if (fm == null) return false;
+            var fmType = fm.GetType();
+            var iconProp = fmType.GetProperty("FilterIconIsClicked",
+                BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance);
+            if (iconProp == null) return false;
+            return (bool)iconProp.GetValue(fm)!;
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
+    private bool IsFilterDialogOpen(SfGrid<Order> grid, string columnUid)
+    {
+        try
+        {
+            var gridType = grid.GetType();
+            var fmProp = gridType.GetProperty("FilterModule",
+                BindingFlags.NonPublic | BindingFlags.Instance);
+            if (fmProp == null) return false;
+            var fm = fmProp.GetValue(grid);
+            if (fm == null) return false;
+            var fmType = fm.GetType();
+            var method = fmType.GetMethod("IsFilterDialogOpen",
+                BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance);
+            if (method == null) return false;
+            return (bool)method.Invoke(fm, new object[] { columnUid })!;
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
+    private string GetOpenFilterColumnUid(SfGrid<Order> grid)
+    {
+        try
+        {
+            var gridType = grid.GetType();
+            var fmProp = gridType.GetProperty("FilterModule",
+                BindingFlags.NonPublic | BindingFlags.Instance);
+            if (fmProp == null) return null;
+            var fm = fmProp.GetValue(grid);
+            if (fm == null) return null;
+            var fmType = fm.GetType();
+            var uidProp = fmType.GetProperty("OpenFilterColumnUid",
+                BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance);
+            if (uidProp == null) return null;
+            return (string)uidProp.GetValue(fm)!;
+        }
+        catch
+        {
+            return null;
+        }
+    }
+
+    private GridColumn GetFilterIconColumn(SfGrid<Order> grid)
+    {
+        try
+        {
+            var gridType = grid.GetType();
+            var fmProp = gridType.GetProperty("FilterModule",
+                BindingFlags.NonPublic | BindingFlags.Instance);
+            if (fmProp == null) return null;
+            var fm = fmProp.GetValue(grid);
+            if (fm == null) return null;
+            var fmType = fm.GetType();
+            var colProp = fmType.GetProperty("FilterIconColumn",
+                BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance);
+            if (colProp == null) return null;
+            return (GridColumn)colProp.GetValue(fm)!;
+        }
+        catch
+        {
+            return null;
+        }
+    }
+
+    private void ResetColumnDialogState(SfGrid<Order> grid, string columnUid)
+    {
+        try
+        {
+            var gridType = grid.GetType();
+            var fmProp = gridType.GetProperty("FilterModule",
+                BindingFlags.NonPublic | BindingFlags.Instance);
+            if (fmProp == null) return;
+            var fm = fmProp.GetValue(grid);
+            if (fm == null) return;
+            var fmType = fm.GetType();
+            var method = fmType.GetMethod("ResetColumnDialogState",
+                BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance);
+            if (method == null) return;
+            method.Invoke(fm, new object[] { columnUid });
+        }
+        catch { }
+    }
+
+    private void SetFilterIconIsClicked(SfGrid<Order> grid, bool value)
+    {
+        try
+        {
+            var gridType = grid.GetType();
+            var fmProp = gridType.GetProperty("FilterModule",
+                BindingFlags.NonPublic | BindingFlags.Instance);
+            if (fmProp == null) return;
+            var fm = fmProp.GetValue(grid);
+            if (fm == null) return;
+            var fmType = fm.GetType();
+            var prop = fmType.GetProperty("FilterIconIsClicked",
+                BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance);
+            if (prop == null) return;
+            prop.SetValue(fm, value);
+        }
+        catch { }
+    }
+}

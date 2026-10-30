@@ -1,0 +1,41 @@
+@inherits GridTestBase
+
+<SfFixture @ref="fixture" TestAsync="EnableVirtualizationAfterNavigatingToLastPage" Description="Enable virtualization after navigating to the last page with 1000 records">
+    <ComponentUnderTest>
+        <SfGrid @ref="Grid" DataSource="@Orders" AllowPaging="true" EnableVirtualization="@enableVirtualization" Height="400" RowHeight="38">
+            <GridPageSettings PageSize="20"></GridPageSettings>
+            <GridColumns>
+                <GridColumn Field="@nameof(Order.OrderID)" IsPrimaryKey="true" HeaderText="Order ID" Width="120"></GridColumn>
+                <GridColumn Field="@nameof(Order.CustomerID)" HeaderText="Customer ID" Width="150"></GridColumn>
+            </GridColumns>
+        </SfGrid>
+    </ComponentUnderTest>
+</SfFixture>
+
+@code {
+    private SfFixture fixture { get; set; }
+    private SfGrid<Order> Grid;
+    private bool enableVirtualization;
+    private List<Order> Orders = Enumerable.Range(1, 1000)
+        .Select(index => new Order
+        {
+            OrderID = index,
+            CustomerID = $"Customer {index}"
+        })
+        .ToList();
+
+    private async Task EnableVirtualizationAfterNavigatingToLastPage(Fixture fixture)
+    {
+        var cut = fixture.GetComponentUnderTest<SfGrid<Order>>();
+
+        await cut.InvokeAsync(() => cut.Instance.GoToPageAsync(50));
+        Assert.Equal(50, cut.Instance.PageSettings.CurrentPage);
+        enableVirtualization = true;
+        cut.Instance.AllowPaging = false;
+        cut.Instance.EnableVirtualization = true;
+        cut.Instance.EnableVirtualMaskRow = true;
+        cut.Render();
+        Assert.True(cut.Instance.VirtualScrollModule.RowEndIndex > 0, "RowEndIndex should be initialized after enabling virtualization.");
+        Assert.True(cut.Instance.VirtualScrollModule.RowEndIndex <= Orders.Count, "RowEndIndex should remain within the data source range.");
+    }
+}

@@ -1,0 +1,24 @@
+<Project>
+  <!-- Harness-generated Roslyn enforcement (rank-1 knowledge: build-enforced
+       beats markdown-stated). Merged additively: existing csproj settings win
+       at their level; these set the library-wide floor. -->
+  <PropertyGroup>
+    <!-- Diff-scoped ratchet: existing 210 warnings in tests are the frozen
+         floor; the analyzers gate fails on NET-NEW violations only. -->
+    <EnforceCodeStyleInBuild Condition="'$(HarnessAnalyzers)' == 'true'">true</EnforceCodeStyleInBuild>
+    <GenerateDocumentationFile Condition="'$(MSBuildProjectName)' == 'Syncfusion.Blazor.Grids'">true</GenerateDocumentationFile>
+  </PropertyGroup>
+  <PropertyGroup>
+    <!-- Public API floor: these rules protect the library's product surface. -->
+    <AnalysisLevel>latest</AnalysisLevel>
+    <AnalysisMode>Default</AnalysisMode>
+  </PropertyGroup>
+
+  <!-- Static Web Assets: Disable static web asset precompression for test projects.
+       The Grid component and its transitive dependencies both include static assets (sf-grid.min.js),
+       causing duplicate key errors in MSBuild's DiscoverPrecompressedAssets task.
+       Test projects don't require precompressed assets, so we disable this optimization. -->
+  <PropertyGroup Condition="'$(MSBuildProjectName)' == 'Syncfusion.Blazor.Tests'">
+    <StaticWebAssetsPrecompress>false</StaticWebAssetsPrecompress>
+  </PropertyGroup>
+</Project>

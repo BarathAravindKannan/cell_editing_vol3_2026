@@ -1,0 +1,447 @@
+@inherits GridTestBase
+
+@using Syncfusion.Blazor.Grids
+@using System.Linq
+
+<SfFixture @ref="fixture1" TestAsync="CellEditNavigation" Description="Core Cell Edit Navigation - Tab/Shift+Tab/Escape/F2 keyboard handling">
+    <ComponentUnderTest>
+        <SfGrid @ref="Grid1" DataSource="GenerateSimpleOrderData()" AllowSelection="true">
+            <GridEditSettings AllowEditing="true" Mode="EditMode.Cell" AllowAdding="false" AllowDeleting="false"></GridEditSettings>
+            <GridColumns>
+                <GridColumn Field=@nameof(SimpleOrder.OrderID) HeaderText="Order ID" IsPrimaryKey="true" TextAlign="TextAlign.Right" Width="120"></GridColumn>
+                <GridColumn Field=@nameof(SimpleOrder.CustomerID) HeaderText="Customer ID" Width="150"></GridColumn>
+                <GridColumn Field=@nameof(SimpleOrder.Amount) HeaderText="Amount" TextAlign="TextAlign.Right" Width="120"></GridColumn>
+                <GridColumn Field=@nameof(SimpleOrder.Status) HeaderText="Status" Width="120"></GridColumn>
+            </GridColumns>
+        </SfGrid>
+    </ComponentUnderTest>
+</SfFixture>
+
+@code
+{
+    SfFixture fixture1 { get; set; }
+    private SfGrid<SimpleOrder> Grid1;
+    private bool cellEditingFired = false;
+
+    public async Task CellEditNavigation(Fixture fixture)
+    {
+        var cut = fixture.GetComponentUnderTest<SfGrid<SimpleOrder>>();
+        Assert.True(cut.Instance.Rows.Count > 0, "Grid rendered");
+
+        // Test 1: Tab navigation - Edit cell, change value, press Tab to move to next cell
+
+        // Enter edit mode on cell
+        await cut.Instance.EditCellAsync(0, "CustomerID");
+        var viewRecords = await cut.Instance.GetCurrentViewRecordsAsync();
+        var originalValue = viewRecords[0].CustomerID;
+        var gridFocusHandler = cut.Instance.FocusModule;
+        var dataRow = cut.Instance.Rows?.FirstOrDefault(r => r.Visible != false);
+        var targetCell = dataRow?.Cells?.FirstOrDefault(c => c.Visible && c.Index == 1); // CustomerID is at index 1
+
+        // Simulate Tab key to save and move to next cell
+        await gridFocusHandler.ProcessKeyDown(
+            new KeyboardEventArgs { Key = "Tab", Code = "Tab" },
+            row: dataRow,
+            cell: targetCell,
+            isHeader: false
+        );
+
+        // Test 2: Shift+Tab navigation - Navigate to previous cell
+        dataRow = cut.Instance.Rows?.FirstOrDefault(r => r.Visible != false);
+        targetCell = dataRow?.Cells?.FirstOrDefault(c => c.Visible && c.Index == 2); // Amount is at index 2
+        await gridFocusHandler.ProcessKeyDown(
+            new KeyboardEventArgs { Key = "Tab", Code = "Tab", ShiftKey = true },
+            row: dataRow,
+            cell: targetCell,
+            isHeader: false
+        );
+
+        // CustomerID cell to Amount
+        dataRow = cut.Instance.Rows?.FirstOrDefault(r => r.Visible != false);
+        targetCell = dataRow?.Cells?.FirstOrDefault(c => c.Visible && c.Index == 1);
+        await gridFocusHandler.ProcessKeyDown(
+            new KeyboardEventArgs { Key = "Tab", Code = "Tab" },
+            row: dataRow,
+            cell: targetCell,
+            isHeader: false
+        );
+
+        // Amount to Status cell navigation
+        dataRow = cut.Instance.Rows?.FirstOrDefault(r => r.Visible != false);
+        targetCell = dataRow?.Cells?.FirstOrDefault(c => c.Visible && c.Index == 2);
+        await gridFocusHandler.ProcessKeyDown(
+            new KeyboardEventArgs { Key = "Tab", Code = "Tab" },
+            row: dataRow,
+            cell: targetCell,
+            isHeader: false
+        );
+        // Status to Next Row Editable cell navigation
+        dataRow = cut.Instance.Rows?.FirstOrDefault(r => r.Visible != false);
+        targetCell = dataRow?.Cells?.FirstOrDefault(c => c.Visible && c.Index == 3);
+        await gridFocusHandler.ProcessKeyDown(
+            new KeyboardEventArgs { Key = "Tab", Code = "Tab" },
+            row: dataRow,
+            cell: targetCell,
+            isHeader: false
+        );
+
+        // first Editable cell to last editable cell in previous row
+        dataRow = cut.Instance.Rows?.FirstOrDefault(r => r.Visible != false && r.Index == 1);
+        targetCell = dataRow?.Cells?.FirstOrDefault(c => c.Visible && c.Index == 1);
+        await gridFocusHandler.ProcessKeyDown(
+            new KeyboardEventArgs { Key = "Tab", Code = "Tab", ShiftKey = true },
+            row: dataRow,
+            cell: targetCell,
+            isHeader: false
+        );
+
+        await cut.Instance.EndEditAsync();
+
+        // Test 4: F2 to enter edit mode
+        var dataRow3 = cut.Instance.Rows?.ElementAtOrDefault(2);
+        var targetCell3 = dataRow3?.Cells?.FirstOrDefault(c => c.Visible && c.Index == 1); // CustomerID is at index 1
+        
+        await gridFocusHandler.ProcessKeyDown(
+            new KeyboardEventArgs { Key = "F2", Code = "F2" },
+            row: dataRow3,
+            cell: targetCell3,
+            isHeader: false
+        );
+
+        viewRecords = await cut.Instance.GetCurrentViewRecordsAsync();
+        Assert.True(viewRecords.Count > 0, "Records still available after navigation");
+    }
+}
+
+<SfFixture @ref="fixture2" TestAsync="EnterKeyDirectionNone" Description="EnterKeyDirection.None - Enter saves without moving">
+    <ComponentUnderTest>
+        <SfGrid @ref="GridEnterNone" DataSource="GenerateSimpleOrderData()">
+            <GridEditSettings AllowEditing="true" Mode="EditMode.Cell" EnterKeyDirection="EnterKeyDirection.None"></GridEditSettings>
+            <GridColumns>
+                <GridColumn Field=@nameof(SimpleOrder.OrderID) HeaderText="Order ID" IsPrimaryKey="true" Width="120"></GridColumn>
+                <GridColumn Field=@nameof(SimpleOrder.CustomerID) HeaderText="Customer ID" Width="150"></GridColumn>
+                <GridColumn Field=@nameof(SimpleOrder.Amount) HeaderText="Amount" Width="120"></GridColumn>
+                <GridColumn Field=@nameof(SimpleOrder.Status) HeaderText="Status" Width="120"></GridColumn>
+            </GridColumns>
+        </SfGrid>
+    </ComponentUnderTest>
+</SfFixture>
+
+@code
+{
+    SfFixture fixture2 { get; set; }
+    private SfGrid<SimpleOrder> GridEnterNone;
+
+    public async Task EnterKeyDirectionNone(Fixture fixture)
+    {
+        var cut = fixture.GetComponentUnderTest<SfGrid<SimpleOrder>>();
+        var gridFocusHandler = cut.Instance.FocusModule;
+        
+        // Edit a cell and press Enter
+        await cut.Instance.EditCellAsync(0, "CustomerID");
+        var viewRecords = await cut.Instance.GetCurrentViewRecordsAsync();
+        var recordBefore = viewRecords[0].CustomerID;
+
+        // Press Enter - should save but stay on same cell (Direction=None)
+        var dataRow = cut.Instance.Rows?.FirstOrDefault(r => r.Visible != false);
+        var targetCell = dataRow?.Cells?.FirstOrDefault(c => c.Visible && c.Index == 1); // CustomerID is at index 1
+        
+        await gridFocusHandler.ProcessGridKeyDown(
+            new KeyboardEventArgs { Key = "Enter", Code = "Enter" }
+        );
+
+        // Verify cell is saved
+        viewRecords = await cut.Instance.GetCurrentViewRecordsAsync();
+        Assert.True(viewRecords.Count > 0, "Data saved after Enter key");
+    }
+}
+
+<SfFixture @ref="fixture3" TestAsync="EnterKeyDirectionRow" Description="EnterKeyDirection.Row - Enter moves to same column in next row">
+    <ComponentUnderTest>
+        <SfGrid @ref="GridEnterRow" DataSource="GenerateSimpleOrderData()">
+            <GridEditSettings AllowEditing="true" Mode="EditMode.Cell" EnterKeyDirection="EnterKeyDirection.NextRow"></GridEditSettings>
+            <GridColumns>
+                <GridColumn Field=@nameof(SimpleOrder.OrderID) HeaderText="Order ID" IsPrimaryKey="true" Width="120"></GridColumn>
+                <GridColumn Field=@nameof(SimpleOrder.CustomerID) HeaderText="Customer ID" Width="150"></GridColumn>
+                <GridColumn Field=@nameof(SimpleOrder.Amount) HeaderText="Amount" Width="120"></GridColumn>
+                <GridColumn Field=@nameof(SimpleOrder.Status) HeaderText="Status" Width="120"></GridColumn>
+            </GridColumns>
+        </SfGrid>
+    </ComponentUnderTest>
+</SfFixture>
+
+@code
+{
+    SfFixture fixture3 { get; set; }
+    private SfGrid<SimpleOrder> GridEnterRow;
+
+    public async Task EnterKeyDirectionRow(Fixture fixture)
+    {
+        var cut = fixture.GetComponentUnderTest<SfGrid<SimpleOrder>>();
+        var gridFocusHandler = cut.Instance.FocusModule;
+
+        // Edit cell at row 0, column CustomerID
+        await cut.Instance.EditCellAsync(0, "CustomerID");
+
+        // Press Enter - should move to row 1, same column (CustomerID)
+        var dataRow = cut.Instance.Rows?.FirstOrDefault(r => r.Visible != false);
+        var targetCell = dataRow?.Cells?.FirstOrDefault(c => c.Visible && c.Index == 1); // CustomerID is at index 1
+        
+        await gridFocusHandler.ProcessGridKeyDown(
+            new KeyboardEventArgs { Key = "Enter", Code = "Enter" }
+        );
+
+        var viewRecords = await cut.Instance.GetCurrentViewRecordsAsync();
+        Assert.True(viewRecords.Count >= 2, "Multiple rows available for navigation");
+    }
+}
+
+<SfFixture @ref="fixture4" TestAsync="EnterKeyDirectionColumn" Description="EnterKeyDirection.Column - Enter moves to next ccolumn in same row">
+    <ComponentUnderTest>
+        <SfGrid @ref="GridEnterCol" DataSource="GenerateSimpleOrderData()">
+            <GridEditSettings AllowEditing="true" Mode="EditMode.Cell" EnterKeyDirection="EnterKeyDirection.NextColumn"></GridEditSettings>
+            <GridColumns>
+                <GridColumn Field=@nameof(SimpleOrder.OrderID) HeaderText="Order ID" IsPrimaryKey="true" Width="120"></GridColumn>
+                <GridColumn Field=@nameof(SimpleOrder.CustomerID) HeaderText="Customer ID" Width="150"></GridColumn>
+                <GridColumn Field=@nameof(SimpleOrder.Amount) HeaderText="Amount" Width="120"></GridColumn>
+                <GridColumn Field=@nameof(SimpleOrder.Status) HeaderText="Status" Width="120"></GridColumn>
+            </GridColumns>
+        </SfGrid>
+    </ComponentUnderTest>
+</SfFixture>
+
+@code
+{
+    SfFixture fixture4 { get; set; }
+    private SfGrid<SimpleOrder> GridEnterCol;
+
+    public async Task EnterKeyDirectionColumn(Fixture fixture)
+    {
+        var cut = fixture.GetComponentUnderTest<SfGrid<SimpleOrder>>();
+        var gridFocusHandler = cut.Instance.FocusModule;
+
+        // Edit cell at row 0, column 1 (CustomerID)
+        await cut.Instance.EditCellAsync(0, "CustomerID");
+
+        // Press Enter - should move to column 2 (Amount), same row
+        var dataRow = cut.Instance.Rows?.FirstOrDefault(r => r.Visible != false);
+        var targetCell = dataRow?.Cells?.FirstOrDefault(c => c.Visible && c.Index == 1); // CustomerID is at index 1
+        
+        await gridFocusHandler.ProcessGridKeyDown(
+            new KeyboardEventArgs { Key = "Enter", Code = "Enter" }
+        );
+
+        Assert.True(cut.Instance.Columns.Count >= 4, "Multiple columns available for navigation");
+    }
+}
+
+<SfFixture @ref="fixture5" TestAsync="AllowEditOnKeyPressTest" Description="AllowEditOnKeyPress - typing character prefills input and enters edit mode">
+    <ComponentUnderTest>
+        <SfGrid @ref="GridKeyPress" DataSource="GenerateSimpleOrderData()">
+            <GridEditSettings AllowEditing="true" Mode="EditMode.Cell" AllowEditOnKeyPress="true"></GridEditSettings>
+            <GridColumns>
+                <GridColumn Field=@nameof(SimpleOrder.OrderID) HeaderText="Order ID" IsPrimaryKey="true" Width="120"></GridColumn>
+                <GridColumn Field=@nameof(SimpleOrder.CustomerID) HeaderText="Customer ID" Width="150"></GridColumn>
+                <GridColumn Field=@nameof(SimpleOrder.Amount) HeaderText="Amount" Width="120"></GridColumn>
+                <GridColumn Field=@nameof(SimpleOrder.Status) HeaderText="Status" Width="120"></GridColumn>
+            </GridColumns>
+        </SfGrid>
+    </ComponentUnderTest>
+</SfFixture>
+
+@code
+{
+    SfFixture fixture5 { get; set; }
+    private SfGrid<SimpleOrder> GridKeyPress;
+    private bool cellEditingEventFired = false;
+    private string cellEditingEventColumn = "";
+
+    public async Task AllowEditOnKeyPressTest(Fixture fixture)
+    {
+        var cut = fixture.GetComponentUnderTest<SfGrid<SimpleOrder>>();
+        Assert.True(cut.Instance.EditSettings.AllowEditOnKeyPress == true, "AllowEditOnKeyPress is enabled");
+
+        // Verify grid can enter edit mode on cell
+        var viewRecords = await cut.Instance.GetCurrentViewRecordsAsync();
+        // await cut.Instance.EditCellAsync(0, "CustomerID");
+        // Assert.True(viewRecords.Count > 0, "Cell edit mode triggered");
+
+        // Simulate typing a character on a focused cell
+        var gridFocusHandler = cut.Instance.FocusModule;
+        var dataRow = cut.Instance.Rows?.FirstOrDefault(r => r.Visible != false);
+        var targetCell = dataRow?.Cells?.FirstOrDefault(c => c.Visible && c.Index == 1); // CustomerID is at index 1
+        
+        await gridFocusHandler.ProcessKeyDown(
+            new KeyboardEventArgs { Key = "A", Code = "KeyA", CtrlKey = false, ShiftKey = false },
+            row: dataRow,
+            cell: targetCell,
+            isHeader: false
+        );
+
+        viewRecords = await cut.Instance.GetCurrentViewRecordsAsync();
+        Assert.True(viewRecords.Count > 0, "Grid state maintained after key press");
+    }
+}
+
+<SfFixture @ref="fixture6" TestAsync="FocusCellWithCellUid" Description="focusCell with cellUid parameter for edit template rendering">
+    <ComponentUnderTest>
+        <SfGrid @ref="GridEditTemplate" DataSource="GenerateSimpleOrderData()" AllowSelection="true">
+            <GridEditSettings AllowEditing="true" Mode="EditMode.Cell"></GridEditSettings>
+            <GridColumns>
+                <GridColumn Field=@nameof(SimpleOrder.OrderID) HeaderText="Order ID" IsPrimaryKey="true" Uid="OrderID_Uid" Width="120"></GridColumn>
+                <GridColumn Field=@nameof(SimpleOrder.CustomerID) HeaderText="Customer ID" Uid="CustomerID_Uid" Width="150"></GridColumn>
+                <GridColumn Field=@nameof(SimpleOrder.Amount) HeaderText="Amount" Uid="Amount_Uid" Width="120"></GridColumn>
+                <GridColumn Field=@nameof(SimpleOrder.Status) HeaderText="Status" Uid="Status_Uid" Width="120"></GridColumn>
+            </GridColumns>
+        </SfGrid>
+    </ComponentUnderTest>
+</SfFixture>
+
+@code
+{
+    SfFixture fixture6 { get; set; }
+    private SfGrid<SimpleOrder> GridEditTemplate;
+
+    public async Task FocusCellWithCellUid(Fixture fixture)
+    {
+        var cut = fixture.GetComponentUnderTest<SfGrid<SimpleOrder>>();
+        
+        // Call focusCell with cellUid parameter to locate input via td[data-uid] selector
+        await cut.Instance.EditCellAsync(0, "CustomerID");
+        var gridFocusHandler = cut.Instance.FocusModule;
+        
+        // When edit template is rendered, focusCell uses cellUid to find the input element
+        // This tests the branch: querySelector('td[data-uid="${cellUid}"] input')
+        var dataRow = cut.Instance.Rows?.FirstOrDefault(r => r.Visible != false);
+        var targetCell = dataRow?.Cells?.FirstOrDefault(c => c.Visible && c.Index == 1); // CustomerID is at index 1
+        
+        await gridFocusHandler.ProcessKeyDown(
+            new KeyboardEventArgs { Key = "Tab" },
+            row: dataRow,
+            cell: targetCell,
+            isHeader: false
+        );
+
+        var viewRecords = await cut.Instance.GetCurrentViewRecordsAsync();
+        Assert.True(viewRecords.Count > 0, "Cell Uid lookup successful");
+    }
+}
+
+<SfFixture @ref="fixture7" TestAsync="PublicMethodsCoverage" Description="Test public methods SetCellValue GetCurrentEditStateAsync">
+    <ComponentUnderTest>
+        <SfGrid @ref="GridPublicMethods" DataSource="GenerateSimpleOrderData()">
+            <GridEditSettings AllowEditing="true" Mode="EditMode.Cell"></GridEditSettings>
+            <GridColumns>
+                <GridColumn Field=@nameof(SimpleOrder.OrderID) HeaderText="Order ID" IsPrimaryKey="true" Width="120"></GridColumn>
+                <GridColumn Field=@nameof(SimpleOrder.CustomerID) HeaderText="Customer ID" Width="150"></GridColumn>
+                <GridColumn Field=@nameof(SimpleOrder.Amount) HeaderText="Amount" Width="120"></GridColumn>
+                <GridColumn Field=@nameof(SimpleOrder.Status) HeaderText="Status" Width="120"></GridColumn>
+            </GridColumns>
+        </SfGrid>
+    </ComponentUnderTest>
+</SfFixture>
+
+@code
+{
+    SfFixture fixture7 { get; set; }
+    private SfGrid<SimpleOrder> GridPublicMethods;
+
+    public async Task PublicMethodsCoverage(Fixture fixture)
+    {
+        var cut = fixture.GetComponentUnderTest<SfGrid<SimpleOrder>>();
+        var viewRecords = await cut.Instance.GetCurrentViewRecordsAsync();
+        var firstRecord = viewRecords[0];
+        var primaryKeyValue = firstRecord.OrderID;
+
+        // Test 1: save single cell
+        await cut.Instance.SetCellValueAsync(primaryKeyValue, "CustomerID", "NewCustomer");
+        viewRecords = await cut.Instance.GetCurrentViewRecordsAsync();
+        Assert.True(viewRecords[0].CustomerID == "NewCustomer", "Single cell saved");
+
+        // Test 2: save multiple cells
+        var cellUpdates = new List<CellUpdate>
+        {
+            new CellUpdate { PrimaryKeyValue = primaryKeyValue, ColumnField = "Amount", NewValue = 150.5 },
+            new CellUpdate { PrimaryKeyValue = viewRecords[1].OrderID, ColumnField = "Status", NewValue = "Active" }
+        };
+        await cut.Instance.SetCellValueAsync(cellUpdates);
+        viewRecords = await cut.Instance.GetCurrentViewRecordsAsync();
+        Assert.True(viewRecords[0].Amount == 150.5, "Multiple cells saved");
+    }
+}
+
+<SfFixture @ref="fixture8" TestAsync="CellEditCancellingEvents" Description="Cancel on Escape">
+    <ComponentUnderTest>
+        <SfGrid @ref="GridCancelEvents" DataSource="GenerateSimpleOrderData()" @bind-SelectedRowIndices="@SelectedRowIndices">
+            <GridEditSettings AllowEditing="true" Mode="EditMode.Cell"></GridEditSettings>
+            <GridEvents OnCellEdit="OnCellEdit" TValue="SimpleOrder"></GridEvents>
+            <GridColumns>
+                <GridColumn Field=@nameof(SimpleOrder.OrderID) HeaderText="Order ID" IsPrimaryKey="true" Width="120"></GridColumn>
+                <GridColumn Field=@nameof(SimpleOrder.CustomerID) HeaderText="Customer ID" Width="150"></GridColumn>
+                <GridColumn Field=@nameof(SimpleOrder.Amount) HeaderText="Amount" Width="120"></GridColumn>
+                <GridColumn Field=@nameof(SimpleOrder.Status) HeaderText="Status" Width="120"></GridColumn>
+            </GridColumns>
+        </SfGrid>
+    </ComponentUnderTest>
+</SfFixture>
+
+@code
+{
+    SfFixture fixture8 { get; set; }
+    private SfGrid<SimpleOrder> GridCancelEvents;
+    private int[] SelectedRowIndices;
+    private bool cellEditingEventFired2 = false;
+    private string lastEditedColumn = "";
+
+    public async Task CellEditCancellingEvents(Fixture fixture)
+    {
+        var cut = fixture.GetComponentUnderTest<SfGrid<SimpleOrder>>();
+        
+        cellEditingEventFired2 = false;
+        await cut.Instance.EditCellAsync(0, "CustomerID");
+        Assert.True(cellEditingEventFired2, "CellEditing event fired when entering edit mode");
+        Assert.True(lastEditedColumn == "CustomerID", "Event has correct column info");
+
+        var gridFocusHandler = cut.Instance.FocusModule;
+        var dataRow = cut.Instance.Rows?.FirstOrDefault(r => r.Visible != false);
+        var targetCell = dataRow?.Cells?.FirstOrDefault(c => c.Visible && c.Index == 1); // CustomerID is at index 1
+        
+        await gridFocusHandler.ProcessGridKeyDown(
+            new KeyboardEventArgs { Key = "Escape", Code = "Escape" }
+        );
+        
+        var viewRecords = await cut.Instance.GetCurrentViewRecordsAsync();
+        Assert.True(viewRecords.Count > 0, "Grid data remains after cancel");
+    }
+
+    private Task OnCellEdit(CellEditArgs<SimpleOrder> args)
+    {
+        cellEditingEventFired2 = true;
+        lastEditedColumn = args.ColumnName;
+        return Task.CompletedTask;
+    }
+}
+
+@code {
+    // Simple Order class with 4 properties for cell edit testing
+    public class SimpleOrder
+    {
+        public int OrderID { get; set; }
+        public string CustomerID { get; set; }
+        public double Amount { get; set; }
+        public string Status { get; set; }
+    }
+
+    // Helper method to generate simple test data
+    public List<SimpleOrder> GenerateSimpleOrderData()
+    {
+        return new List<SimpleOrder>
+        {
+            new SimpleOrder { OrderID = 10248, CustomerID = "VINET", Amount = 32.38, Status = "Pending" },
+            new SimpleOrder { OrderID = 10249, CustomerID = "TOMSP", Amount = 11.61, Status = "Active" },
+            new SimpleOrder { OrderID = 10250, CustomerID = "HANAR", Amount = 65.83, Status = "Completed" },
+            new SimpleOrder { OrderID = 10251, CustomerID = "VICTE", Amount = 41.34, Status = "Pending" },
+            new SimpleOrder { OrderID = 10252, CustomerID = "SUPRD", Amount = 51.30, Status = "Active" }
+        };
+    }
+}

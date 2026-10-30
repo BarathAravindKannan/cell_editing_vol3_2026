@@ -1,0 +1,448 @@
+@inherits GridTestBase
+
+@using Syncfusion.Blazor.Grids
+@using Syncfusion.Blazor.Grids.Internal
+
+<SfFixture @ref="fixture" TestAsync="TestInitialStateAndGuards" Description="Undo and redo manager state and guard behavior">
+    <ComponentUnderTest>
+        <SfGrid @ref="Grid" DataSource="Rows" AllowSelection="true">
+            <GridEditSettings AllowAdding="true" AllowDeleting="true" AllowEditing="true" Mode="EditMode.Batch" EnableUndoRedo="true" UndoRedoLimit="3" ShowConfirmDialog="false" ShowDeleteConfirmDialog="false"></GridEditSettings>
+            <GridEvents OnUndo="BeforeUndo" OnUndoCompleted="AfterUndo" OnRedo="BeforeRedo" OnRedoCompleted="AfterRedo" TValue="Order"></GridEvents>
+            <GridColumns>
+                <GridColumn Field=@nameof(Order.OrderID) HeaderText="Order ID" IsPrimaryKey="true" Width="120"></GridColumn>
+                <GridColumn Field=@nameof(Order.CustomerID) HeaderText="Customer" Width="150"></GridColumn>
+                <GridColumn Field=@nameof(Order.Freight) HeaderText="Freight" Width="120"></GridColumn>
+            </GridColumns>
+        </SfGrid>
+    </ComponentUnderTest>
+</SfFixture>
+
+<SfFixture @ref="recordingFixture" TestAsync="TestRecordingAndStackLimit" Description="Undo and redo action recording and stack limits">
+    <ComponentUnderTest>
+        <SfGrid @ref="RecordingGrid" DataSource="Rows" AllowSelection="true">
+            <GridEditSettings AllowEditing="true" Mode="EditMode.Batch" EnableUndoRedo="true" UndoRedoLimit="2"></GridEditSettings>
+            <GridColumns>
+                <GridColumn Field=@nameof(Order.OrderID) HeaderText="Order ID" IsPrimaryKey="true" Width="120"></GridColumn>
+                <GridColumn Field=@nameof(Order.CustomerID) HeaderText="Customer" Width="150"></GridColumn>
+            </GridColumns>
+        </SfGrid>
+    </ComponentUnderTest>
+</SfFixture>
+
+<SfFixture @ref="batchFixture" TestAsync="TestBatchBufferingAndAtomicity" Description="Undo and redo paste and autofill batching">
+    <ComponentUnderTest>
+        <SfGrid @ref="BatchGrid" DataSource="Rows" AllowSelection="true">
+            <GridEditSettings AllowEditing="true" Mode="EditMode.Batch" EnableUndoRedo="true" UndoRedoLimit="10"></GridEditSettings>
+            <GridColumns>
+                <GridColumn Field=@nameof(Order.OrderID) HeaderText="Order ID" IsPrimaryKey="true" Width="120"></GridColumn>
+                <GridColumn Field=@nameof(Order.CustomerID) HeaderText="Customer" Width="150"></GridColumn>
+            </GridColumns>
+        </SfGrid>
+    </ComponentUnderTest>
+</SfFixture>
+
+<SfFixture @ref="workflowFixture" TestAsync="TestPublicUndoRedoWorkflow" Description="Undo and redo public workflow APIs">
+    <ComponentUnderTest>
+        <SfGrid @ref="WorkflowGrid" DataSource="Rows" AllowSelection="true">
+            <GridEditSettings AllowEditing="true" Mode="EditMode.Batch" EnableUndoRedo="true" UndoRedoLimit="10"></GridEditSettings>
+            <GridColumns>
+                <GridColumn Field=@nameof(Order.OrderID) HeaderText="Order ID" IsPrimaryKey="true" Width="120"></GridColumn>
+                <GridColumn Field=@nameof(Order.CustomerID) HeaderText="Customer" Width="150"></GridColumn>
+            </GridColumns>
+        </SfGrid>
+    </ComponentUnderTest>
+</SfFixture>
+
+<SfFixture @ref="eventFixture" TestAsync="TestPublicEventsForAllActionTypes" Description="Undo and redo events for every action type">
+    <ComponentUnderTest>
+        <SfGrid @ref="EventGrid" DataSource="Rows" AllowSelection="true">
+            <GridEditSettings AllowEditing="true" Mode="EditMode.Batch" EnableUndoRedo="true" UndoRedoLimit="10"></GridEditSettings>
+            <GridEvents OnUndo="BeforeUndo" OnUndoCompleted="AfterUndo" OnRedo="BeforeRedo" OnRedoCompleted="AfterRedo" TValue="Order"></GridEvents>
+            <GridColumns>
+                <GridColumn Field=@nameof(Order.OrderID) HeaderText="Order ID" IsPrimaryKey="true" Width="120"></GridColumn>
+                <GridColumn Field=@nameof(Order.CustomerID) HeaderText="Customer" Width="150"></GridColumn>
+            </GridColumns>
+        </SfGrid>
+    </ComponentUnderTest>
+</SfFixture>
+
+<SfFixture @ref="defaultEnumFixture" TestAsync="TestDefaultActionTypeIsNone" Description="Default-constructed UndoRedoAction reports ActionType == None and is a no-op in the dispatcher">
+    <ComponentUnderTest>
+        <SfGrid @ref="DefaultEnumGrid" DataSource="Rows" AllowSelection="true">
+            <GridEditSettings AllowAdding="true" AllowDeleting="true" AllowEditing="true" Mode="EditMode.Batch" EnableUndoRedo="true" UndoRedoLimit="5"></GridEditSettings>
+            <GridColumns>
+                <GridColumn Field=@nameof(Order.OrderID) HeaderText="Order ID" IsPrimaryKey="true" Width="120"></GridColumn>
+                <GridColumn Field=@nameof(Order.CustomerID) HeaderText="Customer" Width="150"></GridColumn>
+            </GridColumns>
+        </SfGrid>
+    </ComponentUnderTest>
+</SfFixture>
+
+<SfFixture @ref="recordOrBufferFixture" TestAsync="TestRecordOrBufferCellChangeAndUpdateRowAdd" Description="RecordOrBufferCellChange, IsActiveBatchPending, ActiveBatchType, and UpdateLastRowAddAction coverage">
+    <ComponentUnderTest>
+        <SfGrid @ref="RecordOrBufferGrid" DataSource="Rows" AllowSelection="true">
+            <GridEditSettings AllowAdding="true" AllowDeleting="true" AllowEditing="true" Mode="EditMode.Batch" EnableUndoRedo="true" UndoRedoLimit="5"></GridEditSettings>
+            <GridColumns>
+                <GridColumn Field=@nameof(Order.OrderID) HeaderText="Order ID" IsPrimaryKey="true" Width="120"></GridColumn>
+                <GridColumn Field=@nameof(Order.CustomerID) HeaderText="Customer" Width="150"></GridColumn>
+            </GridColumns>
+        </SfGrid>
+    </ComponentUnderTest>
+</SfFixture>
+
+@code {
+    private SfFixture fixture { get; set; }
+    private SfFixture recordingFixture { get; set; }
+    private SfFixture batchFixture { get; set; }
+    private SfFixture workflowFixture { get; set; }
+    private SfFixture eventFixture { get; set; }
+    private SfFixture recordOrBufferFixture { get; set; }
+    private SfFixture defaultEnumFixture { get; set; }
+    private SfGrid<Order> Grid { get; set; }
+    private SfGrid<Order> RecordingGrid { get; set; }
+    private SfGrid<Order> BatchGrid { get; set; }
+    private SfGrid<Order> WorkflowGrid { get; set; }
+    private SfGrid<Order> EventGrid { get; set; }
+    private SfGrid<Order> RecordOrBufferGrid { get; set; }
+    private SfGrid<Order> DefaultEnumGrid { get; set; }
+    private List<Order> Rows { get; } = new List<Order>
+    {
+        new Order { OrderID = 1, CustomerID = "Initial", Freight = 10 },
+        new Order { OrderID = 2, CustomerID = "Second", Freight = 20 }
+    };
+    private List<string> EventOrder { get; } = new List<string>();
+
+    public Task TestInitialStateAndGuards(Fixture testFixture)
+    {
+        var cut = testFixture.GetComponentUnderTest<SfGrid<Order>>();
+        var manager = cut.Instance.UndoRedoManager;
+
+        Assert.NotNull(manager);
+        Assert.True(manager.IsEnabled);
+        Assert.True(manager.ShouldRecordUndoRedoAction(EditMode.Normal));
+
+        manager.RecordCellEditAction(0, 1, nameof(Order.CustomerID), "Initial", "Changed", cut.Instance.Columns[1]);
+        Assert.Equal(1, manager.UndoCount);
+
+        manager.Disable();
+        Assert.False(manager.IsEnabled);
+        manager.RecordRowAddAction(new Order { OrderID = 3 }, 2, NewRowPosition.Bottom);
+        Assert.Equal(0, manager.UndoCount);
+        manager.Enable(2);
+        Assert.True(manager.IsEnabled);
+        Assert.Equal(0, manager.UndoCount);
+        return Task.CompletedTask;
+    }
+
+    
+
+    public async Task TestBatchBufferingAndAtomicity(Fixture testFixture)
+    {
+        var cut = testFixture.GetComponentUnderTest<SfGrid<Order>>();
+        var manager = cut.Instance.UndoRedoManager;
+        var column = cut.Instance.Columns[1];
+
+        manager.BeginBatch(UndoRedoActionType.Paste);
+        Assert.True(manager.IsBatchActive);
+        Assert.Equal(UndoRedoActionType.Paste, manager.ActiveBatchType);
+        manager.BufferCellChange(0, 1, nameof(Order.CustomerID), "Initial", "Pasted", column);
+        manager.BufferCellChange(1, 1, null, "Second", "Ignored", column);
+        manager.BufferCellChange(1, 1, nameof(Order.CustomerID), "Second", "Pasted", column);
+        manager.BufferCellChange(1, 1, nameof(Order.CustomerID), "Pasted", "Pasted", column);
+        manager.CommitBatch();
+
+        Assert.False(manager.IsBatchActive);
+        Assert.Equal(1, manager.UndoCount);
+        Assert.Equal(UndoRedoActionType.Paste, manager.PeekUndo().ActionType);
+        Assert.Equal(2, manager.PeekUndo().PreviousValues.Count);
+
+        manager.BeginBatch(UndoRedoActionType.AutoFill);
+        manager.BufferCellChange(0, 1, nameof(Order.CustomerID), "Initial", "Filled", column);
+        manager.DiscardBatch();
+        Assert.False(manager.IsBatchActive);
+        Assert.Equal(1, manager.UndoCount);
+
+        var initialRowCount = cut.Instance.Rows.Count;
+        var rowAddAction = new UndoRedoAction<Order>
+        {
+            ActionType = UndoRedoActionType.RowAdd,
+            RowData = new Order { OrderID = 3, CustomerID = "Added" },
+            RowIndex = 0,
+            RowPosition = NewRowPosition.Top
+        };
+        await manager.ApplyUndoRedoAction(rowAddAction, true);
+        Assert.Equal(initialRowCount + 1, cut.Instance.Rows.Count);
+        await manager.ApplyUndoRedoAction(rowAddAction, false);
+        Assert.Equal(initialRowCount, cut.Instance.Rows.Count);
+
+        var rowDeleteAction = new UndoRedoAction<Order>
+        {
+            ActionType = UndoRedoActionType.RowDelete,
+            RowData = Rows[0],
+            RowIndex = 0
+        };
+        await manager.ApplyUndoRedoAction(rowDeleteAction, true);
+        Assert.True(cut.Instance.Rows[0].Action == EditAction.Deleted);
+        await manager.ApplyUndoRedoAction(rowDeleteAction, false);
+        Assert.NotEqual(EditAction.Deleted, cut.Instance.Rows[0].Action);
+    }
+
+    public async Task TestPublicUndoRedoWorkflow(Fixture testFixture)
+    {
+        var cut = testFixture.GetComponentUnderTest<SfGrid<Order>>();
+        var manager = cut.Instance.UndoRedoManager;
+        manager.RecordCellEditAction(0, 1, nameof(Order.CustomerID), "Initial", "Changed", cut.Instance.Columns[1]);
+        manager.RecordCellEditAction(1, 1, nameof(Order.CustomerID), "Second", "Updated", cut.Instance.Columns[1]);
+
+        await cut.Instance.UndoAsync();
+
+        EventOrder.Clear();
+        await cut.Instance.RedoAsync();
+        await cut.Instance.UndoAllAsync();
+        await cut.Instance.RedoAllAsync();
+        await cut.Instance.ClearUndoRedoAsync();
+
+    }
+    public Task TestRecordingAndStackLimit(Fixture testFixture)
+    {
+        var cut = testFixture.GetComponentUnderTest<SfGrid<Order>>();
+        var manager = cut.Instance.UndoRedoManager;
+        var column = cut.Instance.Columns[1];
+
+        manager.RecordCellEditAction(0, 1, nameof(Order.CustomerID), "Initial", "First", column);
+        manager.RecordCellEditAction(0, 1, nameof(Order.CustomerID), "First", "Second", column);
+        manager.RecordCellEditAction(0, 1, nameof(Order.CustomerID), "Second", "Third", column);
+
+        Assert.Equal(2, manager.UndoCount);
+        Assert.Equal(UndoRedoActionType.CellEdit, manager.PeekUndo().ActionType);
+        Assert.Equal(3, manager.PeekUndo().SequenceNumber);
+
+        manager.UndoAsync().GetAwaiter().GetResult();
+        Assert.Equal(1, manager.RedoCount);
+        manager.RecordRowDeleteAction(Rows[0], 0);
+        Assert.Equal(0, manager.RedoCount);
+        manager.ClearRedoStack();
+        Assert.Equal(0, manager.RedoCount);
+        return Task.CompletedTask;
+    }
+    public async Task TestPublicEventsForAllActionTypes(Fixture testFixture)
+    {
+        var cut = testFixture.GetComponentUnderTest<SfGrid<Order>>();
+        var manager = cut.Instance.UndoRedoManager;
+        var column = cut.Instance.Columns[1];
+        var rowData = new Order { OrderID = 3, CustomerID = "Added" };
+
+        EventOrder.Clear();
+        manager.RecordCellEditAction(0, 1, nameof(Order.CustomerID), "Initial", "Changed", column);
+        manager.RecordRowAddAction(rowData, -1, NewRowPosition.Bottom);
+        manager.RecordRowDeleteAction(rowData, -1);
+        manager.RecordAction(new UndoRedoAction<Order>
+        {
+            ActionType = UndoRedoActionType.Paste,
+            PreviousValues = new List<CellChange<Order>>
+            {
+                new CellChange<Order> { RowIndex = 0, ColumnIndex = 1, FieldName = nameof(Order.CustomerID), OldValue = "Initial", NewValue = "Pasted", Column = column }
+            }
+        });
+        manager.RecordAction(new UndoRedoAction<Order>
+        {
+            ActionType = UndoRedoActionType.AutoFill,
+            PreviousValues = new List<CellChange<Order>>
+            {
+                new CellChange<Order> { RowIndex = 1, ColumnIndex = 1, FieldName = nameof(Order.CustomerID), OldValue = "Second", NewValue = "Filled", Column = column }
+            }
+        });
+
+        for (var index = 0; index < 5; index++)
+        {
+            await cut.Instance.UndoAsync();
+        }
+
+        Assert.Equal(new[]
+        {
+            "before-AutoFill", "after-AutoFill",
+            "before-Paste", "after-Paste",
+            "before-RowDelete", "after-RowDelete",
+            "before-RowAdd", "after-RowAdd",
+            "before-CellEdit", "after-CellEdit"
+        }, EventOrder);
+
+        EventOrder.Clear();
+        for (var index = 0; index < 5; index++)
+        {
+            await cut.Instance.RedoAsync();
+        }
+
+        Assert.Equal(new[]
+        {
+            "before-redo-CellEdit", "after-redo-CellEdit",
+            "before-redo-RowAdd", "after-redo-RowAdd",
+            "before-redo-RowDelete", "after-redo-RowDelete",
+            "before-redo-Paste", "after-redo-Paste",
+            "before-redo-AutoFill", "after-redo-AutoFill"
+        }, EventOrder);
+    }
+
+    private Task BeforeUndo(OnUndoEventArgs<Order> args)
+    {
+        EventOrder.Add("before-" + args.ActionType);
+        return Task.CompletedTask;
+    }
+
+    private Task AfterUndo(OnUndoCompletedEventArgs<Order> args)
+    {
+        EventOrder.Add("after-" + args.ActionType);
+        return Task.CompletedTask;
+    }
+
+    private Task BeforeRedo(OnRedoEventArgs<Order> args)
+    {
+        EventOrder.Add("before-redo-" + args.ActionType);
+        return Task.CompletedTask;
+    }
+
+    private Task AfterRedo(OnRedoCompletedEventArgs<Order> args)
+    {
+        EventOrder.Add("after-redo-" + args.ActionType);
+        return Task.CompletedTask;
+    }
+
+    public Task TestRecordOrBufferCellChangeAndUpdateRowAdd(Fixture testFixture)
+    {
+        var cut = testFixture.GetComponentUnderTest<SfGrid<Order>>();
+        var manager = cut.Instance.UndoRedoManager;
+        var column = cut.Instance.Columns[1];
+
+        // ---------- IsActiveBatchPending / ActiveBatchType ----------
+
+        // Initially no batch is pending
+        Assert.False(manager.IsActiveBatchPending);
+        Assert.Equal(UndoRedoActionType.None, manager.ActiveBatchType);
+
+        // Begin a Paste batch -> pending, type reported correctly
+        manager.BeginBatch(UndoRedoActionType.Paste);
+        Assert.True(manager.IsActiveBatchPending);
+        Assert.Equal(UndoRedoActionType.Paste, manager.ActiveBatchType);
+
+        // Begin an AutoFill batch -> pending, type switches correctly
+        manager.BeginBatch(UndoRedoActionType.AutoFill);
+        Assert.True(manager.IsActiveBatchPending);
+        Assert.Equal(UndoRedoActionType.AutoFill, manager.ActiveBatchType);
+
+        // Discard the AutoFill batch -> no longer pending, type resets to None
+        manager.DiscardBatch();
+        Assert.False(manager.IsActiveBatchPending);
+        Assert.Equal(UndoRedoActionType.None, manager.ActiveBatchType);
+
+        // ---------- RecordOrBufferCellChange: outside batch (immediate record) ----------
+
+        // When no batch is active, RecordOrBufferCellChange should record a CellEdit
+        // action when the old and new values differ.
+        manager.RecordOrBufferCellChange(0, 1, nameof(Order.CustomerID), "Initial", "Changed", column);
+        Assert.Equal(1, manager.UndoCount);
+        Assert.Equal(UndoRedoActionType.CellEdit, manager.PeekUndo().ActionType);
+        Assert.Equal("Initial", manager.PeekUndo().CellChange.OldValue);
+        Assert.Equal("Changed", manager.PeekUndo().CellChange.NewValue);
+
+        // When old and new values are equal, RecordOrBufferCellChange should be a no-op
+        // (outside batch) and not push another action to the stack.
+        manager.RecordOrBufferCellChange(0, 1, nameof(Order.CustomerID), "Same", "Same", column);
+        Assert.Equal(1, manager.UndoCount);
+
+        // ---------- RecordOrBufferCellChange: inside batch (buffered, not recorded yet) ----------
+
+        manager.BeginBatch(UndoRedoActionType.Paste);
+        Assert.True(manager.IsActiveBatchPending);
+
+        // Buffered change should NOT increase UndoCount yet (it goes into the active batch).
+        manager.RecordOrBufferCellChange(0, 1, nameof(Order.CustomerID), "Initial", "Pasted", column);
+        manager.RecordOrBufferCellChange(1, 1, nameof(Order.CustomerID), "Second", "Pasted", column);
+        Assert.Equal(1, manager.UndoCount); // still only the immediate CellEdit from above
+
+        // Committing the batch pushes a single Paste action containing the two buffered changes.
+        manager.CommitBatch();
+        Assert.False(manager.IsActiveBatchPending);
+        Assert.Equal(2, manager.UndoCount);
+        Assert.Equal(UndoRedoActionType.Paste, manager.PeekUndo().ActionType);
+        Assert.Equal(2, manager.PeekUndo().PreviousValues.Count);
+
+        // ---------- UpdateLastRowAddAction: happy path ----------
+
+        // No RowAdd action present yet -> should return false.
+        var nonMatchingUpdate = manager.UpdateLastRowAddAction(0, new Order { OrderID = 99, CustomerID = "X" });
+        Assert.False(nonMatchingUpdate);
+        Assert.Equal(2, manager.UndoCount);
+
+        // Record a RowAdd action at index 1.
+        var addedRow = new Order { OrderID = 100, CustomerID = "Added" };
+        manager.RecordRowAddAction(addedRow, 1, NewRowPosition.Bottom);
+        Assert.Equal(3, manager.UndoCount);
+        Assert.Equal(UndoRedoActionType.RowAdd, manager.PeekUndo().ActionType);
+
+        // Update with a matching row index should return true and mutate the RowData
+        // on the most recent RowAdd action.
+        var updatedRow = new Order { OrderID = 100, CustomerID = "Added-Edited" };
+        var wasUpdated = manager.UpdateLastRowAddAction(1, updatedRow);
+        Assert.True(wasUpdated);
+        Assert.Equal(3, manager.UndoCount);
+        Assert.Same(updatedRow, manager.PeekUndo().RowData);
+        Assert.Equal("Added-Edited", manager.PeekUndo().RowData.CustomerID);
+
+        // ---------- UpdateLastRowAddAction: when manager is disabled ----------
+
+        manager.Disable();
+        var disabledUpdate = manager.UpdateLastRowAddAction(1, new Order { OrderID = 100, CustomerID = "Disabled" });
+        Assert.False(disabledUpdate);
+        manager.Enable(5);
+
+        return Task.CompletedTask;
+    }
+
+    /// <summary>
+    /// Regression test for PLO review comment #13:
+    /// "ActionType defaults to CellEdit (enum 0), so a default-constructed args looks
+    /// like a genuine cell edit. Consider a None = 0 member."
+    /// Verifies the fix: a default-constructed <see cref="UndoRedoAction{T}"/>
+    /// reports <see cref="UndoRedoActionType.None"/>, supplies no payload, and is
+    /// silently ignored by the dispatcher.
+    /// </summary>
+    public async Task TestDefaultActionTypeIsNone(Fixture testFixture)
+    {
+        var cut = testFixture.GetComponentUnderTest<SfGrid<Order>>();
+        var manager = cut.Instance.UndoRedoManager;
+
+        // ---------- Default-constructed UndoRedoAction ----------
+        var defaultAction = new UndoRedoAction<Order>();
+
+        Assert.Equal(UndoRedoActionType.None, defaultAction.ActionType);
+        Assert.Null(defaultAction.CellChange);
+        Assert.Null(defaultAction.RowData);
+        Assert.Null(defaultAction.PreviousValues);
+        Assert.Equal(0, defaultAction.SequenceNumber);
+        Assert.Equal(0, manager.UndoCount);
+
+        // ---------- Dispatcher treats None as a no-op (does not throw, does not record) ----------
+        await manager.ApplyUndoRedoAction(defaultAction, isRedoAction: false);
+        Assert.Equal(0, manager.UndoCount);
+        Assert.Equal(0, manager.RedoCount);
+
+        await manager.ApplyUndoRedoAction(defaultAction, isRedoAction: true);
+        Assert.Equal(0, manager.UndoCount);
+        Assert.Equal(0, manager.RedoCount);
+
+        // ---------- Default event args reports None ----------
+        var undoArgs = new OnUndoEventArgs<Order>();
+        Assert.Equal(UndoRedoActionType.None, undoArgs.ActionType);
+
+        var redoArgs = new OnRedoEventArgs<Order>();
+        Assert.Equal(UndoRedoActionType.None, redoArgs.ActionType);
+
+        // ---------- Enum members are renumbered with None = 0 ----------
+        Assert.Equal(0, (int)UndoRedoActionType.None);
+        Assert.Equal(1, (int)UndoRedoActionType.CellEdit);
+        Assert.Equal(2, (int)UndoRedoActionType.RowAdd);
+        Assert.Equal(3, (int)UndoRedoActionType.RowDelete);
+        Assert.Equal(4, (int)UndoRedoActionType.Paste);
+        Assert.Equal(5, (int)UndoRedoActionType.AutoFill);
+    }
+}

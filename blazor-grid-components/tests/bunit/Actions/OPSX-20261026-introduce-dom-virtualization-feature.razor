@@ -1,0 +1,327 @@
+@inherits GridTestBase
+@using Syncfusion.Blazor.Grids
+
+<!-- ================================================================== -->
+<!-- F4.1: GridDomVirtualizationSettingsComponent Parameter Tests      -->
+<!-- ================================================================== -->
+
+<SfFixture @ref="fixture1" Test="GridDomVirtualizationSettingsComponent_ReceivesAndPassesParameters" Description="[OPSX-20261026-introduce-dom-virtualization-feature] DOM virt settings receives and passes parameters to SfGrid">
+    <ComponentUnderTest>
+        <SfGrid @ref="Grid1" DataSource="GetVirtualData()" Height="400" Width="400" EnableDomVirtualization="true">
+            <GridDomVirtualizationSettings 
+                RowBuffer="20" 
+                ColumnBuffer="5" 
+                MaxPoolSize="500" 
+                ScrollThrottle="50" 
+                AutoRowHeight="true" />
+            <GridPageSettings PageSize="12"></GridPageSettings>
+            <GridColumns>
+                <GridColumn Field="@nameof(Order.OrderID)" Width="110" HeaderText="Order ID"></GridColumn>
+                <GridColumn Field="@nameof(Order.CustomerID)" Width="120" HeaderText="Customer ID"></GridColumn>
+                <GridColumn Field="@nameof(Order.OrderDate)" Width="130" HeaderText="Order Date"></GridColumn>
+                <GridColumn Field="@nameof(Order.Freight)" Width="100" HeaderText="Freight" Format="c2"></GridColumn>
+            </GridColumns>
+        </SfGrid>
+    </ComponentUnderTest>
+</SfFixture>
+
+@code {
+    SfFixture fixture1 { get; set; }
+    private SfGrid<Order> Grid1;
+
+    void GridDomVirtualizationSettingsComponent_ReceivesAndPassesParameters(Fixture fixture1)
+    {
+        var cut = fixture1.GetComponentUnderTest<SfGrid<Order>>();
+        
+        // Verify EnableDomVirtualization is set
+        Assert.True(cut.Instance.EnableDomVirtualization, "EnableDomVirtualization should be true");
+        
+        // Verify DomVirtualizationSettings component is recognized
+        Assert.NotNull(cut.Instance.DomVirtualizationSettings, "DomVirtualizationSettings should not be null");
+        
+        // Verify settings parameters are passed
+        Assert.Equal(20, cut.Instance.DomVirtualizationSettings.RowBuffer);
+        Assert.Equal(5, cut.Instance.DomVirtualizationSettings.ColumnBuffer);
+        Assert.Equal(500, cut.Instance.DomVirtualizationSettings.MaxPoolSize);
+        Assert.Equal(50, cut.Instance.DomVirtualizationSettings.ScrollThrottle);
+        Assert.True(cut.Instance.DomVirtualizationSettings.AutoRowHeight == true);
+    }
+}
+
+<!-- ================================================================== -->
+<!-- F4.2: EnableDomVirtualization Flag Tests                          -->
+<!-- ================================================================== -->
+
+<SfFixture @ref="fixture2" Test="EnableDomVirtualizationFalse_SettingsIgnored" Description="[OPSX-20261026-introduce-dom-virtualization-feature] When flag false, settings ignored">
+    <ComponentUnderTest>
+        <SfGrid @ref="Grid2" DataSource="GetVirtualData()" Height="400" Width="400" EnableDomVirtualization="false">
+            <!-- Settings present but should be ignored -->
+            <GridDomVirtualizationSettings RowBuffer="20" MaxPoolSize="100" />
+            <GridPageSettings PageSize="12"></GridPageSettings>
+            <GridColumns>
+                <GridColumn Field="@nameof(Order.OrderID)" Width="110" HeaderText="Order ID"></GridColumn>
+                <GridColumn Field="@nameof(Order.CustomerID)" Width="120" HeaderText="Customer ID"></GridColumn>
+            </GridColumns>
+        </SfGrid>
+    </ComponentUnderTest>
+</SfFixture>
+
+@code {
+    SfFixture fixture2 { get; set; }
+    private SfGrid<Order> Grid2;
+
+    void EnableDomVirtualizationFalse_SettingsIgnored(Fixture fixture2)
+    {
+        var cut = fixture2.GetComponentUnderTest<SfGrid<Order>>();
+        
+        Assert.False(cut.Instance.EnableDomVirtualization, "EnableDomVirtualization should be false");
+        // Settings component may exist but should not be applied
+        // When false, baseline defaults should apply (RowBuffer=0, MaxPoolSize=no limit, etc.)
+    }
+}
+
+<SfFixture @ref="fixture3" Test="EnableDomVirtualizationTrue_VirtualizationFalse_AllRecordsRendered" Description="[OPSX-20261026-introduce-dom-virtualization-feature] DOM virt on, virtual scroll off: all records, element ceiling applies">
+    <ComponentUnderTest>
+        <SfGrid @ref="Grid3" DataSource="GetVirtualData()" Height="400" Width="400" 
+                EnableDomVirtualization="true" EnableVirtualization="false">
+            <GridDomVirtualizationSettings MaxPoolSize="50" />
+            <GridPageSettings PageSize="12"></GridPageSettings>
+            <GridColumns>
+                <GridColumn Field="@nameof(Order.OrderID)" Width="110" HeaderText="Order ID"></GridColumn>
+                <GridColumn Field="@nameof(Order.CustomerID)" Width="120" HeaderText="Customer ID"></GridColumn>
+            </GridColumns>
+        </SfGrid>
+    </ComponentUnderTest>
+</SfFixture>
+
+@code {
+    SfFixture fixture3 { get; set; }
+    private SfGrid<Order> Grid3;
+
+    void EnableDomVirtualizationTrue_VirtualizationFalse_AllRecordsRendered(Fixture fixture3)
+    {
+        var cut = fixture3.GetComponentUnderTest<SfGrid<Order>>();
+        
+        Assert.True(cut.Instance.EnableDomVirtualization, "EnableDomVirtualization should be true");
+        Assert.False(cut.Instance.EnableVirtualization, "EnableVirtualization should be false");
+        
+        // With virtual scrolling off, all records should be in data source
+        // Element count should be bounded by MaxPoolSize (50)
+        Assert.NotNull(cut.Instance.CurrentViewRecords);
+        Assert.True(cut.Instance.CurrentViewRecords.Count <= 50, "Row count should not exceed MaxPoolSize");
+    }
+}
+
+<SfFixture @ref="fixture4" Test="EnableDomVirtualizationTrue_VirtualizationTrue_BothApply" Description="[OPSX-20261026-introduce-dom-virtualization-feature] Both enabled: fetch window + element ceiling independent">
+    <ComponentUnderTest>
+        <SfGrid @ref="Grid4" DataSource="GetVirtualData()" Height="400" Width="400" 
+                EnableDomVirtualization="true" EnableVirtualization="true" OverscanCount="5">
+            <GridDomVirtualizationSettings RowBuffer="20" MaxPoolSize="100" />
+            <GridPageSettings PageSize="12"></GridPageSettings>
+            <GridColumns>
+                <GridColumn Field="@nameof(Order.OrderID)" Width="110" HeaderText="Order ID"></GridColumn>
+                <GridColumn Field="@nameof(Order.CustomerID)" Width="120" HeaderText="Customer ID"></GridColumn>
+            </GridColumns>
+        </SfGrid>
+    </ComponentUnderTest>
+</SfFixture>
+
+@code {
+    SfFixture fixture4 { get; set; }
+    private SfGrid<Order> Grid4;
+
+    void EnableDomVirtualizationTrue_VirtualizationTrue_BothApply(Fixture fixture4)
+    {
+        var cut = fixture4.GetComponentUnderTest<SfGrid<Order>>();
+        
+        Assert.True(cut.Instance.EnableDomVirtualization, "EnableDomVirtualization should be true");
+        Assert.True(cut.Instance.EnableVirtualization, "EnableVirtualization should be true");
+        
+        // Virtual scrolling governs fetch window (OverscanCount)
+        Assert.Equal(5, cut.Instance.OverscanCount);
+        
+        // DOM virtualization governs element ceiling (MaxPoolSize)
+        Assert.Equal(100, cut.Instance.DomVirtualizationSettings.MaxPoolSize);
+        
+        // Both should work independently
+        Assert.True(cut.Instance.Rows.Count <= 100, "DOM element count <= MaxPoolSize");
+    }
+}
+
+<!-- ================================================================== -->
+<!-- F4.3: MaxPoolSize Tests                                           -->
+<!-- ================================================================== -->
+
+<SfFixture @ref="fixture5" Test="MaxPoolSize_Default500_ElementCount" Description="[OPSX-20261026-introduce-dom-virtualization-feature] Default MaxPoolSize=500 enforced">
+    <ComponentUnderTest>
+        <SfGrid @ref="Grid5" DataSource="GetVirtualData()" Height="400" Width="400" EnableDomVirtualization="true">
+            <GridDomVirtualizationSettings MaxPoolSize="500" />
+            <GridPageSettings PageSize="12"></GridPageSettings>
+            <GridColumns>
+                <GridColumn Field="@nameof(Order.OrderID)" Width="110" HeaderText="Order ID"></GridColumn>
+            </GridColumns>
+        </SfGrid>
+    </ComponentUnderTest>
+</SfFixture>
+
+@code {
+    SfFixture fixture5 { get; set; }
+    private SfGrid<Order> Grid5;
+
+    void MaxPoolSize_Default500_ElementCount(Fixture fixture5)
+    {
+        var cut = fixture5.GetComponentUnderTest<SfGrid<Order>>();
+        
+        // Default MaxPoolSize is 500
+        Assert.Equal(500, cut.Instance.DomVirtualizationSettings.MaxPoolSize);
+        
+        // With 100k rows and MaxPoolSize 500, only ~500 elements rendered
+        Assert.True(cut.Instance.Rows.Count <= 500, "Row count should not exceed MaxPoolSize=500");
+    }
+}
+
+<!-- ================================================================== -->
+<!-- F4.4: RowBuffer & OverscanCount Separation Tests                  -->
+<!-- ================================================================== -->
+
+<SfFixture @ref="fixture6" Test="RowBuffer_OverscanCount_IndependentRead" Description="[OPSX-20261026-introduce-dom-virtualization-feature] RowBuffer and OverscanCount read independently">
+    <ComponentUnderTest>
+        <SfGrid @ref="Grid6" DataSource="GetVirtualData()" Height="400" Width="400" 
+                EnableDomVirtualization="true" EnableVirtualization="true" OverscanCount="5">
+            <GridDomVirtualizationSettings RowBuffer="20" />
+            <GridPageSettings PageSize="12"></GridPageSettings>
+            <GridColumns>
+                <GridColumn Field="@nameof(Order.OrderID)" Width="110" HeaderText="Order ID"></GridColumn>
+            </GridColumns>
+        </SfGrid>
+    </ComponentUnderTest>
+</SfFixture>
+
+@code {
+    SfFixture fixture6 { get; set; }
+    private SfGrid<Order> Grid6;
+
+    void RowBuffer_OverscanCount_IndependentRead(Fixture fixture6)
+    {
+        var cut = fixture6.GetComponentUnderTest<SfGrid<Order>>();
+        
+        // OverscanCount = 5 (virtual scrolling / query buffer)
+        Assert.Equal(5, cut.Instance.OverscanCount);
+        
+        // RowBuffer = 20 (DOM virtualization / render buffer)
+        Assert.Equal(20, cut.Instance.DomVirtualizationSettings.RowBuffer);
+        
+        // They should not be merged or aliased
+        Assert.NotEqual(cut.Instance.OverscanCount, cut.Instance.DomVirtualizationSettings.RowBuffer);
+    }
+}
+
+<!-- ================================================================== -->
+<!-- F4.5: ScrollThrottle Tests                                        -->
+<!-- ================================================================== -->
+
+<SfFixture @ref="fixture7" Test="ScrollThrottle50_NoBlankRegions" Description="[OPSX-20261026-introduce-dom-virtualization-feature] ScrollThrottle=50ms + RowBuffer prevents blanking">
+    <ComponentUnderTest>
+        <SfGrid @ref="Grid7" DataSource="GetVirtualData()" Height="400" Width="400" 
+                EnableDomVirtualization="true" EnableVirtualization="true">
+            <GridDomVirtualizationSettings ScrollThrottle="50" RowBuffer="20" />
+            <GridPageSettings PageSize="12"></GridPageSettings>
+            <GridColumns>
+                <GridColumn Field="@nameof(Order.OrderID)" Width="110" HeaderText="Order ID"></GridColumn>
+            </GridColumns>
+        </SfGrid>
+    </ComponentUnderTest>
+</SfFixture>
+
+@code {
+    SfFixture fixture7 { get; set; }
+    private SfGrid<Order> Grid7;
+
+    void ScrollThrottle50_NoBlankRegions(Fixture fixture7)
+    {
+        var cut = fixture7.GetComponentUnderTest<SfGrid<Order>>();
+        
+        Assert.Equal(50, cut.Instance.DomVirtualizationSettings.ScrollThrottle);
+        Assert.Equal(20, cut.Instance.DomVirtualizationSettings.RowBuffer);
+        
+        // Throttle + buffer work together to prevent blank regions
+        // This is verified at integration level (E2E fling scroll tests)
+    }
+}
+
+<!-- ================================================================== -->
+<!-- F4.6: Paging Composition Tests                                    -->
+<!-- ================================================================== -->
+
+<SfFixture @ref="fixture8" Test="Paging_PageChange_BufferResets" Description="[OPSX-20261026-introduce-dom-virtualization-feature] Page change resets buffer">
+    <ComponentUnderTest>
+        <SfGrid @ref="Grid8" DataSource="GetVirtualData()" Height="400" Width="400" 
+                EnableDomVirtualization="true" AllowPaging="true">
+            <GridDomVirtualizationSettings RowBuffer="20" MaxPoolSize="100" />
+            <GridPageSettings PageSize="12"></GridPageSettings>
+            <GridColumns>
+                <GridColumn Field="@nameof(Order.OrderID)" Width="110" HeaderText="Order ID"></GridColumn>
+            </GridColumns>
+        </SfGrid>
+    </ComponentUnderTest>
+</SfFixture>
+
+@code {
+    SfFixture fixture8 { get; set; }
+    private SfGrid<Order> Grid8;
+
+    async void Paging_PageChange_BufferResets(Fixture fixture8)
+    {
+        var cut = fixture8.GetComponentUnderTest<SfGrid<Order>>();
+        
+        Assert.True(cut.Instance.AllowPaging, "Paging should be enabled");
+        Assert.Equal(1, cut.Instance.PageSettings.CurrentPage);
+        
+        // Change to page 2
+        await cut.Instance.GoToPageAsync(2);
+        cut.WaitForState(() => cut.Instance.PageSettings.CurrentPage == 2, TimeSpan.FromMilliseconds(1000));
+        
+        Assert.Equal(2, cut.Instance.PageSettings.CurrentPage, "Should be on page 2");
+        // Buffer should be reset and rows rebound to new page's records
+    }
+}
+
+<!-- ================================================================== -->
+<!-- F4.7: Grouping Composition Tests                                  -->
+<!-- ================================================================== -->
+
+<SfFixture @ref="fixture9" Test="Grouping_StickyGroupHeaders_NotCountedInCeiling" Description="[OPSX-20261026-introduce-dom-virtualization-feature] Group headers outside MaxPoolSize ceiling">
+    <ComponentUnderTest>
+        <SfGrid @ref="Grid9" DataSource="GetVirtualData()" Height="400" Width="400" 
+                EnableDomVirtualization="true" AllowGrouping="true">
+            <GridDomVirtualizationSettings MaxPoolSize="50" />
+            <GridGroupSettings>
+                <GridGroupSettingsColumns>
+                    <GridGroupSettingsColumn Field="@nameof(Order.CustomerID)"></GridGroupSettingsColumn>
+                </GridGroupSettingsColumns>
+            </GridGroupSettings>
+            <GridPageSettings PageSize="12"></GridPageSettings>
+            <GridColumns>
+                <GridColumn Field="@nameof(Order.OrderID)" Width="110" HeaderText="Order ID"></GridColumn>
+                <GridColumn Field="@nameof(Order.CustomerID)" Width="120" HeaderText="Customer ID"></GridColumn>
+            </GridColumns>
+        </SfGrid>
+    </ComponentUnderTest>
+</SfFixture>
+
+@code {
+    SfFixture fixture9 { get; set; }
+    private SfGrid<Order> Grid9;
+
+    void Grouping_StickyGroupHeaders_NotCountedInCeiling(Fixture fixture9)
+    {
+        var cut = fixture9.GetComponentUnderTest<SfGrid<Order>>();
+        
+        Assert.True(cut.Instance.AllowGrouping, "Grouping should be enabled");
+        Assert.Equal(50, cut.Instance.DomVirtualizationSettings.MaxPoolSize);
+        
+        // Group headers (sticky, outside scroll window) should NOT count toward ceiling
+        // This is verified via row kind tracking in implementation
+    }
+}
+

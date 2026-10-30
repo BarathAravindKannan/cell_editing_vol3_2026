@@ -1,0 +1,180 @@
+@inherits GridTestBase
+
+@using Syncfusion.Blazor.Grids
+@using Syncfusion.Blazor.Data
+@using System.Collections.Generic
+@using System.Linq
+
+<SfFixture @ref="fixture" TestAsync="EventDrivenGridRequest_ScenarioCoverage" Description="Covers event-driven data loading, paging, sorting, row updates, and delete hooks">
+    <ComponentUnderTest>
+        <SfGrid TValue="Order" ID="GenericDataRequestGrid" AllowSorting="true" AllowPaging="true" Toolbar="@(new List<string>() { "Add", "Delete", "Update", "Cancel" })" Height="400">
+            <GridEvents OnDataLoad="HandleDataRequest" RowUpdating="UpdateHandler" RowDeleting="DeleteHandler" TValue="Order"></GridEvents>
+            <GridEditSettings AllowEditing="true" AllowDeleting="true" AllowAdding="true" Mode="@EditMode.Normal"></GridEditSettings>
+            <GridPageSettings PageSize="20"></GridPageSettings>
+            <GridColumns>
+                <GridColumn Field=@nameof(Order.OrderID) HeaderText="Order ID" IsPrimaryKey="true" ValidationRules="@(new ValidationRules { Required = true, Number = true })" TextAlign="TextAlign.Right" Width="140"></GridColumn>
+                <GridColumn Field=@nameof(Order.CustomerName) HeaderText="Customer Name" ValidationRules="@(new ValidationRules { Required = true })" Width="180"></GridColumn>
+                <GridColumn Field=@nameof(Order.Freight) HeaderText="Freight" Format="C2" Width="150"></GridColumn>
+            </GridColumns>
+        </SfGrid>
+    </ComponentUnderTest>
+</SfFixture>
+
+@code {
+    private SfFixture? fixture { get; set; }
+    private readonly List<Order> orders = Enumerable.Range(1, 1000).Select(index => new Order
+    {
+        OrderID = 1000 + index,
+        CustomerName = new[] { "ALFKI", "ANANTR", "ANTON", "BLONP", "BOLID" }[index % 5],
+        Freight = 2.1 * index
+    }).ToList();
+
+    public async Task EventDrivenGridRequest_ScenarioCoverage(Fixture fixture)
+    {
+        var cut = fixture.GetComponentUnderTest<SfGrid<Order>>();
+        Assert.NotNull(cut);
+
+        var request = new DataRequest
+        {
+            Skip = 0,
+            Take = 20,
+            Sort = new List<SortRequest>
+            {
+                new SortRequest { Name = nameof(Order.Freight), Direction = "descending" }
+            }
+        };
+
+        var loadArgs = new GridLoadEventArgs<Order> { Request = request };
+        await HandleDataRequest(loadArgs);
+
+        Assert.Equal(1000, loadArgs.Count);
+        var currentPage = loadArgs.Result.Cast<Order>().ToList();
+        Assert.Equal(20, currentPage.Count);
+        Assert.Equal(2000, currentPage[0].OrderID);
+        Assert.True(currentPage.All(x => x.Freight <= currentPage[0].Freight));
+
+        var unsortedRequest = new DataRequest { Skip = 10, Take = 5 };
+        var unsortedArgs = new GridLoadEventArgs<Order> { Request = unsortedRequest };
+        await HandleDataRequest(unsortedArgs);
+
+        var pageWithoutSort = unsortedArgs.Result.Cast<Order>().ToList();
+        Assert.Equal(5, pageWithoutSort.Count);
+        Assert.Equal(1011, pageWithoutSort[0].OrderID);
+
+        var existing = orders.First(x => x.OrderID == 1001);
+        var edited = new Order { OrderID = 1001, CustomerName = "UPDATED", Freight = 9999 };
+        var updateArgs = new RowUpdatingEventArgs<Order>
+        {
+            Action = SaveActionType.Edited,
+            Data = edited,
+            PreviousData = existing,
+            Index = 0,
+            PrimaryKeys = new[] { nameof(Order.OrderID) },
+            PrimaryKeyValue = 1001
+        };
+
+        UpdateHandler(updateArgs);
+        var updated = orders.First(x => x.OrderID == 1001);
+        Assert.Equal("UPDATED", updated.CustomerName);
+        Assert.Equal(9999, updated.Freight);
+
+        var addArgs = new RowUpdatingEventArgs<Order>
+        {
+            Action = SaveActionType.Added,
+            Data = new Order { OrderID = 9999, CustomerName = "NEWUSER", Freight = 123.45 },
+            Index = 0,
+            PrimaryKeys = new[] { nameof(Order.OrderID) },
+            PrimaryKeyValue = 9999
+        };
+
+        var beforeAddCount = orders.Count;
+        UpdateHandler(addArgs);
+        Assert.Equal(beforeAddCount + 1, orders.Count);
+        Assert.Equal(9999, orders.First().OrderID);
+
+        var deleteArgs = new RowDeletingEventArgs<Order>
+        {
+            Datas = new List<Order> { orders.First() },
+            PrimaryKeys = new[] { nameof(Order.OrderID) }
+        };
+
+        DeleteHandler(deleteArgs);
+        Assert.Equal(beforeAddCount, orders.Count);
+    }
+
+    private async Task HandleDataRequest(GridLoadEventArgs<Order> args)
+    {
+        var result = ApplyDataOperations(orders, args.Request.Sort, args.Request.Skip, args.Request.Take);
+
+        args.Result = result.Result;
+        args.Count = result.Count;
+    }
+
+    private void UpdateHandler(RowUpdatingEventArgs<Order> args)
+    {
+        if (args.Action == SaveActionType.Edited)
+        {
+            var data = orders.FirstOrDefault(or => or.OrderID == (args.Data! as Order)!.OrderID);
+            if (data != null)
+            {
+                data.OrderID = (args.Data! as Order)!.OrderID;
+                data.CustomerName = (args.Data as Order)!.CustomerName;
+                data.Freight = (args.Data as Order)!.Freight;
+            }
+        }
+        else
+        {
+            orders.Insert(args.Index, args.Data!);
+        }
+    }
+
+    private void DeleteHandler(RowDeletingEventArgs<Order> args)
+    {
+        if (args.Datas == null || args.Datas.Count == 0)
+        {
+            return;
+        }
+
+        foreach (var item in args.Datas)
+        {
+            var existing = orders.FirstOrDefault(order => order.OrderID == item.OrderID);
+            if (existing != null)
+            {
+                orders.Remove(existing);
+            }
+        }
+    }
+
+    private static (IEnumerable<T> Result, int Count) ApplyDataOperations<T>(
+        IEnumerable<T> source,
+        List<SortRequest>? sorted,
+        int skip,
+        int take)
+    {
+        var sort = sorted?.FirstOrDefault();
+
+        if (sort != null)
+        {
+            var property = typeof(T).GetProperty(sort.Name);
+
+            if (property != null)
+            {
+                source = sort.Direction == "ascending"
+                    ? source.OrderBy(x => property.GetValue(x))
+                    : source.OrderByDescending(x => property.GetValue(x));
+            }
+        }
+
+        var count = source.Count();
+        source = source.Skip(skip).Take(take);
+
+        return (Result: source, Count: count);
+    }
+
+    private sealed class Order
+    {
+        public int OrderID { get; set; }
+        public string CustomerName { get; set; } = string.Empty;
+        public double Freight { get; set; }
+    }
+}

@@ -1,0 +1,113 @@
+@namespace Syncfusion.Blazor.Grids.Internal
+@using System.Globalization
+@typeparam TValue
+@implements IDisposable
+
+@if (Grid?.FindHightLightModule?.RenderFindInput == true)
+{
+    <div class="e-find-input-container" role="group" aria-label="@GetFindLabel()">
+        <!-- Search Bar Wrapper -->
+        <div class="e-find-bar-wrapper @InputFocus">
+            <!-- Find Input Field -->
+            <input id="@GetFindInputId()"
+            type="text"
+            @ref="_findInputRef"
+            class="e-find-input"
+            placeholder="@GetFindPlaceholderText()"
+            value="@Grid?.FindHightLightModule?.SearchHighlightKey"
+            @oninput="@OnFindKeyChanged"
+            @onkeydown="@OnKeyDown"
+            @onfocus="@OnFocus"
+            @onblur="@OnBlur"
+            role="searchbox"
+            aria-label="@GetFindLabel()"
+            aria-describedby="@GetFindStatusId()"
+            aria-controls="@Grid?.ID" />
+
+                @{
+                    bool hasSearchHighlight = !string.IsNullOrEmpty(Grid?.FindHightLightModule?.SearchHighlightKey);
+                    string iconVisibility = hasSearchHighlight ? "visibility: visible" : "visibility: hidden";
+                }
+                
+                <!-- Match Counter Display -->
+                <span class="e-find-counter" aria-live="polite" title="@GetCounterTooltip()" data-sf-style="@iconVisibility">
+                @{
+                    int initialValue = 0;
+                    var zeroValue = Intl.GetNumericFormat<int>(initialValue, "n0");
+                    var totalMatchesValue = Intl.GetNumericFormat<int>(Math.Max(TotalMatches, 0), "n0");
+                    var currentMatchValue = Intl.GetNumericFormat<int>(Math.Max(Grid?.FindHightLightModule?.CurrentMatchIndex ?? 0, 0), "n0");
+                    bool hasActionableSearch = hasSearchHighlight && TotalMatches > 0;
+                    bool showZeroState = !hasActionableSearch;
+                }
+                    @if (hasActionableSearch)
+                    {
+                        <span>@(Grid?.FindHightLightModule?.CurrentMatchIndex > 0 ? currentMatchValue : zeroValue)/@totalMatchesValue</span>
+                    }
+                    else
+                    {
+                        <span class="e-no-match">@zeroValue/@zeroValue</span>
+                    }
+                </span>
+
+            <!-- Clear Icon Button -->
+                <button type="button"
+                class="e-find-clear-btn"
+                @onclick="@OnClearFind"
+                    title="@GetClearLabel()"
+                    aria-label="@GetClearLabel()" data-sf-style="@iconVisibility">
+                    <span class="e-icons e-close" aria-hidden="true"></span>
+                </button>
+
+            <!-- Navigation Arrows Container -->
+            <div class="e-find-nav-buttons">
+                <!-- Down Arrow (Next Match) -->
+                <button type="button" 
+                class="e-find-nav-btn e-find-next-btn" 
+                @onclick="@GoToNext"
+                disabled="@(string.IsNullOrEmpty(Grid?.FindHightLightModule?.SearchHighlightKey) || TotalMatches == 0)"
+                title="@GetNextLabel()" tabindex="0"
+                aria-label="@GetNextLabel()">
+                    <span class="e-search-highlight e-input-group-icon e-icons e-chevron-down" aria-hidden="true"></span>
+                </button>
+
+                <!-- Up Arrow (Previous Match) -->
+                <button type="button" 
+                class="e-find-nav-btn e-find-prev-btn" 
+                @onclick="@GoToPrevious"
+                disabled="@(string.IsNullOrEmpty(Grid?.FindHightLightModule?.SearchHighlightKey) || TotalMatches == 0)"
+                title="@GetPreviousLabel()" tabindex="0"
+                aria-label="@GetPreviousLabel()">
+                    <span class="e-search-highlight e-input-group-icon e-icons e-chevron-up" aria-hidden="true"></span>
+                </button>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    #region Native Event Handler
+    /// <summary>
+    /// Handler for find input value changes - calls grid FindHighlightAsync method
+    /// </summary>
+    private async Task OnFindKeyChanged(ChangeEventArgs e)
+    {
+        if (Grid?.IsFindToolbarEnabled() == false)
+            return;
+
+        if (Grid != null && Grid.IsFindToolbarEnabled() && Grid.FindHightLightModule != null)
+        {
+            string findKey = e.Value?.ToString() ?? string.Empty;
+            if (string.IsNullOrEmpty(findKey))
+            {
+                await Grid.ResetFindAsync().ConfigureAwait(true);
+            }
+            else
+            {
+                await Grid.FindHightLightModule.FindHighlightAsync(findKey).ConfigureAwait(true);
+            }
+            Grid.FindHightLightModule.HasNavigated = true;
+            TotalMatches = Grid.FindHightLightModule.TotalMatches;
+        }
+    }
+    #endregion
+}

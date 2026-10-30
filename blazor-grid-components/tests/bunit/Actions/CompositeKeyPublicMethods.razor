@@ -1,0 +1,185 @@
+@inherits GridTestBase
+@using Syncfusion.Blazor.Grids
+
+<SfFixture @ref="fixture" TestAsync="CompositeKeyPublicMethodsTest" Description="Composite key public methods">
+    <ComponentUnderTest>
+        <SfGrid @ref="Grid" DataSource="@GridData" AllowPaging="true">
+            <GridPageSettings PageSize="10"></GridPageSettings>
+            <GridEditSettings AllowDeleting="true" AllowEditing="true" Mode="EditMode.Batch"></GridEditSettings>
+            <GridAggregates>
+                <GridAggregate>
+                    <GridAggregateColumns>
+                        <GridAggregateColumn Field="@nameof(CompositeOrder.Quantity)" Type="AggregateType.Sum">
+                            <FooterTemplate>
+                                @{
+                                    var aggregate = (context as AggregateTemplateContext);
+                                    <div>Sum: @aggregate.Sum</div>
+                                }
+                            </FooterTemplate>
+                        </GridAggregateColumn>
+                    </GridAggregateColumns>
+                </GridAggregate>
+            </GridAggregates>
+            <GridColumns>
+                <GridColumn Field="@nameof(CompositeOrder.OrderID)" HeaderText="Order ID" IsPrimaryKey="true" Width="120"></GridColumn>
+                <GridColumn Field="@nameof(CompositeOrder.ProductID)" HeaderText="Product ID" IsPrimaryKey="true" Width="150"></GridColumn>
+                <GridColumn Field="@nameof(CompositeOrder.ProductName)" HeaderText="Product Name" Width="180"></GridColumn>
+                <GridColumn Field="@nameof(CompositeOrder.Quantity)" HeaderText="Quantity" Width="120"></GridColumn>
+            </GridColumns>
+        </SfGrid>
+    </ComponentUnderTest>
+</SfFixture>
+
+@code {
+    private SfFixture fixture { get; set; }
+    private SfGrid<CompositeOrder> Grid { get; set; }
+    private List<CompositeOrder> GridData { get; set; } = GenerateCompositeRows();
+
+    private static List<CompositeOrder> GenerateCompositeRows()
+    {
+        return Enumerable.Range(1, 1000).Select(index => new CompositeOrder
+        {
+            OrderID = 1000 + index,
+            ProductID = index,
+            ProductName = $"Product_{index}",
+            Quantity = index * 2
+        }).ToList();
+    }
+
+    public async Task CompositeKeyPublicMethodsTest(Fixture fixture)
+    {
+        var cut = fixture.GetComponentUnderTest<SfGrid<CompositeOrder>>();
+
+        var primaryKeyNames = await cut.Instance.GetPrimaryKeyFieldNamesAsync();
+        Assert.Equal(2, primaryKeyNames.Count);
+        Assert.Equal("OrderID", primaryKeyNames[0]);
+        Assert.Equal("ProductID", primaryKeyNames[1]);
+
+        var orderKeyColumn = cut.Instance.Columns.First(col => col.Field == nameof(CompositeOrder.OrderID));
+        var productNameColumn = cut.Instance.Columns.First(col => col.Field == nameof(CompositeOrder.ProductName));
+
+        await cut.InvokeAsync(async () =>
+        {
+            await cut.Instance.SelectRowAsync(0);
+            await cut.Instance.StartEditAsync();
+        });
+
+        Assert.False(cut.Instance.IsEdit);
+        Assert.True(cut.Instance.EditModule.isEditable(orderKeyColumn));
+        Assert.True(cut.Instance.EditModule.isEditable(productNameColumn));
+        await cut.Instance.EndEditAsync();
+        Assert.False(cut.Instance.IsEdit);
+
+        await cut.InvokeAsync(async () => await cut.Instance.GoToPageAsync(3));
+
+        var pageRowIndex = await cut.Instance.GetRowIndexByPrimaryKeyAsync(new Dictionary<string, object>
+        {
+            ["OrderID"] = 1021,
+            ["ProductID"] = 21
+        }, false);
+        Assert.Equal(0, pageRowIndex);
+
+        var crossPageIndex = await cut.Instance.GetRowIndexByPrimaryKeyAsync(new Dictionary<string, object>
+        {
+            ["OrderID"] = 1001,
+            ["ProductID"] = 1
+        }, true);
+        Assert.True(crossPageIndex >= 0 && crossPageIndex < 1000, "Composite key lookup should work across paged records.");
+
+        var missingIndex = await cut.Instance.GetRowIndexByPrimaryKeyAsync(new Dictionary<string, object>
+        {
+            ["OrderID"] = 9999,
+            ["ProductID"] = 9999
+        }, true);
+        Assert.Equal(-1, missingIndex);
+
+        await cut.Instance.SetCellValueAsync(new Dictionary<string, object>
+        {
+            ["OrderID"] = 1021,
+            ["ProductID"] = 21
+        }, nameof(CompositeOrder.Quantity), 88);
+
+        var rowUpdate = new CompositeOrder
+        {
+            OrderID = 1021,
+            ProductID = 21,
+            ProductName = "Updated Product 21",
+            Quantity = 77
+        };
+        await cut.Instance.SetRowDataAsync(new Dictionary<string, object>
+        {
+            ["OrderID"] = 1021,
+            ["ProductID"] = 21
+        }, rowUpdate, false);
+
+        var updatedRowIndex = await cut.Instance.GetRowIndexByPrimaryKeyAsync(new Dictionary<string, object>
+        {
+            ["OrderID"] = 1021,
+            ["ProductID"] = 21
+        }, true);
+        Assert.Equal(20, updatedRowIndex);
+
+        var rowToDelete = new CompositeOrder
+        {
+            OrderID = 1030,
+            ProductID = 30,
+            ProductName = "Product_30",
+            Quantity = 60
+        };
+
+        await cut.InvokeAsync(async () => await cut.Instance.DeleteRecordAsync(primaryKeyNames, rowToDelete));
+        cut.Render();
+
+        var deletedIndex = await cut.Instance.GetRowIndexByPrimaryKeyAsync(new Dictionary<string, object>
+        {
+            ["OrderID"] = 1030,
+            ["ProductID"] = 30
+        }, true);
+        Assert.Equal(29, deletedIndex);
+
+        var batchUpdate = new BatchChanges<CompositeOrder>
+        {
+            ChangedRecords = new List<CompositeOrder>
+            {
+                new CompositeOrder { OrderID = 1021, ProductID = 21, ProductName = "Updated by batch merge", Quantity = 99 },
+                new CompositeOrder { OrderID = 1001, ProductID = 1, ProductName = "Updated by batch merge 2", Quantity = 15 }
+            },
+            DeletedRecords = new List<CompositeOrder>
+            {
+                new CompositeOrder { OrderID = 1022, ProductID = 22, ProductName = "Product_22", Quantity = 44 }
+            }
+        };
+
+        await cut.Instance.ApplyBatchChangesAsync(batchUpdate);
+        var batchChangedRecords = cut.Instance.GetBatchChangesAsync().GetAwaiter().GetResult().ChangedRecords;
+        var footerSummary = cut.FindAll(".e-summaryrow").FirstOrDefault()?.TextContent ?? string.Empty;
+
+        Assert.Contains(batchChangedRecords, record => record.OrderID == 1021 && record.ProductID == 21 && record.Quantity == 99);
+        Assert.DoesNotContain(batchChangedRecords, record => record.OrderID == 1022 && record.ProductID == 22);
+        Assert.Contains("Sum", footerSummary, StringComparison.OrdinalIgnoreCase);
+
+        var batchDeletedCheck = await cut.Instance.GetRowIndexByPrimaryKeyAsync(new Dictionary<string, object>
+        {
+            ["OrderID"] = 1022,
+            ["ProductID"] = 22
+        }, true);
+        Assert.Equal(21, batchDeletedCheck);
+
+        var mergeChangedRow = await cut.Instance.GetRowIndexByPrimaryKeyAsync(new Dictionary<string, object>
+        {
+            ["OrderID"] = 1021,
+            ["ProductID"] = 21
+        }, true);
+        Assert.True(mergeChangedRow >= 0, "Composite-key batch changed records should still be found after aggregate merge.");
+
+        Assert.NotNull(cut.Instance.Aggregate);
+    }
+
+    public class CompositeOrder
+    {
+        public int OrderID { get; set; }
+        public int ProductID { get; set; }
+        public string ProductName { get; set; }
+        public int Quantity { get; set; }
+    }
+}

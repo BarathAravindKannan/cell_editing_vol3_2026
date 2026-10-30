@@ -1,0 +1,102 @@
+@namespace Syncfusion.Blazor.Grids
+
+@typeparam TValue
+
+<!-- 
+    GridDomVirtualizationSettings Component
+    Part of DOM Virtualization feature (OPSX-20261026-introduce-dom-virtualization-feature)
+    
+    Configures DOM virtualization parameters:
+    - RowBuffer: Render-side overscan rows (distinct from OverscanCount)
+    - ColumnBuffer: Render-side overscan columns
+    - MaxPoolSize: Maximum row elements in DOM (default 500)
+    - ScrollThrottle: Rate-limit scroll events (ms) - ONLY rate-limiting mechanism
+    - AutoRowHeight: Measure rows with templates/wrapped text
+-->
+
+@if (ParentGrid != null)
+{
+    <!-- Settings applied to parent SfGrid -->
+}
+
+@code {
+    /// <summary>
+    /// Gets or sets the parent SfGrid component.
+    /// </summary>
+    [CascadingParameter]
+    public SfGrid<TValue> ParentGrid { get; set; }
+
+    /// <summary>
+    /// Gets or sets the number of additional rows rendered before the first visible row 
+    /// and after the last visible row (render-side buffer). Distinct from OverscanCount.
+    /// </summary>
+    /// <remarks>
+    /// Belongs to DOM virtualization layer (render buffer).
+    /// Widens the rendered row list to prevent blank areas during fast scrolling.
+    /// Must NOT influence the query window or data fetching (OverscanCount's responsibility).
+    /// </remarks>
+    [Parameter]
+    public int? RowBuffer { get; set; }
+
+    /// <summary>
+    /// Gets or sets the number of additional columns rendered before and after 
+    /// the visible column window (horizontal overscan).
+    /// </summary>
+    /// <remarks>
+    /// Works with column virtualization to prevent blank columns during fast horizontal scrolling.
+    /// </remarks>
+    [Parameter]
+    public int? ColumnBuffer { get; set; }
+
+    /// <summary>
+    /// Gets or sets the maximum number of row elements maintained in the DOM.
+    /// Default: 500 rows.
+    /// </summary>
+    /// <remarks>
+    /// Enforces a ceiling on how many row elements exist in the DOM.
+    /// Must never be smaller than visible window + RowBuffer (enforced with dev warning).
+    /// Keeps DOM footprint constant regardless of dataset size.
+    /// </remarks>
+    [Parameter]
+    public int? MaxPoolSize { get; set; } = 500;
+
+    /// <summary>
+    /// Gets or sets the throttle interval (in milliseconds) for scroll event processing.
+    /// This is the ONLY rate-limiting mechanism for scroll events.
+    /// </summary>
+    /// <remarks>
+    /// Coalesces rapid scroll events to max once per interval (in milliseconds).
+    /// Works WITH RowBuffer to guarantee no blank regions during fast scrolling.
+    /// 
+    /// NO ScrollDebounce is exposed: debounce on a continuous scroll source guarantees
+    /// a blank region during the debounce window, contradicting the no-blank-region spec.
+    /// EJ2's throttle/debounce pair exists for a two-pass pipeline (cheap transform + heavy recompute)
+    /// that does not exist in this grid. ScrollThrottle alone satisfies the rate-limit requirement.
+    /// 
+    /// Default: Platform-specific (see OQ-VIRT-15)
+    /// </remarks>
+    [Parameter]
+    public int? ScrollThrottle { get; set; }
+
+    /// <summary>
+    /// Gets or sets whether automatic row-height measurement is enabled.
+    /// When true, measures rows with non-uniform content (templates, wrapped text).
+    /// </summary>
+    /// <remarks>
+    /// Measurement is scoped to the fixed-height cache; variable row heights are measured
+    /// once at initialization, then cached. When false, uses estimated row height.
+    /// 
+    /// Measurement MUST NOT interleave layout reads and writes in one frame (GRID-PERF-002).
+    /// </remarks>
+    [Parameter]
+    public bool? AutoRowHeight { get; set; }
+
+    protected override void OnParametersSet()
+    {
+        // Pass settings to parent SfGrid
+        if (ParentGrid != null)
+        {
+            ParentGrid.DomVirtualizationSettings = this;
+        }
+    }
+}

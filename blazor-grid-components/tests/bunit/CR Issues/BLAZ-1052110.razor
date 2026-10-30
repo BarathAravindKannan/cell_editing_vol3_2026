@@ -1,0 +1,59 @@
+@inherits GridTestBase
+@using Syncfusion.Blazor.Grids
+@using System.Linq
+
+<SfFixture @ref="fixture" TestAsync="QueryCellInfoClassIsPreservedAfterCellSelection"
+           Description="QueryCellInfo custom class is preserved after cell selection">
+    <ComponentUnderTest>
+        <SfGrid DataSource="@OrderItems">
+            <GridEvents QueryCellInfo="SetCellStyle" TValue="OrderItem"></GridEvents>
+            <GridSelectionSettings PersistSelection="true" Type="Syncfusion.Blazor.Grids.SelectionType.Single" Mode="Syncfusion.Blazor.Grids.SelectionMode.Both"></GridSelectionSettings>
+            <GridEditSettings AllowAdding="false" AllowEditing="false" AllowDeleting="false" Mode="EditMode.Batch" ShowConfirmDialog="false"></GridEditSettings>
+            <GridColumns>
+                <GridColumn Field="@nameof(OrderItem.Id)" IsPrimaryKey="true"></GridColumn>
+                <GridColumn Field="@nameof(OrderItem.Status)" AllowEditing="false"></GridColumn>
+            </GridColumns>
+        </SfGrid>
+    </ComponentUnderTest>
+</SfFixture>
+
+@code {
+    SfFixture fixture { get; set; }
+
+    private readonly List<OrderItem> OrderItems = new()
+    {
+        new OrderItem { Id = 1, Status = "Open" }
+    };
+
+    public async Task QueryCellInfoClassIsPreservedAfterCellSelection(Fixture fixture)
+    {
+        var cut = fixture.GetComponentUnderTest<SfGrid<OrderItem>>();
+        var cell = cut.FindAll(".e-rowcell").Single(element => element.TextContent == "Open");
+
+        Assert.True(cell.ClassList.Contains("readonly"), "QueryCellInfo must apply the readonly class before selection");
+
+        cell.Click(new MouseEventArgs { Type = "click" });
+
+        cut.WaitForState(
+            () => cut.Instance.Rows[0].Cells[1].IsSelected,
+            TimeSpan.FromMilliseconds(500));
+
+        var selectedCell = cut.FindAll(".e-rowcell").Single(element => element.TextContent == "Open");
+        Assert.True(selectedCell.ClassList.Contains("readonly"), "Cell selection must preserve the readonly class");
+    }
+
+    private static void SetCellStyle(QueryCellInfoEventArgs<OrderItem> args)
+    {
+        if (!args.Column.AllowEditing || args.Column.IsPrimaryKey)
+        {
+            args.Cell.AddClass(new[] { "readonly" });
+        }
+    }
+
+    public sealed class OrderItem
+    {
+        public int Id { get; set; }
+
+        public string Status { get; set; } = string.Empty;
+    }
+}

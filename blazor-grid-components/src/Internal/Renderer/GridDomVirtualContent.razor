@@ -1,0 +1,618 @@
+@namespace Syncfusion.Blazor.Grids.Internal
+@using System.Collections.Specialized;
+@using System.Text.Json.Serialization;
+@typeparam TContent
+@implements IRenderer
+@implements IDisposable
+
+@*
+    DOM Virtualization Renderer
+    
+    Used when: EnableDomVirtualization=true && !EnableVirtualization && !Paging
+    
+    Renders only visible rows and provides custom scrollbar to handle browser's 
+    max scroll height limit (~32M px). Enables rendering 100M+ records smoothly.
+    
+    CORRECT DOM Structure (matching EJ2 Syncfusion):
+    
+    <div class="e-gridcontent" style="...">
+        <!-- Content area with overflow scroll -->
+        <div class="e-content e-yscroll" style="...">
+            <!-- Table with virtualized rows -->
+            <table><!-- rows --></table>
+        </div>
+        
+        <!-- Custom vertical scrollbar (SIBLING to content, not nested) -->
+        <div class="e-virtual-vertical-scrollbar e-dom-virtual-scrollbar" style="...">
+            <div class="e-virtual-vertical-track e-dom-virtual-vertical-track"></div>
+        </div>
+    </div>
+*@
+
+<!-- GRIDCONTENT CONTAINER (full structure for DOM virtualization) -->
+<div class="@GetGridContentClass()" style="@GetGridContentStyle()" @onclick="@(Parent?.EditModule != null ? Parent.EditModule.HandleContentClickEdit : null)">
+    
+    <!-- CONTENT AREA (e-content wrapper) -->
+    <div class="@GetContentClassName()" 
+         @ref="ContentElement"
+         aria-busy="false"
+         style="@GetContentStyle()">
+        
+        <!-- VIRTUAL TABLE WRAPPER -->
+        <div class="e-virtualtable e-dom-virtualtable" data-sf-style="@GetStyles()">
+            
+            <!-- TABLE CONTAINER -->
+            <table class="e-table" data-sf-style="@(Parent!.GetTableStyles())" role="presentation" id="@($"{Parent.ID}_content_table")">
+                <WidthController ID="domvirtualcontent" TContent="TContent" Columns="@Parent.VirtualScrollModule?.GetVirtualColumns()"></WidthController>
+                <tbody role="rowgroup">
+                    @if (Parent.EditSettings!.AllowAdding && Parent.EditSettings.ShowAddNewRow && Parent.EditSettings.NewRowPosition == NewRowPosition.Top && Parent.FrozenRows == 0 && !Parent.EnableInfiniteScrolling)
+                    {
+                        <GridAddNewRow TRow="TContent"></GridAddNewRow>
+                    }
+                    <!-- Render only RenderedRows (visible + buffer); row objects are created on demand per window -->
+                    @if (RenderedRows != null && RenderedRows.Count > 0)
+                    {
+                        @foreach (Row<object> Row in RenderedRows)
+                        {
+                            var rowParameters = new GridRowParameters()
+                            {
+                                Row = Row
+                            };
+                            if (Row.IsExpand && Row.IsDetailRow)
+                            {
+                                <GridDetailRow TRow="TContent" RowParameters="@rowParameters" @key="GetRowKey(Row)"></GridDetailRow>
+                            }
+                            else if (Row.Visible)
+                            {
+                                if (Parent != null && Parent.Rows.Count <= Parent.PageSettings!.PageSize && Row == RenderedRows.LastOrDefault())
+                                {
+                                    rowParameters.IsLastRow = true;
+                                }
+                                <GridRow TRow="TContent" RowParameters="@rowParameters" @key="GetRowKey(Row)"></GridRow>
+                            }
+                        }
+                    }
+                    else
+                    {
+                        <tr role="row" class="e-emptyrow">
+                            <td colspan="@GetVisibleColumnsCount()" style="text-align: center; padding: 20px;">
+                                @if (Parent.IsDataLoaded)
+                                {
+                                    <span>No records to display</span>
+                                }
+                                else
+                                {
+                                    <span>Loading...</span>
+                                }
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+            
+        </div>
+        
+        <!-- VIRTUAL TRACK (inside e-content, sibling to e-virtualtable) -->
+        <div class="e-virtualtrack e-dom-virtualtrack" data-sf-style="@GetVirtualTrackStyles()"></div>
+        
+    </div>
+    
+    <!-- CUSTOM VERTICAL SCROLLBAR (SIBLING to e-content, NOT nested inside) -->
+    <div class="e-virtual-vertical-scrollbar e-dom-virtual-scrollbar"
+         @ref="ScrollbarElement"
+         style="position: absolute;
+                 right: 0;
+                 top: 0;
+                 height: 100%;
+                 width: 16px;
+                 overflow-x: hidden;
+                 overflow-y: scroll;
+                 z-index: 100;">
+        
+        <!-- Track element (sets scrollable height) -->
+        <div class="e-virtual-vertical-track e-dom-virtual-vertical-track"
+             @ref="ScrollbarTrackElement"
+             style="@GetScrollbarTrackStyles()">
+        </div>
+    </div>
+</div>
+
+@code {
+    #region Public Properties
+
+    [Parameter]
+    public GridContentParameters? ContentParameters { get; set; }
+
+    #endregion
+
+    #region Cascading Parameters
+
+    [CascadingParameter]
+    SfGrid<TContent>? Parent { get; set; }
+
+    [CascadingParameter]
+    [JsonIgnore]
+    BaseComponent? BaseParent { get; set; }
+
+    #endregion
+
+    #region Private Fields
+
+    private ElementReference ContentElement { get; set; }
+    private ElementReference ScrollbarElement { get; set; }
+    private ElementReference ScrollbarTrackElement { get; set; }
+
+    private List<Row<object>> RenderedRows { get; set; } = new();
+
+    // IRenderer contract. Data is the raw source; Rows exposes only the rows currently created for the window.
+    public IEnumerable<object> Data
+    {
+        get => _items?.Cast<object>() ?? System.Linq.Enumerable.Empty<object>();
+        set { }
+    }
+
+    public List<Row<object>> Rows
+    {
+        get => RenderedRows;
+        set { }
+    }
+
+    // Raw records (indexable). Row<object> objects are created on demand only for the rendered window.
+    private System.Collections.IList? _items;
+    private object? _sourceReference;
+    private readonly Dictionary<int, Row<object>> _rowCache = new();
+    private int TotalCount => _items?.Count ?? 0;
+    private int CurrentScrollTop { get; set; } = 0;
+    private int ViewportHeight { get; set; } = 300;
+    private long TotalDataHeight => Parent.AllowPaging ? (long)Parent.PageSettings.PageSize * RowHeight : (long)TotalCount * RowHeight;
+    private int RowHeight { get; set; } = 30;
+    private double ScrollAmplificationFactor { get; set; } = 1.0;
+    private int BrowserMaxScrollHeight { get; set; } = 32767000;
+
+    private long CurrentRowOffset { get; set; }
+    private long TranslateY { get; set; }
+    private int CurrentStartIndex { get; set; }
+    private int RenderedEndIndex { get; set; }
+
+    #endregion
+
+    #region Lifecycle
+
+    protected override void OnInitialized()
+    {
+        // Task 01: Register event listener for when RHeight is updated from SfGrid.Lifecycle
+        // Follows same pattern as GridVirtualContent.razor
+        // Wrap method in Action<object> delegate to match EventAggregator.Add signature
+        Parent?.EventAggregator?.Add("DomVirtualComponentUpdate", new Action<object>(DomVirtualComponentUpdate));
+        Parent?.EventAggregator?.AddAsync("DomVirtualScroll", HandleDomVirtualScroll);
+        Parent?.EventAggregator?.AddAsync("DomVirtualMaxHeightChanged", HandleDomVirtualMaxHeightChanged);
+    }
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (Parent == null) return;
+        
+        RowHeight = Parent.RowHeight > 0 ? (int)Parent.RowHeight : 30;
+        ViewportHeight = GetViewportHeight();
+        await UpdateRenderedRows();
+        await base.OnInitializedAsync();
+    }
+
+    protected override async Task OnParametersSetAsync()
+    {
+        if (Parent == null || ContentParameters == null) return;
+
+        // Reload only when the data source instance or its size changed (no per-item comparison of the whole dataset).
+        IEnumerable<object>? source = ContentParameters.Data;
+        bool changed = !ReferenceEquals(source, _sourceReference)
+            || (_items != null && source is System.Collections.ICollection collection && collection.Count != _items.Count);
+        if (changed)
+        {
+            _sourceReference = source;
+            await GenerateRows();
+        }
+
+        await base.OnParametersSetAsync();
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender && Parent != null && ContentElement.Context != null)
+        {
+            RowHeight = Parent.RowHeight > 0 ? (int)Parent.RowHeight : 30;
+            await UpdateRenderedRows();
+        }
+        await base.OnAfterRenderAsync(firstRender);
+    }
+
+    #endregion
+
+    #region Row Generation & Rendering
+
+    private async Task GenerateRows()
+    {
+        _rowCache.Clear();
+        RenderedRows = new();
+        CurrentStartIndex = 0;
+        RenderedEndIndex = 0;
+
+        IEnumerable<object>? source = ContentParameters?.Data;
+        if (Parent == null || source == null)
+        {
+            _items = null;
+            return;
+        }
+
+        // Only the records are kept; no Row<object> is created here.
+        _items = source as System.Collections.IList ?? source.ToList();
+        CalculateScrollAmplification();
+
+        await UpdateRenderedRows(true);
+    }
+
+    /// <summary>
+    /// Update rendered rows based on viewport and scroll position.
+    /// Row objects are created on demand only for the rows entering the window.
+    /// </summary>
+    private async Task UpdateRenderedRows(bool force = false)
+    {
+        if (Parent == null || _items == null || TotalCount == 0)
+        {
+            RenderedRows = new();
+            return;
+        }
+
+        if (RowHeight <= 0)
+        {
+            RowHeight = Parent.RowHeight > 0 ? (int)Parent.RowHeight : 30;
+        }
+
+        int visibleRowCount = (ViewportHeight / RowHeight) + 1;
+
+        // Default buffer is one viewport on each side so a wheel/drag step never outruns the rendered window.
+        int rowBuffer = Parent.DomVirtualizationSettings?.RowBuffer ?? visibleRowCount;
+        int maxPool = Parent.DomVirtualizationSettings?.GetEffectiveMaxPoolSize() ?? 500;
+
+        (int firstVisible, long rowOffset) = GetEffectiveScrollState(visibleRowCount);
+        CurrentRowOffset = rowOffset;
+        int startIndex = Math.Max(0, firstVisible - rowBuffer);
+        int endIndex = Math.Min(TotalCount, firstVisible + visibleRowCount + rowBuffer);
+        if (endIndex - startIndex > maxPool)
+        {
+            endIndex = startIndex + maxPool;
+        }
+
+        // Skip the render when the window has not changed (most scroll events within a block).
+        if (!force && startIndex == CurrentStartIndex && endIndex == RenderedEndIndex && RenderedRows.Count > 0)
+        {
+            return;
+        }
+
+        EnsureWindowRows(startIndex, endIndex);
+
+        List<Row<object>> windowRows = new(endIndex - startIndex);
+        for (int index = startIndex; index < endIndex; index++)
+        {
+            if (_rowCache.TryGetValue(index, out Row<object>? row))
+            {
+                windowRows.Add(row);
+            }
+        }
+
+        RenderedRows = windowRows;
+        CurrentStartIndex = startIndex;
+        RenderedEndIndex = endIndex;
+        TranslateY = ((long)CurrentStartIndex * RowHeight) - CurrentRowOffset;
+
+        await InvokeAsync(StateHasChanged);
+    }
+
+    /// <summary>
+    /// Keeps a row cache for exactly the [startIndex, endIndex) window: rows that are still in the window are
+    /// reused (stable Uid/key, no re-creation), rows that left the window are dropped, and only the missing
+    /// contiguous runs are generated.
+    /// </summary>
+    private void EnsureWindowRows(int startIndex, int endIndex)
+    {
+        List<int>? stale = null;
+        foreach (int cachedIndex in _rowCache.Keys)
+        {
+            if (cachedIndex < startIndex || cachedIndex >= endIndex)
+            {
+                (stale ??= new List<int>()).Add(cachedIndex);
+            }
+        }
+        if (stale != null)
+        {
+            foreach (int cachedIndex in stale)
+            {
+                _rowCache.Remove(cachedIndex);
+            }
+        }
+
+        RowModelGenerator<TContent>? generator = null;
+        int index = startIndex;
+        while (index < endIndex)
+        {
+            if (_rowCache.ContainsKey(index))
+            {
+                index++;
+                continue;
+            }
+
+            int runStart = index;
+            List<object> slice = new();
+            while (index < endIndex && !_rowCache.ContainsKey(index))
+            {
+                slice.Add(_items![index]!);
+                index++;
+            }
+
+            generator ??= new RowModelGenerator<TContent>(Parent!);
+            int position = runStart;
+            foreach (Row<object> row in generator.GeneratorRows(slice, runStart))
+            {
+                if (!row.IsDetailRow)
+                {
+                    _rowCache[position++] = row;
+                }
+            }
+        }
+    }
+
+    private void CalculateScrollAmplification()
+    {
+        if (TotalDataHeight > BrowserMaxScrollHeight)
+        {
+            ScrollAmplificationFactor = (double)BrowserMaxScrollHeight / TotalDataHeight;
+        }
+        else
+        {
+            ScrollAmplificationFactor = 1.0;
+        }
+    }
+
+    private (int FirstVisible, long RowOffset) GetEffectiveScrollState(int visibleRowCount)
+    {
+        if (TotalCount <= 0)
+        {
+            return (0, 0);
+        }
+
+        long additionalPixels = Math.Max(0, TotalDataHeight - BrowserMaxScrollHeight);
+        long maxScrollable = Math.Max(1, Math.Min(TotalDataHeight, BrowserMaxScrollHeight) - ViewportHeight);
+        bool nearBottom = CurrentScrollTop >= maxScrollable - 1;
+        if (nearBottom)
+        {
+            int firstAtBottom = Math.Max(0, TotalCount - visibleRowCount);
+            return (firstAtBottom, additionalPixels);
+        }
+
+        double scrollPercent = Math.Min(1d, Math.Max(0d, CurrentScrollTop / (double)maxScrollable));
+        long rowOffset = (long)Math.Floor(scrollPercent * additionalPixels);
+        long effectiveScrollTop = CurrentScrollTop + rowOffset;
+        int firstVisible = (int)Math.Min(TotalCount - 1, effectiveScrollTop / RowHeight);
+        return (firstVisible, rowOffset);
+    }
+
+    #endregion
+
+    #region Event Handlers
+
+    /// <summary>
+    /// Receives the latest scrollTop from the client (scrollbar and content are kept in sync in JS)
+    /// and re-renders the visible row window only when it changed.
+    /// </summary>
+    private async Task HandleDomVirtualScroll(Task task, object args)
+    {
+        if (args is int scrollTop)
+        {
+            CurrentScrollTop = scrollTop;
+            await UpdateRenderedRows();
+        }
+    }
+
+    private async Task HandleDomVirtualMaxHeightChanged(Task task, object args)
+    {
+        if (args is int maxHeight && maxHeight > 0 && maxHeight != BrowserMaxScrollHeight)
+        {
+            BrowserMaxScrollHeight = maxHeight;
+            CalculateScrollAmplification();
+            await UpdateRenderedRows(true);
+        }
+    }
+
+    /// <summary>
+    /// Viewport height is the static SfGrid.Height (px); auto/percentage heights fall back to the 300px content default.
+    /// </summary>
+    private int GetViewportHeight()
+    {
+        string? height = Parent?.Height;
+        if (!string.IsNullOrEmpty(height))
+        {
+            string numeric = height.EndsWith("px", StringComparison.OrdinalIgnoreCase) ? height.Substring(0, height.Length - 2) : height;
+            if (double.TryParse(numeric, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out double value) && value > 0)
+            {
+                return (int)value;
+            }
+        }
+        return 300;
+    }
+
+    /// <summary>
+    /// Task 01: Event handler triggered when RHeight is updated in SfGrid.Lifecycle.
+    /// This is called from SfGrid after RowHeight is synced from client-side initialization.
+    /// Mirrors the VirtualComponentUpdate event pattern from GridVirtualContent.razor
+    /// </summary>
+    private void DomVirtualComponentUpdate(object args)
+    {
+        // Task 01: When RHeight is updated in VirtualScrollModule from SfGrid.Lifecycle,
+        // this event fires to trigger re-render with updated heights
+        // Accepts object parameter to match Action<object> delegate signature
+        InvokeAsync(StateHasChanged);
+    }
+
+    #endregion
+
+    #region Style Methods
+
+    private string GetGridContentClass()
+    {
+        if (Parent == null) return "e-gridcontent";
+        
+        string classNames = "e-gridcontent";
+        if (Parent.AllowTextWrap && Parent.TextWrapSettings != null && Parent.TextWrapSettings.WrapMode.Equals(WrapMode.Content))
+        {
+            classNames = $"{classNames} e-wrap";
+        }
+        if (Parent.EnableAdaptiveUI && !(Parent.Toolbar != null || ((IGrid)Parent).GridTemplates?.ToolbarTemplate != null))
+        {
+            classNames = $"{classNames} e-responsive-header";
+        }
+        
+        return classNames;
+    }
+
+    private string GetGridContentStyle()
+    {
+        // e-gridcontent should only have position:relative
+        // The content area owns the height
+        return "position: relative;";
+    }
+
+    private string GetContentClassName()
+    {
+        if (Parent == null) return "e-content";
+        
+        string className = "e-content";
+        if (!string.Equals("auto", Parent.Height, StringComparison.Ordinal))
+        {
+            className = $"{className} e-yscroll";
+        }
+        
+        return className;
+    }
+
+    private string GetContentStyle()
+    {
+        // e-content owns only position and height
+        // Overflow is handled by e-yscroll class
+        if (Parent == null) return "position: relative; height: 300px;";
+        
+        string styleText = "position: relative;";
+        if (!string.Equals("auto", Parent.Height, StringComparison.Ordinal))
+        {
+            styleText = $"{styleText} height: {GridUtils.FormarUnit(Parent.Height)};";
+        }
+        else
+        {
+            styleText = $"{styleText} height: 300px;";
+        }
+        
+        return styleText;
+    }
+
+    private string GetStyles()
+    {
+        // Mirrors GridVirtualContent.razor GetStyles() method
+        string styleText = "";
+        if (Parent == null || Parent.VirtualScrollModule == null) return styleText;
+        
+        styleText = $"transform: translate({Parent.VirtualScrollModule.TranslateX}px,{TranslateY}px); ";
+        
+        if (Parent.EnableColumnVirtualization && Parent.FreezeModule!.GetFrozenCount() == 0)
+        {
+            styleText = string.Concat(styleText, $"width: {Parent.VirtualScrollModule.GetVTableWidth()}px; ");
+        }
+        
+        if (Parent.FreezeModule!.GetFrozenCount() == 0 || ((!Parent.EnableColumnVirtualization || Parent.OverscanCount > 0) && Parent.FreezeModule!.GetFrozenCount() != 0))
+        {
+            bool isVerticalMode = Parent.EnableAdaptiveUI ? Parent.RowRenderingMode.Equals(RowDirection.Vertical) && (Parent.Width == "100%" || Parent.Width == "auto") : false;
+            string display = isVerticalMode ? "position:absolute;top: 0;left: 0;right: 0;" : "position:absolute";
+            styleText = string.Concat(styleText, $"{display}");
+        }
+        
+        if (Parent.FreezeModule!.GetFrozenCount() == 0 && Parent.EnableColumnVirtualization && !Parent.EnableVirtualization && (Parent.Height == "auto" || Parent.Height == "100%"))
+        {
+            styleText = string.Concat(styleText, " ;position:unset");
+        }
+        
+        return styleText;
+    }
+
+    private string GetScrollbarTrackStyles()
+    {
+        int effectiveHeight = (int)Math.Min(TotalDataHeight * ScrollAmplificationFactor, BrowserMaxScrollHeight);
+
+        return $"width: 1px; height: {effectiveHeight}px; position: relative;";
+    }
+
+    private string GetVirtualTrackStyles()
+    {
+        // Task 01: Mirrors GridVirtualContent.razor GetVirtualTrackStyles() method
+        // Height = total items * row height (gives complete scroll track height)
+        if (Parent == null || Parent.VirtualScrollModule == null) return "height: 0px; width: 100%;";
+        
+        int height = 0;
+        int itemCount = Parent.AllowPaging ? Parent.PageSettings.PageSize : Parent.TotalItemCount;
+        
+        if (itemCount == 0)
+        {
+            itemCount = TotalCount;
+        }
+        
+        // Task 01: Ensure RHeight is set, fallback to RowHeight if needed
+        int effectiveRowHeight = Parent.VirtualScrollModule.RHeight > 0 
+            ? Parent.VirtualScrollModule.RHeight 
+            : (Parent.RowHeight > 0 ? (int)Parent.RowHeight : RowHeight);
+        
+        height = (int)Math.Min((long)itemCount * effectiveRowHeight, BrowserMaxScrollHeight);
+        
+        return $"height: {height}px; width:100%;";
+    }
+
+    #endregion
+
+    #region Utility Methods
+
+    private string GetRowKey(Row<object> row)
+    {
+        if (row == null) return string.Empty;
+        
+        string recordId = !string.IsNullOrEmpty(row.Uid) 
+            ? row.Uid 
+            : row.Index?.ToString() ?? string.Empty;
+        
+        return $"{row.RowType}_{recordId}";
+    }
+
+    private int GetVisibleColumnsCount()
+    {
+        if (Parent == null) return 1;
+        
+        var columns = GridUtils.GetColumns(Parent);
+        return columns?.Where(c => c.Visible).Count() ?? 1;
+    }
+
+    #endregion
+
+    #region Disposal
+
+    void IDisposable.Dispose()
+    {
+        Parent?.EventAggregator?.RemoveAsync("DomVirtualScroll");
+        Parent?.EventAggregator?.RemoveAsync("DomVirtualMaxHeightChanged");
+        Parent?.EventAggregator?.Remove("DomVirtualComponentUpdate");
+        RenderedRows?.Clear();
+        _rowCache.Clear();
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        RenderedRows?.Clear();
+        _rowCache.Clear();
+        await Task.CompletedTask;
+    }
+
+    #endregion
+}
