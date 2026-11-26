@@ -1,0 +1,502 @@
+@namespace Syncfusion.Blazor.Grids.Internal
+@typeparam T
+@implements IDisposable
+
+@using Syncfusion.Blazor.Popups
+@using Syncfusion.Blazor.Buttons
+@using Syncfusion.Blazor.QueryBuilder
+@using Syncfusion.Blazor.Grids.Internal
+@using Microsoft.AspNetCore.Components.Web
+@using System.Linq
+
+@{
+    bool? isAdaptiveDialog = GetAdaptiveDialogMode();
+}
+
+@if (isAdaptiveDialog == false)
+{
+    <SfDialog @ref="_dialog"
+              ID="@($"{Parent!.ID}_advancedFilterDialog")"
+              IsModal="true"
+              ShowCloseIcon="true"
+              CloseOnEscape="true"
+              Width="min(820px, calc(100vw - 32px))"
+              MinHeight="360px"
+              Height="480px"
+              MaxHeight="477px"
+              ZIndex="1000000000"
+              CssClass="e-advanced-filter-dialog"
+              Visible="@_isVisible"
+              VisibleChanged="@OnVisibleChanged">
+        <DialogPositionData X="center" Y="center"></DialogPositionData>
+        <DialogTemplates>
+            <Header>
+                <div class="e-advanced-filter-header">@DialogTitle</div>
+            </Header>
+            <Content>
+                @if (_columns != null)
+                {
+                    <SfQueryBuilder TValue="object"
+                                    @ref="_queryBuilder"
+                                    @key="_queryBuilderKey"
+                                    ID="@($"{Parent!.ID}_queryBuilder")"
+                                    DataSource="@_dataSource"
+                                    AllowValidation="false">
+                        <QueryBuilderColumns>
+                            @foreach (var col in _columns)
+                            {
+                                <QueryBuilderColumn Field="@col.Field"
+                                                    Label="@col.Label"
+                                                    Type="@col.Type"
+                                                    Operators="@col.Operators"
+                                                    Format="@col.Format"
+                                                    Step="@col.Step">
+                                </QueryBuilderColumn>
+                            }
+                        </QueryBuilderColumns>
+                    </SfQueryBuilder>
+                }
+            </Content>
+            <FooterTemplate>
+                <SfButton CssClass="e-control e-btn e-lib e-flat e-primary"
+                          Type="button"
+                          Content="@_applyText"
+                          @onclick="@OnApplyClickedAsync">
+                </SfButton>
+                <SfButton CssClass="e-control e-btn e-lib e-flat"
+                          Type="button"
+                          Content="@_cancelText"
+                          @onclick="@OnCancelClickedAsync">
+                </SfButton>
+            </FooterTemplate>
+        </DialogTemplates>
+    </SfDialog>
+}
+else if (isAdaptiveDialog == true)
+{
+    <SfDialog @ref="_dialog"
+              ID="@($"{Parent!.ID}_advancedFilterDialog")"
+              IsModal="true"
+              ShowCloseIcon="false"
+              CloseOnEscape="true"
+              Width="100%"
+              MinHeight="350px"
+              Height="100%"
+              ZIndex="1000000000"
+              Target="@($"#{Parent!.ID}")"
+              HtmlAttributes="@MaxHeight"
+              AllowPrerender="true"
+              CssClass="e-responsive-dialog e-bigger e-dlg-fullscreen e-advanced-filter-dialog"
+              Visible="@_isVisible"
+              VisibleChanged="@OnVisibleChanged">
+        <DialogTemplates>
+            <Header>
+                <SfButton IconCss="e-btn-icon e-icon-dlg-close e-icons"
+                          CssClass="e-dlg-closeicon-btn"
+                          @onclick="@OnCancelClickedAsync"
+                          HtmlAttributes="@(new Dictionary<string, object> { { "title", _cancelText } })">
+                </SfButton>
+                <div class="e-dlg-header">
+                    <div class="e-res-custom-element">
+                        <div class="e-dlg-custom-header" id="@($"{Parent!.ID}_advanced_filter_dialog_wrapper")">@DialogTitle</div>
+                        <SfButton CssClass="e-primary e-flat e-res-apply-btn"
+                                  Content="@_applyText"
+                                  @onclick="@OnApplyClickedAsync">
+                        </SfButton>
+                    </div>
+                </div>
+            </Header>
+            <Content>
+                @if (_columns != null)
+                {
+                    <SfQueryBuilder TValue="object"
+                                    @ref="_queryBuilder"
+                                    @key="_queryBuilderKey"
+                                    ID="@($"{Parent!.ID}_queryBuilder")"
+                                    DataSource="@_dataSource"
+                                    AllowValidation="false">
+                        <QueryBuilderColumns>
+                            @foreach (var col in _columns)
+                            {
+                                <QueryBuilderColumn Field="@col.Field"
+                                                    Label="@col.Label"
+                                                    Type="@col.Type"
+                                                    Operators="@col.Operators"
+                                                    Format="@col.Format"
+                                                    Step="@col.Step">
+                                </QueryBuilderColumn>
+                            }
+                        </QueryBuilderColumns>
+                    </SfQueryBuilder>
+                }
+            </Content>
+        </DialogTemplates>
+    </SfDialog>
+}
+
+@code {
+    #region Parameters / Cascading
+
+    [CascadingParameter]
+    public SfGrid<T>? Parent { get; set; }
+
+    [CascadingParameter]
+    public GridAdvancedFilterSettings? Settings { get; set; }
+
+    private SfDialog? _dialog;
+    private SfQueryBuilder<object>? _queryBuilder;
+
+    #endregion
+
+    #region State
+
+    private bool _isVisible;
+    private string _applyText = "Apply";
+    private string _cancelText = "Cancel";
+    private string DialogTitle => Parent?.AdvancedFilterSettings?.HeaderText ?? "Advanced Filter";
+
+    private List<QueryBuilderColumn>? _columns;
+    private List<object>? _dataSource;
+    private int _queryBuilderKey;
+    private bool? _lastAdaptiveDialogMode;
+
+    private Dictionary<string, object> MaxHeight = new Dictionary<string, object>()
+    {
+        { "data-sf-style", "max-height:100%"}
+    };
+
+    #endregion
+
+    #region Lifecycle
+
+    protected override void OnInitialized()
+    {
+        Parent?.EventAggregator.Add("OpenAdvancedFilter", OpenFromToolbar);
+    }
+
+    protected override void OnParametersSet()
+    {
+        var adaptiveDialogMode = GetAdaptiveDialogMode();
+        if (_isVisible && _lastAdaptiveDialogMode.HasValue && adaptiveDialogMode.HasValue &&
+            _lastAdaptiveDialogMode != adaptiveDialogMode)
+        {
+            _queryBuilderKey++;
+            _restoreRulesAfterRender = true;
+        }
+
+        _lastAdaptiveDialogMode = adaptiveDialogMode;
+        BuildColumns();
+    }
+
+    private bool _restoreRulesAfterRender = true;
+
+    private bool? GetAdaptiveDialogMode()
+    {
+        if (Parent == null || !Parent.AllowAdvancedFiltering)
+        {
+            return null;
+        }
+
+        var isDeviceMode = Parent.SyncfusionService.IsDeviceMode;
+        if (!Parent.EnableAdaptiveUI ||
+            (Parent.AdaptiveUIMode == AdaptiveMode.Mobile && !isDeviceMode) ||
+            (Parent.AdaptiveUIMode == AdaptiveMode.Desktop && isDeviceMode))
+        {
+            return false;
+        }
+
+        if (Parent.AdaptiveUIMode == AdaptiveMode.Both ||
+            (Parent.AdaptiveUIMode == AdaptiveMode.Mobile && isDeviceMode) ||
+            (Parent.AdaptiveUIMode == AdaptiveMode.Desktop && !isDeviceMode))
+        {
+            return true;
+        }
+
+        return null;
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        await base.OnAfterRenderAsync(firstRender);
+
+        if (Parent != null)
+        {
+            Parent.AdvancedFilterDialogInstance = _dialog;
+            Parent.AdvancedFilterQueryBuilderInstance = _queryBuilder;
+        }
+
+        if (!_restoreRulesAfterRender || _queryBuilder == null)
+        {
+            return;
+        }
+
+        _restoreRulesAfterRender = false;
+        await PushRuleToQueryBuilderAsync();
+    }
+
+    // CurrentRule is the canonical state. InitialRule is copied into it
+    // when settings initialize; falling back to InitialRule here would
+    // resurrect a rule after the user explicitly clears it.
+    private async Task PushRuleToQueryBuilderAsync()
+    {
+        if (_queryBuilder == null)
+        {
+            return;
+        }
+
+        var settings = Parent?.AdvancedFilterSettings;
+        ApplyRuleToQueryBuilder(AdvancedFilterRuleConverter.ToRuleModel(settings?.CurrentRule));
+
+        await InvokeAsync(StateHasChanged);
+    }
+
+    void IDisposable.Dispose()
+    {
+        Parent?.EventAggregator.Remove("OpenAdvancedFilter", OpenFromToolbar);
+    }
+
+    #endregion
+
+    #region Public API surface (used by SfGrid methods via EventAggregator)
+
+    internal async Task ShowAsync()
+    {
+        if (Parent == null || !Parent.AllowAdvancedFiltering)
+        {
+            return;
+        }
+
+        var rule = Parent.AdvancedFilterSettings?.CurrentRule;
+        var args = new AdvancedFilterOpenEventArgs
+        {
+            Dialog = _dialog,
+            QueryBuilder = _queryBuilder,
+            Filter = rule
+        };
+        if (Parent.GridEvents?.AdvancedFilterOpen.HasDelegate == true)
+        {
+            await Parent.GridEvents.AdvancedFilterOpen.InvokeAsync(args);
+        }
+
+        if (args.Cancel)
+        {
+            return;
+        }
+
+        var wasVisible = _isVisible;
+        _isVisible = true;
+
+        if (!wasVisible)
+        {
+            // Recreate the Query Builder for each open so it cannot retain
+            // unsaved rules from the previous dialog session. Restore the
+            // saved rule after the new instance has rendered and its ref is set.
+            _queryBuilderKey++;
+            _restoreRulesAfterRender = true;
+            await InvokeAsync(StateHasChanged);
+            return;
+        }
+
+        await InvokeAsync(StateHasChanged);
+    }
+
+    internal async Task HideAsync()
+    {
+        if (Parent == null)
+        {
+            return;
+        }
+
+        var rule = Parent.AdvancedFilterSettings?.CurrentRule;
+        var args = new AdvancedFilterCloseEventArgs
+        {
+            Dialog = _dialog,
+            QueryBuilder = _queryBuilder,
+            Filter = rule
+        };
+        if (Parent.GridEvents?.AdvancedFilterClose.HasDelegate == true)
+        {
+            await Parent.GridEvents.AdvancedFilterClose.InvokeAsync(args);
+        }
+
+        if (args.Cancel)
+        {
+            return;
+        }
+
+        _isVisible = false;
+        await InvokeAsync(StateHasChanged);
+    }
+
+    internal void OpenFromToolbar(object _)
+    {
+        _ = ShowAsync();
+    }
+
+    // SetRules takes the root group's children and root options separately;
+    // the root group itself is implicit in the Query Builder UI.
+    private void ApplyRuleToQueryBuilder(Syncfusion.Blazor.QueryBuilder.RuleModel? rule)
+    {
+        var children = rule?.Rules != null
+            ? new List<Syncfusion.Blazor.QueryBuilder.RuleModel>(rule.Rules)
+            : rule == null
+                ? new List<Syncfusion.Blazor.QueryBuilder.RuleModel>()
+                : new List<Syncfusion.Blazor.QueryBuilder.RuleModel> { rule };
+        var condition = rule?.Condition;
+        if (string.IsNullOrEmpty(condition))
+        {
+            condition = "and";
+        }
+
+        _queryBuilder?.SetRules(children, condition, rule?.Not, rule?.IsLocked ?? false);
+    }
+
+    private async Task OnVisibleChanged(bool value)
+    {
+        var wasVisible = _isVisible;
+        _isVisible = value;
+        if (wasVisible && !value)
+        {
+            var rule = Parent?.AdvancedFilterSettings?.CurrentRule;
+            var args = new AdvancedFilterCloseEventArgs
+            {
+                Dialog = _dialog,
+                QueryBuilder = _queryBuilder,
+                Filter = rule
+            };
+            if (Parent?.GridEvents?.AdvancedFilterClose.HasDelegate == true)
+            {
+                await Parent.GridEvents.AdvancedFilterClose.InvokeAsync(args);
+            }
+
+            if (args.Cancel)
+            {
+                _isVisible = true;
+                await InvokeAsync(StateHasChanged);
+            }
+        }
+    }
+
+    #endregion
+
+    #region Buttons
+
+    private async Task OnApplyClickedAsync()
+    {
+        if (Parent == null || _queryBuilder == null)
+        {
+            return;
+        }
+
+        var rule = _queryBuilder.GetRules();
+        var mapped = AdvancedFilterRuleConverter.FromRuleModel(rule);
+        if (mapped == null || AdvancedFilterRuleConverter.ConvertRule(mapped, Parent.Columns).Count == 0)
+        {
+            await Parent.ClearAdvancedFilterAsync();
+        }
+        else
+        {
+            await Parent.ApplyAdvancedFilterAsync(mapped);
+
+            Settings ??= Parent.AdvancedFilterSettings;
+            if (Settings != null)
+            {
+                Settings.CurrentRule = mapped;
+            }
+        }
+
+        if (Parent.FilterModule?.LastAdvancedFilteredCancelled == true)
+        {
+            return;
+        }
+
+        await HideAsync();
+    }
+
+    private async Task OnCancelClickedAsync()
+    {
+        await HideAsync();
+    }
+
+    #endregion
+
+    #region Column projection
+
+    private void BuildColumns()
+    {
+        if (Parent?.Columns == null)
+        {
+            return;
+        }
+
+        _columns = new List<QueryBuilderColumn>();
+        var sample = new Dictionary<string, object?>();
+        foreach (var col in Parent.Columns)
+        {
+            if (string.IsNullOrEmpty(col.Field))
+            {
+                continue;
+            }
+
+            sample[col.Field] = SampleValueFor(col);
+#pragma warning disable BL0005
+            _columns.Add(new QueryBuilderColumn
+            {
+                Field = col.Field,
+                Label = string.IsNullOrEmpty(col.HeaderText) ? col.Field : col.HeaderText,
+                Type = MapColumnType(col),
+                Operators = DefaultOperators(),
+                Format = col.Format!
+            });
+#pragma warning restore BL0005
+        }
+
+        _dataSource = new List<object> { sample };
+    }
+
+    private static Syncfusion.Blazor.QueryBuilder.ColumnType MapColumnType(GridColumn col)
+    {
+        return col.Type switch
+        {
+            Syncfusion.Blazor.Grids.ColumnType.Integer => Syncfusion.Blazor.QueryBuilder.ColumnType.Number,
+            Syncfusion.Blazor.Grids.ColumnType.Double => Syncfusion.Blazor.QueryBuilder.ColumnType.Number,
+            Syncfusion.Blazor.Grids.ColumnType.Decimal => Syncfusion.Blazor.QueryBuilder.ColumnType.Number,
+            Syncfusion.Blazor.Grids.ColumnType.Long => Syncfusion.Blazor.QueryBuilder.ColumnType.Number,
+            Syncfusion.Blazor.Grids.ColumnType.Date => Syncfusion.Blazor.QueryBuilder.ColumnType.Date,
+            Syncfusion.Blazor.Grids.ColumnType.DateTime => Syncfusion.Blazor.QueryBuilder.ColumnType.Date,
+            Syncfusion.Blazor.Grids.ColumnType.Boolean => Syncfusion.Blazor.QueryBuilder.ColumnType.Boolean,
+            _ => Syncfusion.Blazor.QueryBuilder.ColumnType.String
+        };
+    }
+
+    private static List<Syncfusion.Blazor.QueryBuilder.OperatorsModel> DefaultOperators() =>
+        new()
+        {
+            new Syncfusion.Blazor.QueryBuilder.OperatorsModel { Value = "equal", Text = "Equal" },
+            new Syncfusion.Blazor.QueryBuilder.OperatorsModel { Value = "notequal", Text = "Not Equal" },
+            new Syncfusion.Blazor.QueryBuilder.OperatorsModel { Value = "greaterthan", Text = "Greater Than" },
+            new Syncfusion.Blazor.QueryBuilder.OperatorsModel { Value = "greaterthanorequal", Text = "Greater Than Or Equal" },
+            new Syncfusion.Blazor.QueryBuilder.OperatorsModel { Value = "lessthan", Text = "Less Than" },
+            new Syncfusion.Blazor.QueryBuilder.OperatorsModel { Value = "lessthanorequal", Text = "Less Than Or Equal" },
+            new Syncfusion.Blazor.QueryBuilder.OperatorsModel { Value = "contains", Text = "Contains" },
+            new Syncfusion.Blazor.QueryBuilder.OperatorsModel { Value = "startswith", Text = "Starts With" },
+            new Syncfusion.Blazor.QueryBuilder.OperatorsModel { Value = "endswith", Text = "Ends With" }
+        };
+
+    private static object? SampleValueFor(GridColumn col)
+    {
+        return col.Type switch
+        {
+            Syncfusion.Blazor.Grids.ColumnType.String => string.Empty,
+            Syncfusion.Blazor.Grids.ColumnType.Integer => 0,
+            Syncfusion.Blazor.Grids.ColumnType.Long => 0L,
+            Syncfusion.Blazor.Grids.ColumnType.Decimal => 0m,
+            Syncfusion.Blazor.Grids.ColumnType.Double => 0d,
+            Syncfusion.Blazor.Grids.ColumnType.Boolean => false,
+            Syncfusion.Blazor.Grids.ColumnType.Date => DateTime.Today,
+            Syncfusion.Blazor.Grids.ColumnType.DateTime => DateTime.Today,
+            _ => null
+        };
+    }
+    #endregion
+}

@@ -185,6 +185,7 @@ namespace Syncfusion.Blazor.Grids
                 ReactiveAggregateModule?.UpdateAggregateFromDataResult(dataResultForAggregate ?? new DataResult(), IsEmptyGrid);
                 TotalItemCount = dataResultForAggregate?.Count ?? 0;
                 CurrentFilteredRecords = IsEmptyGrid ? null : dataResultForAggregate?.FilteredRecords?.Cast<TValue>().ToList();
+                SelectionModule?.EnsureSelectableCache(actionArgs?.RequestType.ToString() ?? requestType, fromDataProcess: true);
             }
             cancel = await VirtualScrollModule!.VirtualDataProcess(QueryStartIndexes, action, eventArgs!, requestType: actionArgs?.RequestType.ToString()!, query).ConfigureAwait(true);
             return cancel;
@@ -212,7 +213,22 @@ namespace Syncfusion.Blazor.Grids
 
             if (EnableInfiniteScrolling && InfiniteScrollModule != null && Data is DataResult dataResultInfinite)
             {
-                InfiniteScrollModule.RefreshInfiniteCurrentViewData((IEnumerable<object>)(dataResultInfinite.Result ?? new List<object>()));
+                // Extract HasMoreRecords property if available (for unbounded scrolling support)
+                bool? hasMoreRecords = null;
+                var hasMoreProperty = dataResultInfinite.GetType().GetProperty("HasMoreRecords");
+                if (hasMoreProperty != null)
+                {
+                    hasMoreRecords = (bool?)hasMoreProperty.GetValue(dataResultInfinite);
+                }
+                
+                InfiniteScrollModule.RefreshInfiniteCurrentViewData((IEnumerable<object>)(dataResultInfinite.Result ?? new List<object>()), hasMoreRecords);
+                
+                // For unbounded scrolling with remote data, prioritize adaptor's HasMoreRecords signal
+                // This allows custom adaptors to explicitly signal end-of-data without relying on TotalItemCount
+                if (InfiniteScrollSettings?.EnableUnboundedScrolling == true && hasMoreRecords.HasValue)
+                {
+                    InfiniteScrollModule.HasMoreData = hasMoreRecords.Value;
+                }
             }
 
             var dataResult = Data as DataResult;
@@ -220,6 +236,7 @@ namespace Syncfusion.Blazor.Grids
             ReactiveAggregateModule?.UpdateAggregateFromDataResult(dataResult ?? new DataResult(), IsEmptyGrid);
             TotalItemCount = IsEmptyGrid ? 0 : dataResult?.Count ?? 0;
             CurrentFilteredRecords = IsEmptyGrid ? null : dataResult?.FilteredRecords?.Cast<TValue>().ToList();
+            SelectionModule?.EnsureSelectableCache(actionArgs?.RequestType.ToString() ?? requestType, fromDataProcess: true);
             
             await HandleSelectionPersistence(actionArgs, requestType, isDeleteAction).ConfigureAwait(true);
 
@@ -506,6 +523,17 @@ namespace Syncfusion.Blazor.Grids
             {
                 VirtualScrollModule!.SetGeneratedData((int)VirtualScrollModule!.RowStartIndex, (int)VirtualScrollModule!.RowEndIndex, VirtualScrollModule.QueriedCurrentViewData!);
             }
+            else if (EnableDomVirtualization && (GroupSettings?.Columns == null || GroupSettings.Columns.Length == 0))
+            {
+                // Leading rows of the fetched range may already be cached; start at the first uncached index
+                int startIndex = (int)action.VirtualStartIndex;
+                var (queryStartIndex, _, isStartIndexSet, _) = VirtualScrollModule!.QueryIndexes(startIndex, (int)action.VirtualEndIndex);
+                if (isStartIndexSet)
+                {
+                    IEnumerable<object> uncachedData = VirtualScrollModule.QueriedCurrentViewData!.Skip(queryStartIndex - startIndex).ToList();
+                    VirtualScrollModule.SetGeneratedData(queryStartIndex, queryStartIndex + uncachedData.Count(), uncachedData);
+                }
+            }
             else
             {
                 VirtualScrollModule!.SetGeneratedData((int)action.VirtualStartIndex, (int)action.VirtualEndIndex, VirtualScrollModule.QueriedCurrentViewData!);
@@ -546,6 +574,11 @@ namespace Syncfusion.Blazor.Grids
             {
                 var currentInitialAction = (SearchSettings?.Key?.Length ?? 0) > 0 ? "Searching" : (FilterSettings?.Columns?.Count > 0 || Query?.Queries?.Where?.Count > 0) ? "Filtering" : "";
                 SelectionModule.GetCurrentFilterData(requestType: currentInitialAction);
+            }
+
+            if (actionArgs != null && SelectionModule != null)
+            {
+                SelectionModule.SyncSelectionWithSelectability();
             }
 
             if (actionArgs != null && !actionArgs.RequestType.Equals(Action.Paging))
@@ -686,6 +719,29 @@ namespace Syncfusion.Blazor.Grids
                 var PersistSort = JsonSerializer.Deserialize<GridSortSettings>(PersistProp?["sortSettings"]?.ToString()!);
                 var PersistGroup = JsonSerializer.Deserialize<GridGroupSettings>(PersistProp?["groupSettings"]?.ToString()!);
                 var PersistSearch = JsonSerializer.Deserialize<GridSearchSettings>(PersistProp?["searchSettings"]?.ToString()!);
+                AdvancedFilterRule? persistedAdvancedFilterRule = null;
+                if (PersistProp!.TryGetValue("advancedFilterRule", out var advancedFilterRuleValue) &&
+                    advancedFilterRuleValue != null)
+                {
+                    var ruleJson = advancedFilterRuleValue is JsonElement jsonElement
+                        ? jsonElement.ValueKind is JsonValueKind.Null or JsonValueKind.Undefined
+                            ? null
+                            : jsonElement.GetRawText()
+                        : advancedFilterRuleValue.ToString();
+                    if (!string.IsNullOrWhiteSpace(ruleJson))
+                    {
+                        persistedAdvancedFilterRule = JsonSerializer.Deserialize<AdvancedFilterRule>(ruleJson);
+                    }
+                }
+
+                if (AdvancedFilterSettings != null || persistedAdvancedFilterRule != null)
+                {
+                    await EnsureAdvancedFilterSettingsAsync().ConfigureAwait(true);
+                    AdvancedFilterSettings!.CurrentRule = persistedAdvancedFilterRule;
+                }
+
+                FilterModule?.RestoreAdvancedFilterRule(persistedAdvancedFilterRule);
+
                 await RestoreColumnPersistence(columns!, PersistColumns!, PersitAutoFit).ConfigureAwait(true);
                 await RestoreFilterColumnValues(PersistFilter).ConfigureAwait(true);
                 await RestoreSortGroupSearchSettings(PersistSort, PersistFilter, PersistGroup, PersistSearch).ConfigureAwait(true);

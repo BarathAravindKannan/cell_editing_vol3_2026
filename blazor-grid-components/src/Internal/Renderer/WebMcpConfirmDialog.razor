@@ -1,0 +1,166 @@
+@namespace Syncfusion.Blazor.Grids.Internal
+@typeparam T
+@implements IDisposable
+
+@using Syncfusion.Blazor.Popups
+@using Syncfusion.Blazor.Buttons
+@using Microsoft.AspNetCore.Components.Web
+
+@if (Parent?.WebMcpConfirmState != null && Parent.WebMcpConfirmState.IsVisible)
+{
+    <SfDialog @ref="DialogRef"
+              CssClass="e-dlg-modal e-webmcp-confirm-dialog"
+              ShowCloseIcon="true"
+              IsModal="true"
+              CloseOnEscape="true"
+              Target="@(($"#{Parent.ID}"))"
+              Width="400">
+        <DialogAnimationSettings Effect="DialogEffect.None"></DialogAnimationSettings>
+        <DialogEvents OnClose="@HandleDialogClose">
+        </DialogEvents>
+        <DialogTemplates>
+            <Content>
+                <div class="e-webmcp-confirm-content">
+                    <p>@ConfirmationText</p>
+                </div>
+            </Content>
+            <FooterTemplate>
+                <SfButton Type="button"
+                          CssClass="e-control e-btn e-lib e-flat e-primary"
+                          Content="@(Localizer?.GetText(GridLocaleKeys.OKButton) ?? "OK")"
+                          @onclick="HandleApprove">
+                </SfButton>
+                <SfButton CssClass="e-control e-btn e-lib e-flat"
+                          Type="button"
+                          Content="@(Localizer?.GetText(GridLocaleKeys.CancelButton) ?? "Cancel")"
+                          @onclick="HandleDeny">
+                </SfButton>
+            </FooterTemplate>
+        </DialogTemplates>
+    </SfDialog>
+}
+
+@code {
+    #region Fields
+    private SfDialog? DialogRef;
+    private ISyncfusionStringLocalizer? Localizer;
+
+    [CascadingParameter]
+    public SfGrid<T>? Parent { get; set; }
+
+    private string ConfirmationText
+    {
+        get
+        {
+            var toolName = Parent?.WebMcpConfirmState?.ToolName ?? "Tool";
+            return $"Do you want to execute the '{toolName}' tool?";
+        }
+    }
+    #endregion
+
+    #region Lifecycle
+    protected override void OnInitialized()
+    {
+        Localizer = Parent?.Localizer;
+        if (Parent != null)
+        {
+            Parent.WebMcpConfirmDialog = this;
+        }
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        await base.OnAfterRenderAsync(firstRender).ConfigureAwait(true);
+        
+        // When dialog becomes visible, open the SfDialog
+        if (!firstRender && Parent?.WebMcpConfirmState?.IsVisible == true && DialogRef != null)
+        {
+            await DialogRef.ShowAsync().ConfigureAwait(true);
+        }
+    }
+
+    void IDisposable.Dispose()
+    {
+        if (Parent != null)
+        {
+            Parent.WebMcpConfirmDialog = null;
+        }
+    }
+    #endregion
+
+    #region Dialog Actions
+    internal async Task<bool> RequestConfirmationAsync(string toolName)
+    {
+        if (Parent?.WebMcpConfirmState == null)
+        {
+            return false;
+        }
+
+        // Fail-closed: if a request is already pending, deny the new one
+        if (Parent.WebMcpConfirmState.PendingTaskCompletionSource != null &&
+            !Parent.WebMcpConfirmState.PendingTaskCompletionSource.Task.IsCompleted)
+        {
+            return false;
+        }
+
+        // Set tool name first, then make visible
+        Parent.WebMcpConfirmState.ToolName = toolName;
+        Parent.WebMcpConfirmState.PendingTaskCompletionSource = new TaskCompletionSource<bool>();
+        Parent.WebMcpConfirmState.IsVisible = true;
+        
+        // Trigger render to show dialog
+        StateHasChanged();
+
+        try
+        {
+            // Wait for user response (approve or deny)
+            var result = await Parent.WebMcpConfirmState.PendingTaskCompletionSource.Task.ConfigureAwait(true);
+            return result;
+        }
+        catch
+        {
+            // On any exception, treat as denial
+            return false;
+        }
+        finally
+        {
+            // Ensure dialog is closed and state cleared
+            Parent.WebMcpConfirmState.IsVisible = false;
+            Parent.WebMcpConfirmState.PendingTaskCompletionSource = null;
+        }
+    }
+
+    private async Task HandleApprove()
+    {
+        ResolvePendingTask(true);
+        if (DialogRef != null)
+        {
+            await DialogRef.HideAsync().ConfigureAwait(true);
+        }
+    }
+
+    private async Task HandleDeny()
+    {
+        ResolvePendingTask(false);
+        if (DialogRef != null)
+        {
+            await DialogRef.HideAsync().ConfigureAwait(true);
+        }
+    }
+
+    private async Task HandleDialogClose(BeforeCloseEventArgs args)
+    {
+        // User closed/escaped the dialog without clicking a button — treat as denial
+        ResolvePendingTask(false);
+    }
+
+    private void ResolvePendingTask(bool approved)
+    {
+        if (Parent?.WebMcpConfirmState?.PendingTaskCompletionSource != null &&
+            !Parent.WebMcpConfirmState.PendingTaskCompletionSource.Task.IsCompleted)
+        {
+            Parent.WebMcpConfirmState.PendingTaskCompletionSource.TrySetResult(approved);
+        }
+    }
+    #endregion
+}

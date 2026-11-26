@@ -1188,7 +1188,11 @@ namespace Syncfusion.Blazor.Grids.Actions
         /// </summary>
         private static string StripTrailingExtension(string name, string format)
         {
+#if NET11_0_OR_GREATER
+            var dot = name.LastIndexOf('.', System.StringComparison.Ordinal);
+#else
             var dot = name.LastIndexOf('.');
+#endif
             if (dot < 0) return name;
             var ext = name.Substring(dot + 1).ToUpperInvariant();
             if (format == "xlsx" && (ext is "XLSX" or "XLS")) return name.Substring(0, dot);

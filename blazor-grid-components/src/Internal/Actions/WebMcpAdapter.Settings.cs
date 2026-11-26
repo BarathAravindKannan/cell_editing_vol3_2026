@@ -34,7 +34,7 @@ namespace Syncfusion.Blazor.Grids.Actions
         // Cache the merged list keyed on the user's settings reference so we
         // do not re-resolve on every JS callback. The cache is invalidated
         // by the grid when HasWebMcpSettingsChanges flips.
-        private static readonly Dictionary<object, IReadOnlyList<IWebMcpTool>> _effectiveToolsCache = new();
+        private static readonly Dictionary<object, IReadOnlyList<IGridWebMcpTool>> _effectiveToolsCache = new();
 
         /// <summary>
         /// Resolves the effective WebMCP tool list for this grid instance by
@@ -45,10 +45,10 @@ namespace Syncfusion.Blazor.Grids.Actions
         /// </summary>
         /// <param name="userSettings">User-supplied tool overrides. May be null.</param>
         /// <returns>
-        /// An immutable list of <see cref="IWebMcpTool"/> entries ready to
+        /// An immutable list of <see cref="IGridWebMcpTool"/> entries ready to
         /// hand to <c>document.modelContext.registerTool(...)</c>.
         /// </returns>
-        internal static IReadOnlyList<IWebMcpTool> ResolveEffectiveTools(GridWebMcpSettings? userSettings)
+        internal static IReadOnlyList<IGridWebMcpTool> ResolveEffectiveTools(GridWebMcpSettings? userSettings)
         {
             if (userSettings == null || userSettings.ChildTools == null || userSettings.ChildTools.Count == 0)
             {
@@ -144,7 +144,7 @@ namespace Syncfusion.Blazor.Grids.Actions
                     .Select(t => t.Name!),
                 StringComparer.Ordinal);
 
-            var result = new List<IWebMcpTool>(webMcpTools.Count + customTools.Count);
+            var result = new List<IGridWebMcpTool>(webMcpTools.Count + customTools.Count);
 
             foreach (var builtIn in webMcpTools)
             {
@@ -212,7 +212,7 @@ namespace Syncfusion.Blazor.Grids.Actions
                 result.Add(newTool);
             }
 
-            IReadOnlyList<IWebMcpTool> view = result.AsReadOnly();
+            IReadOnlyList<IGridWebMcpTool> view = result.AsReadOnly();
             lock (_effectiveToolsCache)
             {
                 _effectiveToolsCache[userSettings] = view;

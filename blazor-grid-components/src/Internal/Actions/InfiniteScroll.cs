@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Linq;
 using System.Threading.Tasks;
 using System.Collections.Generic;
@@ -77,6 +77,12 @@ namespace Syncfusion.Blazor.Grids.Internal
         internal bool KeyInteractionScroll { get; set; }
 
         /// <summary>
+        /// Gets or sets a value indicating whether more data is available in unbounded scroll mode.
+        /// Used for sentinel-based detection: when fewer rows are returned than pageSize, no more data is available.
+        /// </summary>
+        internal bool HasMoreData { get; set; } = true;
+
+        /// <summary>
         /// Configures the query for infinite scrolling based on the current page settings and infinite scroll settings.
         /// </summary>
         /// <param name="query">The query object to be configured for infinite scrolling.</param>
@@ -118,12 +124,19 @@ namespace Syncfusion.Blazor.Grids.Internal
                 else if (RequestType == "InfiniteScrolling")
                 {
                     _ = query.Page(currentPage, gridPageSize);
-                    int totalItemCount = _parent.TotalItemCount;
-                    if ((maximumBlockPageSize + gridPageSize) > totalItemCount)
+                    
+                    // In unbounded mode, don't limit by totalItemCount (server signals end via hasMoreData)
+                    // In bounded mode, limit by totalItemCount
+                    if (!_parent.InfiniteScrollSettings!.EnableUnboundedScrolling)
                     {
-                        int itemsToLoad = totalItemCount - maximumBlockPageSize;
-                        query.Queries.Take = itemsToLoad > 0 ? itemsToLoad : totalItemCount - query.Queries.Skip;
+                        int totalItemCount = _parent.TotalItemCount;
+                        if ((maximumBlockPageSize + gridPageSize) > totalItemCount)
+                        {
+                            int itemsToLoad = totalItemCount - maximumBlockPageSize;
+                            query.Queries.Take = itemsToLoad > 0 ? itemsToLoad : totalItemCount - query.Queries.Skip;
+                        }
                     }
+                    
                     if (IsDownScroll && currentPage < infiniteMaximumBlocks)
                     {
                         InfiniteGeneratedRows?.Clear();
@@ -568,18 +581,27 @@ namespace Syncfusion.Blazor.Grids.Internal
         /// Refreshes the current view data for infinite scrolling based on the provided data.
         /// </summary>
         /// <param name="data">The data to be added to the current view.</param>
+        /// <param name="hasMoreRecords">Optional flag from remote adaptor indicating if more records are available. When null, uses sentinel detection.</param>
         /// <remarks>
         /// This method handles the addition of new data to the current view for infinite scrolling.
         /// It takes into account the page size, initial blocks, cache settings, and the direction of scrolling (up or down).
         /// If caching is enabled, it also manages the removal of excess items to maintain the maximum block size.
+        /// For remote data with unbounded scrolling, the adaptor can signal end-of-data via hasMoreRecords flag,
+        /// or the grid will use sentinel detection (rows returned less than pageSize indicates end).
         /// </remarks>
-        internal void RefreshInfiniteCurrentViewData(IEnumerable<object> data)
+        internal void RefreshInfiniteCurrentViewData(IEnumerable<object> data, bool? hasMoreRecords = null)
         {
             int pageSize = _parent.PageSettings!.PageSize;
             int initialBlocks = _parent.InfiniteScrollSettings!.InitialBlocks;
             bool enableCache = _parent.InfiniteScrollSettings.EnableCache;
             int maxBlocks = _parent.InfiniteScrollSettings.MaximumBlocks;
             int maxBlock = maxBlocks * pageSize;
+            
+            // Handle remote adaptor's HasMoreRecords flag if provided (priority over sentinel)
+            if (hasMoreRecords.HasValue && _parent.InfiniteScrollSettings!.EnableUnboundedScrolling)
+            {
+                HasMoreData = hasMoreRecords.Value;
+            }
 
             if (initialBlocks > 1 && data.Count() == (initialBlocks * pageSize) && _parent.GroupSettings != null &&  _parent.GroupSettings.Columns == null)
             {
@@ -762,7 +784,31 @@ namespace Syncfusion.Blazor.Grids.Internal
                 foreach (Group<T> obj in dataValues.Cast<Group<T>>())
                 {
                     index++;
-                    Row<object> expandedRow = new GroupModelGenerator<T>(_parent).GenerateCaptionRow(obj, Row?.Indent + 1 ?? 0, 0, 0, 0, Row?.Uid!);
+                    
+                    // Build ancestor snapshots: parent row's ancestors + parent row itself
+                    var ancestorSnapshots = new List<GroupInfo>();
+                    if (Row != null)
+                    {
+                        if (Row.ParentGroupSnapshots != null)
+                        {
+                            ancestorSnapshots.AddRange(Row.ParentGroupSnapshots);
+                        }
+                        if (Row.Data is Group<T> parentGroup)
+                        {
+                            var parentField = parentGroup.Field;
+                            var parentSnapshot = new GroupInfo
+                            {
+                                Field = parentField,
+                                Key = parentGroup.Key?.ToString(),
+                                Count = parentGroup.CountItems,
+                                Level = Row.Indent,
+                                HeaderText = parentField != null ? GridUtils.GetColumnByField(parentField, (List<GridColumn>)_parent.Columns!)?.HeaderText ?? parentField : null
+                            };
+                            ancestorSnapshots.Add(parentSnapshot);
+                        }
+                    }
+                    
+                    Row<object> expandedRow = new GroupModelGenerator<T>(_parent).GenerateCaptionRow(obj, Row?.Indent + 1 ?? 0, 0, 0, 0, Row?.Uid!, null, null, null, ancestorSnapshots);
 
                     if ((data as IEnumerable<object>)?.Count() > LazyLoadPageSize)
                     {
@@ -844,4 +890,3 @@ namespace Syncfusion.Blazor.Grids.Internal
         }
     }
 }
-

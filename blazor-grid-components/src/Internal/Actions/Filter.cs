@@ -16,7 +16,7 @@ namespace Syncfusion.Blazor.Grids.Internal
     /// Handles filter operation.
     /// </summary>
     /// <typeparam name="T"></typeparam>
-    internal class Filter<T>
+    internal partial class Filter<T>
     {
         #region Private Fields
 
@@ -735,9 +735,15 @@ namespace Syncfusion.Blazor.Grids.Internal
                         value = StringValue;
                         FilterOperatorProperty = filterType!;
                     }
+#if NET11_0_OR_GREATER
+                    else if (StringValue.StartsWith('*', System.StringComparison.Ordinal) || StringValue.StartsWith('%', System.StringComparison.Ordinal))
+                    {
+                        Condition = StringValue.StartsWith('*', System.StringComparison.Ordinal) ? "*" : "%";
+#else
                     else if (StringValue.StartsWith('*') || StringValue.StartsWith('%'))
                     {
                         Condition = StringValue.StartsWith('*') ? "*" : "%";
+#endif
                         MapOperatorString(Condition, Col);
                         value = StringValue.Substring(1);
                     }

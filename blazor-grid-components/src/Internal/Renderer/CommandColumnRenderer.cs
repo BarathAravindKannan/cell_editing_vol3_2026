@@ -1,4 +1,4 @@
-﻿using Microsoft.AspNetCore.Components;
+using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Components.Rendering;
 using Microsoft.AspNetCore.Components.Web;
 using Syncfusion.Blazor.Buttons;
@@ -51,8 +51,12 @@ namespace Syncfusion.Blazor.Grids.Internal
                 builder.AddAttribute(sequence++, "data-sf-style", cellState.StyleText);
 
             builder.AddAttribute(sequence++, "data-uid", cell.Uid);
-            builder.AddAttribute(sequence++, "tabindex", cell.TabIndex.ToString(CultureInfo.InvariantCulture));
+            builder.AddAttribute(sequence++, "tabindex", EnsureTabIndexInternal(row, cell).ToString(CultureInfo.InvariantCulture));
             builder.AddMultipleAttributes(sequence++, attributes);
+            if (IsTabExitBoundaryCell(row, cell))
+            {
+                builder.AddAttribute(sequence++, "data-sf-tab-exit", "true");
+            }
 
             // Click handler
             builder.AddAttribute(sequence++, "onclick", EventCallback.Factory.Create<MouseEventArgs>(this, async (e) =>
@@ -95,6 +99,7 @@ namespace Syncfusion.Blazor.Grids.Internal
             builder.OpenElement(sequence++, "div");
             builder.AddAttribute(sequence++, "class", "e-unboundcelldiv");
             builder.AddEventStopPropagationAttribute(sequence++, "onclick", true);
+            builder.AddEventStopPropagationAttribute(sequence++, "onkeydown", true);
 
             // Render each command button
             foreach (var command in cell.Column.Commands)

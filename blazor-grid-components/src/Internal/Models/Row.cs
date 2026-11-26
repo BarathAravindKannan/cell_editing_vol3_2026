@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 
 namespace Syncfusion.Blazor.Grids.Internal
@@ -180,6 +180,17 @@ namespace Syncfusion.Blazor.Grids.Internal
 
         internal bool IsRowSelectionCancelled { get; set; }
 
+        /// <summary>
+        /// Result of <c>GridSelectionSettings.IsRowSelectable</c>, evaluated once when the row is generated.
+        /// </summary>
+        internal bool IsSelectable { get; set; } = true;
+
         internal int GroupIndex { get; set; }
+
+        /// <summary>
+        /// Internal carrier for parent group snapshots; populated during grouped row generation.
+        /// Used by GroupCaptionRenderer to populate CaptionTemplateContext.ParentGroups.
+        /// </summary>
+        internal List<GroupInfo>? ParentGroupSnapshots { get; set; }
     }
 }

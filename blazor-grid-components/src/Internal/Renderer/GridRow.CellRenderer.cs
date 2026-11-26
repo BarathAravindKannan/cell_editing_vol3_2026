@@ -170,7 +170,11 @@ namespace Syncfusion.Blazor.Grids.Internal
             builder.AddAttribute(3, "tabindex", EnsureTabIndexInternal(row, cell).ToString(CultureInfo.InvariantCulture));
             builder.AddAttribute(4, "data-uid", cell?.Uid);
             builder.AddMultipleAttributes(5, GridUtils.GetAttributeValues(cellState.Attributes, cellState.StyleText));
-            builder.AddAttribute(6, "onclick", EventCallback.Factory.Create<MouseEventArgs>(
+            if (IsTabExitBoundaryCell(row, cell!))
+            {
+                builder.AddAttribute(6, "data-sf-tab-exit", "true");
+            }
+            builder.AddAttribute(7, "onclick", EventCallback.Factory.Create<MouseEventArgs>(
                 this, async (e) =>
                 {
                     if (await Parent!.EditModule!.InvokeSingleClickHandler(row, cell!).ConfigureAwait(true))
@@ -183,28 +187,28 @@ namespace Syncfusion.Blazor.Grids.Internal
                         await Parent.FocusModule.Refresh(row, cell!, isCtrlOrShiftKeyPressed: e.CtrlKey || e.ShiftKey).ConfigureAwait(true);
                     }
                 }));
-            builder.AddAttribute(7, "ondblclick", EventCallback.Factory.Create(
+            builder.AddAttribute(8, "ondblclick", EventCallback.Factory.Create(
                 this, async () => await (Parent!.EditModule!.DblClickHandler(row, cell!).ConfigureAwait(true))));
-            builder.AddAttribute(8, "onkeydown", EventCallback.Factory.Create<KeyboardEventArgs>(
+            builder.AddAttribute(9, "onkeydown", EventCallback.Factory.Create<KeyboardEventArgs>(
                 this, async (e) => await Parent!.FocusModule!.ProcessKeyDown(e, row, cell!).ConfigureAwait(true)));
-            builder.AddEventPreventDefaultAttribute(9, "onkeydown", !IsLastCellInternal(row, cell!));
+            builder.AddEventPreventDefaultAttribute(10, "onkeydown", !IsLastCellInternal(row, cell!));
 
-            builder.OpenElement(10, "div");
-            builder.AddEventStopPropagationAttribute(11, "onkeydown", true);
+            builder.OpenElement(11, "div");
+            builder.AddEventStopPropagationAttribute(12, "onkeydown", true);
 
             if (cell != null && cell.IsDirty)
             {
-                builder.AddContent(12, cell.Column?.Template!(row?.EditedData!));
+                builder.AddContent(13, cell.Column?.Template!(row?.EditedData!));
             }
             else
             {
-                builder.AddContent(13, cell?.Column?.Template!(row?.Data!));
+                builder.AddContent(14, cell?.Column?.Template!(row?.Data!));
             }
 
             builder.CloseElement();
 
             // Render frozen cursor
-            RenderFrozenLineCursorTemplate(builder, 14, cell!, cellParameters);
+            RenderFrozenLineCursorTemplate(builder, 15, cell!, cellParameters);
 
             builder.CloseElement();
         }
@@ -273,9 +277,16 @@ namespace Syncfusion.Blazor.Grids.Internal
             checkClass = checkClass ?? string.Empty;
 
             builder.OpenComponent(sequence, typeof(CheckBoxRenderer));
-            builder.AddAttribute(sequence + 1, "WrapperClass", checkClass.ToString() ?? string.Empty);
+            string wrapperClass = checkClass.ToString() ?? string.Empty;
+            if (!isDisabled && cell?.Column?.Type == ColumnType.CheckBox && row?.IsDataRow == true && !row.IsSelectable)
+            {
+                // Non-selectable rows: the disabled class belongs on the e-checkbox-wrapper, not on the td.
+                wrapperClass = (wrapperClass + " e-checkbox-disabled").Trim();
+            }
 
-            if (!isDisabled)
+            builder.AddAttribute(sequence + 1, "WrapperClass", wrapperClass);
+
+            if (!isDisabled && row != null)
             {
                 // Create a synchronous Action<MouseEventArgs> wrapper that fires async work
                 Action<MouseEventArgs> clickAction = (MouseEventArgs e) =>
@@ -599,13 +610,15 @@ namespace Syncfusion.Blazor.Grids.Internal
             {
                 cellState.ClassList.AddOrSkip("e-gridchkbox");
                 cellState.ClassList.AddOrSkip("e-rowcell");
+                // Note: aria-disabled is applied to the e-checkbox-wrapper div via e-checkbox-disabled class,
+                // not to the td element. The class is added in RenderCheckBoxInternal().
             }
 
             ApplyClipMode(cell!, cellState);
 
             GridRowBase<TRow>.ApplyCustomAttributes(cell!, cellState);
 
-            if (cell != null && cell.AttributeList.Any())
+            if (cell != null && cell.AttributeList.Count > 0)
             {
                 foreach (var attribute in cell.AttributeList)
                 {
@@ -640,7 +653,7 @@ namespace Syncfusion.Blazor.Grids.Internal
         /// </summary>
         private static void ApplyCustomAttributes(Cell<object> cell, CellStateInfo cellState)
         {
-            if (cell?.Column?.CustomAttributes != null && (cell?.Column.CustomAttributes.Any() ?? false))
+            if (cell?.Column?.CustomAttributes != null && cell.Column.CustomAttributes.Count > 0)
             {
                 Dictionary<string, object> customAttrType = new Dictionary<string, object>((
                     cell?.Column?.CustomAttributes as Dictionary<string, object>)!);
@@ -876,7 +889,8 @@ namespace Syncfusion.Blazor.Grids.Internal
             var isBoth = !isRowMode && !isCellMode;
 
             if (row?.IsDataRow == true && isRowMode && Parent.CheckBoxState.Equals(CheckState.Check) == true &&
-                row?.State != "UnSelected" && !(row?.RowType?.Equals("DetailRow", StringComparison.Ordinal) == true))
+                row?.State != "UnSelected" && !(row?.RowType?.Equals("DetailRow", StringComparison.Ordinal) == true)
+                && row?.IsSelectable != false)
             {
                 row!.IsSelected = true;
             }
@@ -1072,6 +1086,54 @@ namespace Syncfusion.Blazor.Grids.Internal
                             && _veryLastCell.Equals(cell) == true && !(cell?.EditDisabled == true);
             }
             return false;
+        }
+
+        /// <summary>
+        /// Determines if a cell is a Tab-exit boundary cell (last visible cell in last visible row).
+        /// Such cells get marked with data-sf-tab-exit attribute for JavaScript Tab-exit detection.
+        /// </summary>
+        internal bool IsTabExitBoundaryCell(Row<object> row, Cell<object> cell)
+        {
+            var parent = Parent;
+            if (parent == null || row.IsDetailRow || cell.IsEdit || cell.EditDisabled)
+            {
+                return false;
+            }
+
+            if (!IsLastCellInternal(row, cell))
+            {
+                return false;
+            }
+
+            var lastVisibleRow = parent.Rows?.Where(gridRow => gridRow.Visible).LastOrDefault();
+            var lastVisibleCell = lastVisibleRow?.Cells?.Where(gridCell => gridCell.Visible).LastOrDefault();
+            if (lastVisibleRow?.Equals(row) != true || lastVisibleCell?.Equals(cell) != true)
+            {
+                return false;
+            }
+
+            var tabActions = parent.KeySettings?.GetAction("Tab");
+            if (tabActions == null || tabActions.Length == 0)
+            {
+                return false;
+            }
+
+            if (parent.FreezeModule!.GetFrozenCount() > 0 && parent.FreezeModule.GetFreezeRightCount() > 0)
+            {
+                var lastRightFrozenColumn = parent.FreezeModule.GetFrozenRightFreezeColumns()?
+                    .Where(column => column.Visible)
+                    .LastOrDefault();
+
+                if (cell.Index == lastRightFrozenColumn?.Index ||
+                    (!string.IsNullOrEmpty(cell.Column?.Field) &&
+                     cell.Column.Field == lastRightFrozenColumn?.Field &&
+                     parent.EnableColumnVirtualization))
+                {
+                    return false;
+                }
+            }
+
+            return true;
         }
 
         /// <summary>
@@ -1391,7 +1453,7 @@ namespace Syncfusion.Blazor.Grids.Internal
                 Parent.EventAggregator.Trigger("OnKeyDown", e);
             }
 
-            if (!Parent.EnableVirtualization && !Parent.EnableInfiniteScrolling && Parent.FocusModule != null)
+            if ((Parent.EnableDomVirtualization || (!Parent.EnableVirtualization && !Parent.EnableInfiniteScrolling)) && Parent.FocusModule != null)
             {
                 await Parent.FocusModule.ProcessKeyDown(e, row, cell).ConfigureAwait(true);
             }

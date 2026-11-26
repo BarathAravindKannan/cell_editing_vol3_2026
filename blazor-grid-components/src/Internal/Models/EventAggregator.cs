@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
@@ -21,9 +21,10 @@ namespace Syncfusion.Blazor.Grids.Internal
 
         public void Trigger(string name, object args)
         {
-            if (HasHandler(name))
+            if (name != null && _eventList.TryGetValue(name, out var handlers))
             {
-                foreach(Action<object> handler in _eventList[name]) {
+                foreach (Action<object> handler in handlers.ToArray())
+                {
                     handler.Invoke(args);
                 }
             }
@@ -33,7 +34,7 @@ namespace Syncfusion.Blazor.Grids.Internal
             if (_eventAsyncList.TryGetValue(name, out var handlers))
             {
                 var taskToPass = Task.CompletedTask;
-                var handlerTasks = handlers.Select(handler => handler(taskToPass, args));
+                var handlerTasks = handlers.ToArray().Select(handler => handler(taskToPass, args));
                 await Task.WhenAll(handlerTasks).ConfigureAwait(true);
             }
         }
@@ -88,7 +89,7 @@ namespace Syncfusion.Blazor.Grids.Internal
 
         public void Remove(string name, Action<object> handler)
         {
-            if (_eventList.Any())
+            if (_eventList.Count > 0)
             {
                 HashSet<Action<object>>? actions = null;
                 bool isPresent = _eventList.TryGetValue(name, out actions);
@@ -100,7 +101,7 @@ namespace Syncfusion.Blazor.Grids.Internal
         }
         internal void RemoveAsync(string name, Func<Task, object, Task> handler)
         {
-            if (_eventAsyncList.Any())
+            if (_eventAsyncList.Count > 0)
             {
                 List<Func<Task, object, Task>> actions = null!;
                 bool isPresent = _eventAsyncList.TryGetValue(name, out actions!);

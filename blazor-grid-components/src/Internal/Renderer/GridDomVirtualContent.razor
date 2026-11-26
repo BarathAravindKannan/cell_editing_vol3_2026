@@ -1,14 +1,16 @@
 @namespace Syncfusion.Blazor.Grids.Internal
 @using System.Collections.Specialized;
+@using System.Threading;
 @using System.Text.Json.Serialization;
 @typeparam TContent
 @implements IRenderer
+@implements IDomVirtualContent
 @implements IDisposable
 
 @*
     DOM Virtualization Renderer
     
-    Used when: EnableDomVirtualization=true && !EnableVirtualization && !Paging
+    Used when: EnableDomVirtualization=true
     
     Renders only visible rows and provides custom scrollbar to handle browser's 
     max scroll height limit (~32M px). Enables rendering 100M+ records smoothly.
@@ -64,7 +66,7 @@
                             }
                             else if (Row.Visible)
                             {
-                                if (Parent != null && Parent.Rows.Count <= Parent.PageSettings!.PageSize && Row == RenderedRows.LastOrDefault())
+                                if (IsGroupMode ? ReferenceEquals(Row, RenderedRows[RenderedRows.Count - 1]) && RenderedEndIndex == ScrollRowCount : Row.Index == ScrollRowCount - 1)
                                 {
                                     rowParameters.IsLastRow = true;
                                 }
@@ -161,13 +163,47 @@
     private System.Collections.IList? _items;
     private object? _sourceReference;
     private readonly Dictionary<int, Row<object>> _rowCache = new();
-    private int TotalCount => _items?.Count ?? 0;
-    private int CurrentScrollTop { get; set; } = 0;
-    private int ViewportHeight { get; set; } = 300;
-    private long TotalDataHeight => Parent.AllowPaging ? (long)Parent.PageSettings.PageSize * RowHeight : (long)TotalCount * RowHeight;
-    private int RowHeight { get; set; } = 30;
+    private int TotalCount => Parent?.TotalItemCount ?? 0;
+
+    // Grouped data is windowed over the visible group entries (captions, data, footers); row virtualization's record cache is not used then.
+    private bool IsGroupMode => Parent?.DomVirtualModule?.IsGroupMode == true;
+    private bool IsRowVirtual => Parent != null && Parent.EnableVirtualization && Parent.VirtualScrollModule != null && !IsGroupMode;
+    private object? _generatedDataRef;
+    private int _lastTotal = -1;
+    private bool _fetching;
+    private bool _refreshAfterFetch;
+    private bool _windowChanged;
+    private bool _observingDetails;
+    private int _firstVisibleIndex;
+    private int _visibleRowCount;
+
+    public int ScrollRowCount
+    {
+        get
+        {
+            if (IsGroupMode)
+            {
+                return Parent!.DomVirtualModule!.GroupEntryCount;
+            }
+            if (Parent == null || !Parent.AllowPaging || IsRowVirtual || Parent.PageSettings == null)
+            {
+                return TotalCount;
+            }
+            int pageSize = Parent.PageSettings.PageSize;
+            int rowsOnPage = TotalCount - ((Parent.PageSettings.CurrentPage - 1) * pageSize);
+            return Math.Max(0, Math.Min(pageSize, rowsOnPage));
+        }
+    }
+    public int CurrentScrollTop { get; set; } = 0;
+    public int ViewportHeight => GetResolvedViewportHeight();
+    private int AddedBottomCount => Parent?.DomVirtualModule?.AddedBottomCount ?? 0;
+    // The unsaved bottom add form takes one row of scroll space on top of the data rows.
+    private int TrackRowCount => ScrollRowCount + AddedBottomCount;
+    // Uniform rows plus the heights of the expanded detail rows (zero without a DetailTemplate expansion).
+    public long TotalDataHeight => ((long)TrackRowCount * RowHeight) + (Parent?.DomVirtualModule?.DetailTotalHeight ?? 0);
+    public int RowHeight => Parent?.RowHeight > 0 ? (int)Parent.RowHeight : 30;
     private double ScrollAmplificationFactor { get; set; } = 1.0;
-    private int BrowserMaxScrollHeight { get; set; } = 32767000;
+    public int BrowserMaxScrollHeight { get; set; } = 32767000;
 
     private long CurrentRowOffset { get; set; }
     private long TranslateY { get; set; }
@@ -186,16 +222,32 @@
         Parent?.EventAggregator?.Add("DomVirtualComponentUpdate", new Action<object>(DomVirtualComponentUpdate));
         Parent?.EventAggregator?.AddAsync("DomVirtualScroll", HandleDomVirtualScroll);
         Parent?.EventAggregator?.AddAsync("DomVirtualMaxHeightChanged", HandleDomVirtualMaxHeightChanged);
+        if (Parent?.DomVirtualModule != null)
+        {
+            Parent.DomVirtualModule.Content = this;
+        }
     }
 
     protected override async Task OnInitializedAsync()
     {
         if (Parent == null) return;
         
-        RowHeight = Parent.RowHeight > 0 ? (int)Parent.RowHeight : 30;
-        ViewportHeight = GetViewportHeight();
         await UpdateRenderedRows();
         await base.OnInitializedAsync();
+    }
+
+    private int GetResolvedViewportHeight()
+    {
+        string? height = Parent?.Height;
+        if (!string.IsNullOrEmpty(height))
+        {
+            string numeric = height.EndsWith("px", StringComparison.OrdinalIgnoreCase) ? height.Substring(0, height.Length - 2) : height;
+            if (double.TryParse(numeric, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out double value) && value > 0)
+            {
+                return (int)value;
+            }
+        }
+        return 300;
     }
 
     protected override async Task OnParametersSetAsync()
@@ -204,8 +256,13 @@
 
         // Reload only when the data source instance or its size changed (no per-item comparison of the whole dataset).
         IEnumerable<object>? source = ContentParameters.Data;
-        bool changed = !ReferenceEquals(source, _sourceReference)
-            || (_items != null && source is System.Collections.ICollection collection && collection.Count != _items.Count);
+        bool grouped = Parent.DomVirtualModule != null && DomVirtualHandler<TContent>.IsGroupedSource(Parent, source);
+        bool changed = grouped || IsGroupMode
+            ? !ReferenceEquals(source, _sourceReference) || grouped != IsGroupMode
+            : IsRowVirtual
+            ? HasVirtualSourceChanged()
+            : !ReferenceEquals(source, _sourceReference)
+                || (_items != null && source is System.Collections.ICollection collection && collection.Count != _items.Count);
         if (changed)
         {
             _sourceReference = source;
@@ -219,8 +276,23 @@
     {
         if (firstRender && Parent != null && ContentElement.Context != null)
         {
-            RowHeight = Parent.RowHeight > 0 ? (int)Parent.RowHeight : 30;
             await UpdateRenderedRows();
+        }
+        else if (_windowChanged)
+        {
+            _windowChanged = false;
+            DomVirtualHandler<TContent>? domVirtual = Parent?.DomVirtualModule;
+            if (domVirtual?.PendingInputValues != null && Parent!.IsEdit && Parent.EditModule?.EditedRow != null && RenderedRows.Contains(Parent.EditModule.EditedRow))
+            {
+                await domVirtual.ApplyPendingInputValuesAsync();
+            }
+            await RestoreFocusAfterWindowChangeAsync();
+            if (Parent != null && Parent.IsRendered && domVirtual != null && (domVirtual.HasDetails || _observingDetails))
+            {
+                // Observe the rendered detail rows so their real height replaces the estimate (also when the template content resizes).
+                _observingDetails = domVirtual.HasDetails;
+                await Parent.InvokeMethod("sfBlazor.Grid.observeDomVirtualDetails", new object[] { Parent.DataId }).ConfigureAwait(true);
+            }
         }
         await base.OnAfterRenderAsync(firstRender);
     }
@@ -229,12 +301,83 @@
 
     #region Row Generation & Rendering
 
+    private bool HasVirtualSourceChanged()
+    {
+        object cache = Parent!.VirtualScrollModule!.GeneratedData;
+        bool changed = !ReferenceEquals(cache, _generatedDataRef) || Parent.TotalItemCount != _lastTotal;
+        _generatedDataRef = cache;
+        _lastTotal = Parent.TotalItemCount;
+        return changed;
+    }
+
+    private object? GetRecord(int index)
+    {
+        if (IsRowVirtual)
+        {
+            return Parent!.VirtualScrollModule!.GeneratedData.TryGetValue(index, out IEnumerable<object>? cached) ? cached?.FirstOrDefault() : null;
+        }
+        return _items != null && index >= 0 && index < _items.Count ? _items[index] : null;
+    }
+
+    private async Task EnsureDataAsync(int startIndex, int endIndex)
+    {
+        var cache = Parent!.VirtualScrollModule!.GeneratedData;
+        bool missing = false;
+        for (int index = startIndex; index < endIndex; index++)
+        {
+            if (!cache.ContainsKey(index))
+            {
+                missing = true;
+                break;
+            }
+        }
+        if (!missing)
+        {
+            return;
+        }
+
+        int pageSize = Parent.PageSettings!.PageSize;
+        int fetchEnd = Math.Max(endIndex, Math.Min(TotalCount, startIndex + pageSize));
+        int fetchStart = Math.Min(startIndex, Math.Max(0, fetchEnd - pageSize));
+
+        _fetching = true;
+        try
+        {
+            await Parent.VirtualScrollModule.FetchRangeForDomAsync(fetchStart, fetchEnd, CurrentScrollTop).ConfigureAwait(true);
+        }
+        finally
+        {
+            _fetching = false;
+        }
+    }
+
     private async Task GenerateRows()
     {
+        Parent?.DomVirtualModule?.ResetEditState();
+        Parent?.DomVirtualModule?.ResetDetailState();
+        Parent?.DomVirtualModule?.ClearRetainedSelectionState();
+        Parent?.SelectionModule?.ResetDomVirtualSelectionOnDataChange();
         _rowCache.Clear();
-        RenderedRows = new();
+        SetRenderedRows(new());
         CurrentStartIndex = 0;
         RenderedEndIndex = 0;
+        // Flattens grouped data into visible entries (or leaves group mode when the data is not grouped any more).
+        Parent?.DomVirtualModule?.BuildGroupEntries(ContentParameters?.Data);
+        if (IsGroupMode)
+        {
+            _items = null;
+            CalculateScrollAmplification();
+            await UpdateRenderedRows(true);
+            return;
+        }
+
+        if (IsRowVirtual && Parent != null)
+        {
+            _items = null;
+            CalculateScrollAmplification();
+            await UpdateRenderedRows(true);
+            return;
+        }
 
         IEnumerable<object>? source = ContentParameters?.Data;
         if (Parent == null || source == null)
@@ -256,27 +399,41 @@
     /// </summary>
     private async Task UpdateRenderedRows(bool force = false)
     {
-        if (Parent == null || _items == null || TotalCount == 0)
+        CalculateScrollAmplification();
+        if (Parent == null || (_items == null && !IsRowVirtual && !IsGroupMode) || ScrollRowCount == 0)
         {
-            RenderedRows = new();
+            TrackAddedRows();
+            List<Row<object>> emptyWindow = new();
+            AttachAddedRows(emptyWindow, 0, 0);
+            SetRenderedRows(emptyWindow);
+            PublishWindowMetrics();
+            if (force || emptyWindow.Count > 0)
+            {
+                await InvokeAsync(StateHasChanged);
+            }
             return;
         }
 
-        if (RowHeight <= 0)
+        if (_fetching)
         {
-            RowHeight = Parent.RowHeight > 0 ? (int)Parent.RowHeight : 30;
+            _refreshAfterFetch = true;
+            return;
         }
 
+        
         int visibleRowCount = (ViewportHeight / RowHeight) + 1;
 
         // Default buffer is one viewport on each side so a wheel/drag step never outruns the rendered window.
-        int rowBuffer = Parent.DomVirtualizationSettings?.RowBuffer ?? visibleRowCount;
+        // At least one row of buffer so the row above/below the focused row is always rendered for keyboard navigation.
+        int rowBuffer = Math.Max(1, Parent.DomVirtualizationSettings?.RowBuffer ?? visibleRowCount);
         int maxPool = Parent.DomVirtualizationSettings?.GetEffectiveMaxPoolSize() ?? 500;
 
         (int firstVisible, long rowOffset) = GetEffectiveScrollState(visibleRowCount);
         CurrentRowOffset = rowOffset;
+        _firstVisibleIndex = firstVisible;
+        _visibleRowCount = visibleRowCount;
         int startIndex = Math.Max(0, firstVisible - rowBuffer);
-        int endIndex = Math.Min(TotalCount, firstVisible + visibleRowCount + rowBuffer);
+        int endIndex = Math.Min(ScrollRowCount, firstVisible + visibleRowCount + rowBuffer);
         if (endIndex - startIndex > maxPool)
         {
             endIndex = startIndex + maxPool;
@@ -288,21 +445,57 @@
             return;
         }
 
+        if (IsRowVirtual)
+        {
+            await EnsureDataAsync(startIndex, endIndex);
+            if (_refreshAfterFetch)
+            {
+                _refreshAfterFetch = false;
+                await UpdateRenderedRows(force);
+                return;
+            }
+        }
+
+        TrackAddedRows();
+        await CaptureEditInputsBeforeLeavingAsync(startIndex, endIndex);
         EnsureWindowRows(startIndex, endIndex);
 
+        DomVirtualHandler<TContent>? domVirtualState = Parent.DomVirtualModule;
         List<Row<object>> windowRows = new(endIndex - startIndex);
         for (int index = startIndex; index < endIndex; index++)
         {
             if (_rowCache.TryGetValue(index, out Row<object>? row))
             {
                 windowRows.Add(row);
+                // Details are keyed by the data row index (equal to the window index without grouping).
+                if (domVirtualState != null && domVirtualState.HasDetails && row.IsDataRow && row.Index is int dataIndex && domVirtualState.TryGetDetailRow(dataIndex, out Row<object> detailRow))
+                {
+                    // Expansion lives in the handler, so a re-created parent row is marked expanded again and gets its detail row back.
+                    MarkExpanded(row, true);
+                    windowRows.Add(detailRow);
+                }
+                else if (row.IsExpand && row.IsDataRow)
+                {
+                    MarkExpanded(row, false);
+                }
             }
         }
 
-        RenderedRows = windowRows;
+        // With row virtualization the first records of the window can be missing from the cache (right after a save refreshed it).
+        // The table is placed at the first row that is really rendered; placing it at startIndex leaves a blank gap of the missing rows.
+        int firstRenderedIndex = startIndex;
+        if (IsRowVirtual && windowRows.Count > 0 && windowRows[0].Index is int firstIndex && firstIndex > startIndex)
+        {
+            firstRenderedIndex = firstIndex;
+        }
+
+        AttachAddedRows(windowRows, startIndex, endIndex);
+        SetRenderedRows(windowRows);
+        PublishWindowMetrics();
+        _windowChanged = true;
         CurrentStartIndex = startIndex;
         RenderedEndIndex = endIndex;
-        TranslateY = ((long)CurrentStartIndex * RowHeight) - CurrentRowOffset;
+        TranslateY = (Parent.DomVirtualModule?.TopOf(firstRenderedIndex, RowHeight) ?? ((long)firstRenderedIndex * RowHeight)) - CurrentRowOffset;
 
         await InvokeAsync(StateHasChanged);
     }
@@ -322,19 +515,61 @@
                 (stale ??= new List<int>()).Add(cachedIndex);
             }
         }
+        DomVirtualHandler<TContent>? domVirtual = Parent!.DomVirtualModule;
         if (stale != null)
         {
             foreach (int cachedIndex in stale)
             {
+                domVirtual?.CaptureSelectionState(_rowCache[cachedIndex]);
+                // A row that carries edit state keeps its model while outside the window; its editor/DOM is not kept.
+                if (domVirtual != null && DomVirtualHandler<TContent>.HasEditState(_rowCache[cachedIndex]))
+                {
+                    domVirtual.RetainedRows[cachedIndex] = _rowCache[cachedIndex];
+                }
                 _rowCache.Remove(cachedIndex);
             }
+        }
+        if (domVirtual != null && domVirtual.RetainedRows.Count > 0)
+        {
+            for (int retained = startIndex; retained < endIndex; retained++)
+            {
+                if (domVirtual.RetainedRows.Remove(retained, out Row<object>? restored))
+                {
+                    _rowCache[retained] = restored;
+                }
+            }
+        }
+
+        if (IsGroupMode)
+        {
+            int entry = startIndex;
+            while (entry < endIndex)
+            {
+                if (_rowCache.ContainsKey(entry))
+                {
+                    entry++;
+                    continue;
+                }
+                int runStart = entry;
+                while (entry < endIndex && !_rowCache.ContainsKey(entry))
+                {
+                    entry++;
+                }
+                // One row per entry (footers are one entry per aggregate), so the generated list maps 1:1 to the run.
+                List<Row<object>> groupRows = domVirtual!.GenerateGroupEntryRows(runStart, entry - runStart);
+                for (int i = 0; i < groupRows.Count; i++)
+                {
+                    _rowCache[runStart + i] = groupRows[i];
+                }
+            }
+            return;
         }
 
         RowModelGenerator<TContent>? generator = null;
         int index = startIndex;
         while (index < endIndex)
         {
-            if (_rowCache.ContainsKey(index))
+            if (_rowCache.ContainsKey(index) || GetRecord(index) == null)
             {
                 index++;
                 continue;
@@ -342,13 +577,18 @@
 
             int runStart = index;
             List<object> slice = new();
-            while (index < endIndex && !_rowCache.ContainsKey(index))
+            while (index < endIndex && !_rowCache.ContainsKey(index) && GetRecord(index) is object record)
             {
-                slice.Add(_items![index]!);
+                slice.Add(record);
                 index++;
             }
 
             generator ??= new RowModelGenerator<TContent>(Parent!);
+            if (IsRowVirtual)
+            {
+                // Generator numbers rows from VirtualRowIndex when row virtualization is on
+                Parent!.VirtualScrollModule!.VirtualRowIndex = runStart;
+            }
             int position = runStart;
             foreach (Row<object> row in generator.GeneratorRows(slice, runStart))
             {
@@ -356,6 +596,94 @@
                 {
                     _rowCache[position++] = row;
                 }
+            }
+        }
+    }
+
+    /// <summary>
+    /// Added rows are not data records, so the window rebuild would drop them. They are remembered here and re-attached
+    /// at the top / bottom of the data when that end of the data is inside the window.
+    /// </summary>
+    private void TrackAddedRows()
+    {
+        DomVirtualHandler<TContent>? domVirtual = Parent?.DomVirtualModule;
+        if (domVirtual == null)
+        {
+            return;
+        }
+        List<Row<object>>? newTop = null;
+        foreach (Row<object> row in RenderedRows)
+        {
+            if (domVirtual.AddedRows.Contains(row))
+            {
+                continue;
+            }
+            if (row.IsAddedTop)
+            {
+                (newTop ??= new List<Row<object>>()).Add(row);
+            }
+            else if (row.IsAddedBottom)
+            {
+                domVirtual.AddedRows.Add(row);
+            }
+        }
+        // The window list shows the newest top row first, so new top rows go in front of the older ones in the same order.
+        if (newTop != null)
+        {
+            domVirtual.AddedRows.InsertRange(0, newTop);
+        }
+        domVirtual.AddedRows.RemoveAll(row => !row.IsAddedTop && !row.IsAddedBottom);
+    }
+
+    private void AttachAddedRows(List<Row<object>> windowRows, int startIndex, int endIndex)
+    {
+        DomVirtualHandler<TContent>? domVirtual = Parent?.DomVirtualModule;
+        if (domVirtual == null || domVirtual.AddedRows.Count == 0)
+        {
+            return;
+        }
+        int topPosition = 0;
+        foreach (Row<object> row in domVirtual.AddedRows)
+        {
+            if (row.IsAddedTop && startIndex == 0)
+            {
+                windowRows.Insert(topPosition++, row);
+            }
+            else if (row.IsAddedBottom && endIndex == ScrollRowCount)
+            {
+                windowRows.Add(row);
+            }
+        }
+    }
+
+    /// <summary>
+    /// The editors commit typed text on blur, so text that was typed but not committed exists only in the DOM input.
+    /// It is read once, just before the window render that removes the editing row, and re-applied when the editor is created again.
+    /// </summary>
+    private async Task CaptureEditInputsBeforeLeavingAsync(int startIndex, int endIndex)
+    {
+        Row<object>? editedRow = Parent?.EditModule?.EditedRow;
+        if (Parent == null || Parent.DomVirtualModule == null || !Parent.IsEdit || editedRow == null || !RenderedRows.Contains(editedRow) || !Parent.IsRendered)
+        {
+            return;
+        }
+        bool leaves = editedRow.IsAddedTop ? startIndex != 0
+            : editedRow.IsAddedBottom ? endIndex != ScrollRowCount
+            : editedRow.Index is int index && (index < startIndex || index >= endIndex);
+        if (leaves)
+        {
+            await Parent.DomVirtualModule.CaptureEditInputsAsync().ConfigureAwait(true);
+        }
+    }
+
+    private static void MarkExpanded(Row<object> row, bool expanded)
+    {
+        row.IsExpand = expanded;
+        foreach (Cell<object> cell in row.Cells)
+        {
+            if (cell.CellType == CellType.Detail)
+            {
+                cell.DetailRowExpand = expanded;
             }
         }
     }
@@ -374,7 +702,7 @@
 
     private (int FirstVisible, long RowOffset) GetEffectiveScrollState(int visibleRowCount)
     {
-        if (TotalCount <= 0)
+        if (ScrollRowCount <= 0)
         {
             return (0, 0);
         }
@@ -384,15 +712,115 @@
         bool nearBottom = CurrentScrollTop >= maxScrollable - 1;
         if (nearBottom)
         {
-            int firstAtBottom = Math.Max(0, TotalCount - visibleRowCount);
+            DomVirtualHandler<TContent>? bottomDetails = Parent?.DomVirtualModule;
+            int firstAtBottom = bottomDetails != null && bottomDetails.HasDetails
+                ? Math.Min(ScrollRowCount - 1, bottomDetails.IndexAt(Math.Max(0, TotalDataHeight - ViewportHeight), RowHeight))
+                : Math.Max(0, TrackRowCount - visibleRowCount);
             return (firstAtBottom, additionalPixels);
         }
 
         double scrollPercent = Math.Min(1d, Math.Max(0d, CurrentScrollTop / (double)maxScrollable));
         long rowOffset = (long)Math.Floor(scrollPercent * additionalPixels);
         long effectiveScrollTop = CurrentScrollTop + rowOffset;
-        int firstVisible = (int)Math.Min(TotalCount - 1, effectiveScrollTop / RowHeight);
+        // With expanded details the row at an offset comes from the sorted detail list (O(log k)), not from a division.
+        DomVirtualHandler<TContent>? details = Parent?.DomVirtualModule;
+        int firstVisible = details != null && details.HasDetails
+            ? Math.Min(ScrollRowCount - 1, details.IndexAt(effectiveScrollTop, RowHeight))
+            : (int)Math.Min(ScrollRowCount - 1, effectiveScrollTop / RowHeight);
         return (firstVisible, rowOffset);
+    }
+
+    #endregion
+
+    #region Focus and Keyboard Support
+
+    /// <summary>
+    /// The rendered window is the grid's row collection while DOM virtualization is on, so the focus,
+    /// selection and edit code that reads <c>Parent.Rows</c> sees the rows that actually exist in the DOM.
+    /// </summary>
+    private void SetRenderedRows(List<Row<object>> rows)
+    {
+        RenderedRows = rows;
+        if (Parent != null)
+        {
+            Parent.Rows = rows;
+        }
+    }
+
+    private void PublishWindowMetrics()
+    {
+        if (Parent?.DomVirtualModule != null)
+        {
+            Parent.DomVirtualModule.TotalRowCount = ScrollRowCount;
+        }
+    }
+
+    #region IDomVirtualContent
+
+    public int RenderedRowCount => RenderedRows.Count;
+
+    public int WindowStartIndex => CurrentStartIndex;
+
+    public int WindowEndIndex => RenderedEndIndex;
+
+    public bool IsFetching => _fetching || _refreshAfterFetch;
+
+    public SemaphoreSlim EnsureLock { get; } = new(1, 1);
+
+    public bool HasRenderedRow(int rowIndex) => RenderedRows.Any(row => row.Index == rowIndex);
+
+    public Task UpdateRenderedRowsAsync(bool force) => UpdateRenderedRows(force);
+
+    public void ClearRowCache()
+    {
+        if (Parent?.DomVirtualModule != null)
+        {
+            foreach (Row<object> row in _rowCache.Values)
+            {
+                Parent.DomVirtualModule.CaptureSelectionState(row);
+            }
+        }
+        _rowCache.Clear();
+    }
+
+    #endregion
+
+    /// <summary>
+    /// A row that leaves the window is dropped and re-created with a new Uid when it comes back, so its focus state is lost.
+    /// When the focused row is visible again, re-apply the focus through the existing focus pipeline.
+    /// </summary>
+    private async Task RestoreFocusAfterWindowChangeAsync()
+    {
+        FocusHandler<TContent>? focus = Parent?.FocusModule;
+        if (Parent == null || focus == null)
+        {
+            return;
+        }
+        if (focus.HasPendingDomFocus)
+        {
+            await focus.ApplyPendingDomFocusAsync().ConfigureAwait(true);
+            return;
+        }
+        if (focus.DomFocusRowIndex == null || focus.DomFocusCellIndex == null || Parent.IsEdit)
+        {
+            return;
+        }
+        int rowIndex = focus.DomFocusRowIndex.Value;
+        if (rowIndex < _firstVisibleIndex || rowIndex >= _firstVisibleIndex + _visibleRowCount)
+        {
+            return;
+        }
+        Row<object>? row = RenderedRows.Find(r => r.Index == rowIndex && r.IsDataRow);
+        Cell<object>? cell = row?.Cells.Find(c => c.Index == focus.DomFocusCellIndex);
+        if (row == null || cell == null || cell.IsFocused)
+        {
+            return;
+        }
+        focus.ClearCurrent();
+        focus.SetCurrent(row, cell, focus.DomFocusOutline);
+        Parent.SoftRefresh = true;
+        Parent.EventAggregator.Trigger("RowStateChanged", row);
+        await focus.Focus(row.Uid!, cell.Uid!, cellColIndex: cell.Index!.Value + 1).ConfigureAwait(true);
     }
 
     #endregion
@@ -420,23 +848,6 @@
             CalculateScrollAmplification();
             await UpdateRenderedRows(true);
         }
-    }
-
-    /// <summary>
-    /// Viewport height is the static SfGrid.Height (px); auto/percentage heights fall back to the 300px content default.
-    /// </summary>
-    private int GetViewportHeight()
-    {
-        string? height = Parent?.Height;
-        if (!string.IsNullOrEmpty(height))
-        {
-            string numeric = height.EndsWith("px", StringComparison.OrdinalIgnoreCase) ? height.Substring(0, height.Length - 2) : height;
-            if (double.TryParse(numeric, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out double value) && value > 0)
-            {
-                return (int)value;
-            }
-        }
-        return 300;
     }
 
     /// <summary>
@@ -554,7 +965,7 @@
         if (Parent == null || Parent.VirtualScrollModule == null) return "height: 0px; width: 100%;";
         
         int height = 0;
-        int itemCount = Parent.AllowPaging ? Parent.PageSettings.PageSize : Parent.TotalItemCount;
+        int itemCount = TrackRowCount;
         
         if (itemCount == 0)
         {
@@ -566,7 +977,7 @@
             ? Parent.VirtualScrollModule.RHeight 
             : (Parent.RowHeight > 0 ? (int)Parent.RowHeight : RowHeight);
         
-        height = (int)Math.Min((long)itemCount * effectiveRowHeight, BrowserMaxScrollHeight);
+        height = (int)Math.Min(((long)itemCount * effectiveRowHeight) + (Parent.DomVirtualModule?.DetailTotalHeight ?? 0), BrowserMaxScrollHeight);
         
         return $"height: {height}px; width:100%;";
     }
@@ -605,6 +1016,15 @@
         Parent?.EventAggregator?.Remove("DomVirtualComponentUpdate");
         RenderedRows?.Clear();
         _rowCache.Clear();
+        Parent?.DomVirtualModule?.ResetEditState();
+        Parent?.DomVirtualModule?.ResetDetailState();
+        Parent?.DomVirtualModule?.ClearRetainedSelectionState();
+        Parent?.DomVirtualModule?.ResetGroupState();
+        EnsureLock.Dispose();
+        if (Parent?.DomVirtualModule != null && ReferenceEquals(Parent.DomVirtualModule.Content, this))
+        {
+            Parent.DomVirtualModule.Content = null;
+        }
     }
 
     public async ValueTask DisposeAsync()

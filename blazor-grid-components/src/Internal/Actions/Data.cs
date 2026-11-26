@@ -25,8 +25,13 @@ namespace Syncfusion.Blazor.Grids.Internal
         public virtual Query GenerateQuery(bool skipPage = false, int VirtualStartIndex = 0, int VirtualEndIndex = 0)
         {
             Query query = Parent.Query?.Clone() ?? new Query();
-            query.Queries.RequiresFilteredRecords = Parent.SelectionSettings!.PersistSelection &&
-                (Parent.AllowFiltering && Parent.FilterSettings!.Columns?.Count > 0) || (Parent.SearchSettings!.Key?.Length > 0) || (Parent?.Query?.Queries?.Where != null && !Parent.IsRenderedFromTreeGrid);
+            
+            // Determine if RequiresFilteredRecords should be set based on PersistSelection or IsRowSelectable
+            bool hasFilters = (Parent.AllowFiltering && Parent.FilterSettings?.Columns?.Count > 0) || (Parent.SearchSettings?.Key?.Length > 0);
+            bool hasExplicitWhere = Parent.Query?.Queries?.Where != null && !Parent.IsRenderedFromTreeGrid;
+            bool selectabilityRequiresFilters = Parent.SelectionSettings?.IsRowSelectable != null && hasFilters;
+            
+            query.Queries.RequiresFilteredRecords = Parent.SelectionSettings!.PersistSelection && (hasFilters || hasExplicitWhere) || selectabilityRequiresFilters;
             _flattenedColumns = GridUtils.GetColumns(Parent!);
 
             if (Parent?.ColumnQueryMode == ColumnQueryModeType.ExcludeHidden)
@@ -166,8 +171,9 @@ namespace Syncfusion.Blazor.Grids.Internal
             if ((Parent.AllowSorting || Parent.AllowGrouping) && count != 0)
             {
                 List<GridColumn> gridColumns = GridUtils.GetColumns(Parent);
-                List<GridSortColumn> cols = new List<GridSortColumn>();
-                for (var i = count - 1; i > -1; i--)
+                List<GridSortColumn> groupedSortCols = new List<GridSortColumn>();
+                List<GridSortColumn> nonGroupedSortCols = new List<GridSortColumn>();
+                for (var i = 0; i < count; i++)
                 {
                     var field = columns[i].Field;
                     var dir = columns[i].Direction;
@@ -176,27 +182,33 @@ namespace Syncfusion.Blazor.Grids.Internal
                         if (gridColumns.Any(column => column.Field == field))
                         {
 #pragma warning disable BL0005
-                            cols.Add(new GridSortColumn() { Field = field, Direction = dir });
+                            groupedSortCols.Add(new GridSortColumn() { Field = field, Direction = dir });
 #pragma warning restore BL0005
                         }
                     }
                     else
                     {
-                        List<GridColumn> comp = gridColumns.Where(x => !string.IsNullOrEmpty(x.Field) ? x.Field.Equals(field, StringComparison.Ordinal) : false).ToList();
-                        object? comparer = null;
-                        if (comp != null && comp.Count > 0 && comp[0].ForeignKeySorting != null)
-                        {
-                            comparer = (!(Parent.DataManager!.DataAdaptor!.IsRemote()) && Parent.DataSource != null && !(Parent.DataSource.GetType().Name.Contains("DbSet", StringComparison.Ordinal))) ? comp[0].ForeignKeySorting : null!;
-                        }
-                        else
-                        {
-                            comparer = (comp?.Count > 0 && !(Parent.DataManager!.DataAdaptor!.IsRemote()) && Parent.DataSource != null && !(Parent.DataSource.GetType().Name.Contains("DbSet", StringComparison.Ordinal))) ? comp[0].SortComparer : null!;
-                        }
-                        query.Sort(field, dir.ToString().ToLower(System.Globalization.CultureInfo.CurrentCulture), comparer!);
+                        nonGroupedSortCols.Add(new GridSortColumn() { Field = field, Direction = dir });
                     }
                 }
 
-                cols.ForEach(sorts => {
+                // Grouped columns must be sorted first, then non-grouped columns.
+                // Add them to the query in that order so the sort order is preserved.
+                groupedSortCols.ForEach(sorts => {
+                    List<GridColumn> comp = gridColumns.Where(x => !string.IsNullOrEmpty(x.Field) ? x.Field.Equals(sorts.Field, StringComparison.Ordinal) : false).ToList();
+                    object? comparer = null;
+                    if (comp != null && comp.Count > 0 && comp[0].ForeignKeySorting != null)
+                    {
+                        comparer = (!(Parent.DataManager!.DataAdaptor!.IsRemote()) && Parent.DataSource != null && !(Parent.DataSource.GetType().Name.Contains("DbSet", StringComparison.Ordinal))) ? comp[0].ForeignKeySorting : null!;
+                    }
+                    else
+                    {
+                        comparer = (comp != null && comp.Count > 0 && !(Parent.DataManager!.DataAdaptor!.IsRemote()) && Parent.DataSource != null && !(Parent.DataSource.GetType().Name.Contains("DbSet", StringComparison.Ordinal))) ? comp[0].SortComparer : null!;
+                    }
+                    query.Sort(sorts.Field, sorts.Direction.ToString().ToLower(System.Globalization.CultureInfo.CurrentCulture), comparer!);
+                });
+
+                nonGroupedSortCols.ForEach(sorts => {
                     List<GridColumn> comp = gridColumns.Where(x => !string.IsNullOrEmpty(x.Field) ? x.Field.Equals(sorts.Field, StringComparison.Ordinal) : false).ToList();
                     object? comparer = null;
                     if (comp != null && comp.Count > 0 && comp[0].ForeignKeySorting != null)
@@ -356,6 +368,21 @@ namespace Syncfusion.Blazor.Grids.Internal
                     {
                         Parent.PageModule?.UpdateFilterMessage(filteredColumns, "and");
                     }
+                }
+            }
+
+            if (Parent.AllowAdvancedFiltering && Parent.AdvancedFilterWhereFilter != null && Parent.AdvancedFilterWhereFilter.Count > 0)
+            {
+                var advancedList = Parent.AdvancedFilterWhereFilter;
+                var advancedRoot = advancedList.Count == 1 ? advancedList[0] : WhereFilter.And(advancedList);
+
+                if (query.Queries.Where != null && query.Queries.Where.Count > 0)
+                {
+                    query.Queries.Where = new List<WhereFilter> { WhereFilter.And(query.Queries.Where.Concat(new[] { advancedRoot }).ToList()) };
+                }
+                else
+                {
+                    query.Queries.Where = new List<WhereFilter> { advancedRoot };
                 }
             }
         }
@@ -666,7 +693,7 @@ namespace Syncfusion.Blazor.Grids.Internal
                                     {
                                         keyDict[key] = Parent.PropHelper?.GetObject(key, deleteTargetData);
                                     }
-                                    //await this.Parent!.DataManager!.Remove<T>(keyDict, Parent.Query?.FromTable!, Parent.Query!).ConfigureAwait(true);
+                                    await this.Parent!.DataManager!.Remove<T>(keyDict, Parent.Query?.FromTable!, Parent.Query!).ConfigureAwait(true);
                                 }
                                 else
                                 {
@@ -678,7 +705,7 @@ namespace Syncfusion.Blazor.Grids.Internal
                             {
                                 if (primaryKeysInDelete != null && primaryKeysInDelete.Count > 1)
                                 {
-                                    //await this.Parent!.DataManager!.SaveChanges<T>(new List<T>(), new List<T>(), Parent.SelectionModule?.ClonedSelectedRowRecords!, primaryKeysInDelete, null, Parent.Query?.FromTable!, Parent.Query!).ConfigureAwait(true);
+                                    await this.Parent!.DataManager!.SaveChanges<T>(new List<T>(), new List<T>(), Parent.SelectionModule?.ClonedSelectedRowRecords!, primaryKeysInDelete, null, Parent.Query?.FromTable!, Parent.Query!).ConfigureAwait(true);
                                 }
                                 else
                                 {
@@ -701,7 +728,7 @@ namespace Syncfusion.Blazor.Grids.Internal
         {
             if (primaryKeys != null && primaryKeys.Length > 1)
             {
-                //await this.Parent!.DataManager!.Update<T>(primaryKeys, data, Parent.Query?.FromTable!, Parent.Query!, previousData).ConfigureAwait(true);
+                await this.Parent!.DataManager!.Update<T>(primaryKeys, data, Parent.Query?.FromTable!, Parent.Query!, previousData).ConfigureAwait(true);
             }
             else
             {
@@ -724,7 +751,7 @@ namespace Syncfusion.Blazor.Grids.Internal
                 {
                     if(primaryKeys.Length > 1)
                     {
-                        //await this.Parent!.DataManager!.SaveChanges<T>(Changes.ChangedRecords, Changes.AddedRecords, Changes.DeletedRecords, primaryKeys, null, Parent.Query?.FromTable!, Parent.Query!).ConfigureAwait(true);
+                        await this.Parent!.DataManager!.SaveChanges<T>(Changes.ChangedRecords, Changes.AddedRecords, Changes.DeletedRecords, primaryKeys, null, Parent.Query?.FromTable!, Parent.Query!).ConfigureAwait(true);
                     }
                     else
                     {

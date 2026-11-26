@@ -20,7 +20,7 @@ namespace Syncfusion.Blazor.Grids.Internal
     /// <summary>
     /// Represents a renderer for the filter menu in a grid.
     /// </summary>
-    public partial class FilterMenuRenderer<TContent>
+    public partial class FilterMenuRenderer<TContent> : ComponentBase
     {
         #region UI Component References
 
@@ -98,12 +98,11 @@ namespace Syncfusion.Blazor.Grids.Internal
         private bool _isInteger { get; set; }
         private bool _isLong { get; set; }
 
-        /// <summary>
+		/// <summary>
         /// Tracks whether the dialog was toggled closed by clicking the filter icon.
         /// Used to implement toggle behavior: first click opens, second click closes.
         /// </summary>
         private bool _isDialogToggledClosed { get; set; }
-
         #endregion
 
         #region Filter Dialog Position State
@@ -123,6 +122,32 @@ namespace Syncfusion.Blazor.Grids.Internal
         /// to the Value property of Autocomplete during rendering.
         /// </summary>
         private object? autoCompleteFilterValue { get; set; }
+
+        #endregion
+
+        #region Date Validation State
+
+        private bool _hasDateInput { get; set; }
+
+        /// <summary>
+        /// Tracks whether the current non-empty date input is invalid.
+        /// </summary>
+        private bool _isDateInvalid { get; set; }
+
+        private bool IsDateFilterInvalid =>
+            Parent?.FilterSettings?.EnableTemporalValidation == true &&
+            _isDateInvalid &&
+            !IsNullOrEmptyOperator(GetColumnFilterOperator()!);
+
+        /// <summary>
+        /// Validation message displayed beneath the date editor when an invalid date is entered.
+        /// Used when EnableTemporalValidation is true on GridFilterSettings.
+        /// Resolved through the grid's <see cref="ISyncfusionStringLocalizer"/>; falls back to
+        /// the English text when no localization override is registered.
+        /// </summary>
+        private string ValidationMessage =>
+            Parent?.Localizer?.GetText(GridLocaleKeys.InvalidDateFilter)
+            ?? "Enter a valid date value.";
 
         #endregion
 
@@ -391,7 +416,6 @@ namespace Syncfusion.Blazor.Grids.Internal
         }
 
         #endregion
-
         #region Filter Dialog Management
 
         private async Task Rendered()
@@ -421,12 +445,12 @@ namespace Syncfusion.Blazor.Grids.Internal
 
         internal void Closed()
         {
-            // CRITICAL: Reset toggle state on ANY dialog close
+			// CRITICAL: Reset toggle state on ANY dialog close
             Parent!.FilterModule!.ResetColumnDialogState(Column!.Uid);
             _isDialogToggledClosed = false;
 
-            this.Parent.FilterModule.FilterIconIsClicked = false;
-            NumberOperatorDropDown?.Dispose();
+            this.Parent!.FilterModule!.FilterIconIsClicked = false;
+			NumberOperatorDropDown?.Dispose();
             StringOperatorDropDown?.Dispose();
             BoolOperatorDropDown?.Dispose();
             this.Parent.EventAggregator.Trigger("FilterComponentUpdate", true);
@@ -443,12 +467,12 @@ namespace Syncfusion.Blazor.Grids.Internal
 
         internal async Task CloseHandler()
         {
-            // Reset toggle state on adaptive dialog close
+			// Reset toggle state on adaptive dialog close
             Parent!.FilterModule!.ResetColumnDialogState(Column!.Uid);
             _isDialogToggledClosed = false;
 
             await this.MenuAdaptiveDialog!.HideAsync().ConfigureAwait(true);
-            if (Parent.FilterModule != null)
+            if (Parent!.FilterModule != null)
             {
                 Parent.FilterModule.FilterIconIsClicked = false;
             }
@@ -645,15 +669,15 @@ namespace Syncfusion.Blazor.Grids.Internal
         private void EventCancelingOperation()
         {
             if (Parent != null && Parent.FilterModule != null)
-            {
+			{
                 this.Parent.FilterModule.FilterIconIsClicked = false;
-                // CRITICAL: Reset toggle state to prevent stale OpenFilterColumnUid
+				// CRITICAL: Reset toggle state to prevent stale OpenFilterColumnUid
                 // from causing the next click to be misinterpreted as a toggle-close
                 if (Column != null && !string.IsNullOrEmpty(Column.Uid))
                 {
                     this.Parent.FilterModule.ResetColumnDialogState(Column.Uid);
                 }
-            }
+			}
             this.Parent!.EventAggregator.Trigger("FilterComponentUpdate", null!);
             return;
         }
@@ -713,10 +737,70 @@ namespace Syncfusion.Blazor.Grids.Internal
 
         #endregion
 
+        #region Date Validation Handlers
+
+        /// <summary>
+        /// Updates validation state for a changed date value. Empty input is not considered invalid.
+        /// </summary>
+        private async Task OnDateValueChanged(ChangeEventArgs args)
+        {
+            bool wasInvalid = _isDateInvalid;
+            var rawValue = args?.Value?.ToString();
+            _hasDateInput = !string.IsNullOrWhiteSpace(rawValue);
+            _isDateInvalid = IsCurrentDateValueInvalid();
+
+            if (wasInvalid != _isDateInvalid)
+            {
+                await InvokeAsync(StateHasChanged).ConfigureAwait(true);
+            }
+        }
+
+        /// <summary>
+        /// Clears the invalid state when a date picker supplies a parsed value.
+        /// </summary>
+        private async Task OnPickerValueChanged(DateTime? value) => await ClearInvalidIfValuePresent(value).ConfigureAwait(true);
+
+        /// <summary>
+        /// Clears the invalid state when a date-only picker supplies a parsed value.
+        /// </summary>
+        private async Task OnPickerValueChanged(DateOnly? value) => await ClearInvalidIfValuePresent(value).ConfigureAwait(true);
+
+        /// <summary>
+        /// Clears the invalid state when a time-only picker supplies a parsed value.
+        /// </summary>
+        private async Task OnPickerValueChanged(TimeOnly? value) => await ClearInvalidIfValuePresent(value).ConfigureAwait(true);
+
+        /// <summary>
+        /// Clears the invalid state when the picker yields a valid value.
+        /// </summary>
+        private async Task ClearInvalidIfValuePresent(object? value)
+        {
+            bool wasInvalid = _isDateInvalid;
+            _isDateInvalid = value == null && IsCurrentDateValueInvalid();
+
+            if (wasInvalid != _isDateInvalid)
+            {
+                await InvokeAsync(StateHasChanged).ConfigureAwait(true);
+            }
+        }
+
+        #endregion
+
         #region Filter Value Extraction
 
         private async Task FilterBtnClick()
         {
+            if (IsCurrentDateValueInvalid())
+            {
+                if (!_isDateInvalid)
+                {
+                    _isDateInvalid = true;
+                    await InvokeAsync(StateHasChanged).ConfigureAwait(true);
+                }
+
+                return;
+            }
+
             object value = "";
             var filterOperator = "";
             this.Parent!.FilterModule!.IsCustomFilterApplied = false;
@@ -819,7 +903,7 @@ namespace Syncfusion.Blazor.Grids.Internal
             }
             if (this.Parent != null && this.Parent.FilterModule != null)
             {
-                // CRITICAL FIX: Reset toggle state BEFORE setting FilterIconIsClicked to false
+				// CRITICAL FIX: Reset toggle state BEFORE setting FilterIconIsClicked to false
                 // If we don't do this here, the parent component will destroy FilterMenuRenderer
                 // before Closed() event fires, preventing proper state cleanup.
                 this.Parent.FilterModule.ResetColumnDialogState(Column!.Uid);
@@ -856,6 +940,36 @@ namespace Syncfusion.Blazor.Grids.Internal
         }
 
         #endregion
+
+        /// <summary>
+        /// Determines whether the current date value is invalid. Empty input remains valid so the
+        /// Filter action can run without requiring a date value.
+        /// </summary>
+        private bool IsCurrentDateValueInvalid()
+        {
+            if (Parent?.FilterSettings?.EnableTemporalValidation != true ||
+                (Column?.Type != ColumnType.Date && Column?.Type != ColumnType.DateOnly &&
+                 Column?.Type != ColumnType.TimeOnly && Column?.Type != ColumnType.DateTime) ||
+                IsNullOrEmptyOperator(GetColumnFilterOperator()!) ||
+                !_hasDateInput)
+            {
+                return false;
+            }
+
+            switch (Column?.Type)
+            {
+                case ColumnType.Date:
+                    return DatePicker?.Value == null;
+                case ColumnType.DateOnly:
+                    return DateOnlyPicker?.Value == null;
+                case ColumnType.TimeOnly:
+                    return TimeOnlyPicker?.Value == null;
+                case ColumnType.DateTime:
+                    return DateTimePicker?.Value == null;
+                default:
+                    return false;
+            }
+        }
 
         #region Filter Data Processing
 
@@ -962,7 +1076,6 @@ namespace Syncfusion.Blazor.Grids.Internal
             }
             return true;
         }
-
         #endregion
 
         #region Helper Methods

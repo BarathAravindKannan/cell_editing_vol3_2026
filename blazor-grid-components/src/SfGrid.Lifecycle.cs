@@ -25,6 +25,9 @@ namespace Syncfusion.Blazor.Grids
         /// </summary>
         protected override async Task OnInitializedAsync()
         {
+            // Phase 0.5 / Phase 4.1 — compile keyboard shortcuts before the first
+            // keydown so the JS gate has a populated `customKeyBindings` array.
+            RecompileKeyboardShortcuts();
             await OnHybridInitialized().ConfigureAwait(true);
             DetailRowModule = new DetailRow<TValue>(this);
             ReorderModule = new Reorder<TValue>(this);
@@ -42,6 +45,7 @@ namespace Syncfusion.Blazor.Grids
             PageModule = new Paging<TValue>(this);
             FreezeModule = new Freeze<TValue>(this);
             FocusModule = new FocusHandler<TValue>(this);
+            DomVirtualModule = new DomVirtualHandler<TValue>(this);
             FindHightLightModule = new FindHighlight<TValue>(this);
             RowReorderModule = new RowReorder<TValue>(this);
             _jsAdaptor = new GridJSInteropAdaptor<TValue>(this);
@@ -66,6 +70,8 @@ namespace Syncfusion.Blazor.Grids
         /// </summary>
         protected override async Task OnParametersSetAsync()
         {
+            // Phase 4.1 — diff-guard: recompile only when the canonical snapshot changes.
+            RecompileKeyboardShortcuts();
             if (UnMatchedAttributes != null)
             {
                 if (!TableClass)
@@ -314,6 +320,12 @@ namespace Syncfusion.Blazor.Grids
             ReorderModule.IsColumnReordered = false;
             EditModule!.ClearSelection = this.SelectionSettings != null && !this.SelectionSettings.PersistSelection;
             EnsureFeaturesCompatibility();
+
+            if (firstRender && !_initialAdvancedFilterApplied && AllowAdvancedFiltering && AdvancedFilterSettings?.CurrentRule != null && FilterModule != null)
+            {
+                _initialAdvancedFilterApplied = true;
+                await ApplyAdvancedFilterAsync(AdvancedFilterSettings.CurrentRule).ConfigureAwait(true);
+            }
             if (SoftRefresh)
             {
                 SoftRefresh = false;
@@ -518,6 +530,7 @@ namespace Syncfusion.Blazor.Grids
             _overscanCount = OverscanCount;
 
             _clipMode = ClipMode;
+            UpdateChildProperties(nameof(AdvancedFilterSettings), AdvancedFilterSettings!);
             UpdateChildProperties(nameof(ColumnChooserSettings), ColumnChooserSettings!);
             _columnMenuItems = ColumnMenuItems;
             _columnQueryMode = ColumnQueryMode;
@@ -560,6 +573,7 @@ namespace Syncfusion.Blazor.Grids
             _toolbar = Toolbar;
             _width = Width;
             _autoFit = AutoFit;
+            _resizeMode = ResizeMode;
             _showTooltip = ShowTooltip;
 			_allowFreezeLineMoving = AllowFreezeLineMoving;
             _enableStickyHeader = EnableStickyHeader;
@@ -662,6 +676,7 @@ namespace Syncfusion.Blazor.Grids
             AutoSpan = _autoSpan = await UpdateProperty(nameof(AutoSpan), AutoSpan, _autoSpan).ConfigureAwait(true);
             EnableWebMcp = _enableWebMcp = await UpdateProperty(nameof(EnableWebMcp), EnableWebMcp, _enableWebMcp).ConfigureAwait(true);
             AutoFit = _autoFit = await UpdateProperty(nameof(AutoFit), AutoFit, _autoFit).ConfigureAwait(true);
+            ResizeMode = _resizeMode = await UpdateProperty(nameof(ResizeMode), ResizeMode, _resizeMode).ConfigureAwait(true);
             KeySettings = _keySettings = await UpdateProperty(nameof(KeySettings), KeySettings, _keySettings!).ConfigureAwait(true);
 			AllowFreezeLineMoving = _allowFreezeLineMoving = await UpdateProperty(nameof(AllowFreezeLineMoving), AllowFreezeLineMoving, _allowFreezeLineMoving).ConfigureAwait(true);
             EnableStickyHeader = _enableStickyHeader = await UpdateProperty(nameof(EnableStickyHeader), EnableStickyHeader, _enableStickyHeader).ConfigureAwait(true);

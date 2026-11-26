@@ -1,4 +1,4 @@
-﻿@using Microsoft.AspNetCore.Components.Web;
+@using Microsoft.AspNetCore.Components.Web;
 @using Syncfusion.Blazor.Inputs
 @using Syncfusion.Blazor.Popups
 @using Syncfusion.Blazor.Calendars
@@ -83,11 +83,12 @@
                                         Filter<TContent>.UpdateFilterModel(ModelInstance, GFilterColumn, Fvalue, Column?.ValueType, Parent.EnablePersistence);
                                     }
                                     else
+                                    {
                                         ModelInstance?.GetType()?.GetProperty("Uid")?.SetValue(ModelInstance, Column?.Uid);
                                         string? filterOperator = GetColumnFilterOperator();
-                                    ModelInstance?.GetType()?.GetProperty("Operator")?.SetValue(ModelInstance, Filter<TContent>.GetFilterOperator(filterOperator!));
-                                    @Column?.FilterTemplate(ModelInstance!)
-                                    ;
+                                        ModelInstance?.GetType()?.GetProperty("Operator")?.SetValue(ModelInstance, Filter<TContent>.GetFilterOperator(filterOperator!));
+                                    }
+                                    @Column?.FilterTemplate(ModelInstance!);
                                 }
                                 else if (Column?.ValueType != null && !Parent.FilterModule.ShouldTemplateDispose)
                                 {
@@ -96,7 +97,7 @@
                                     _isInteger = Parent.FilterModule.IntConvertedList.ContainsKey(Column?.ValueType!);
                                     _isLong = Parent.FilterModule.LongConvertedList.ContainsKey(Column?.ValueType!);
                                     @if (Column?.Type == ColumnType.Integer || Column?.Type == ColumnType.Double || Column?.Type == ColumnType.Long || Column?.Type == ColumnType.Decimal)
-                                    {                                        
+                                    {
                                         var ConvertedValue = Filter<TContent>.TryParseNullable(Fvalue?.ToString()!, Parent.FilterModule.IntConvertedList.ContainsKey(Column.ValueType), Parent.FilterModule.LongConvertedList.ContainsKey(Column.ValueType));
                                         @if (_isInteger)
                                         {
@@ -119,26 +120,30 @@
                                     }
                                     @if (Column?.Type == ColumnType.Date)
                                     {
-                                        <SfDatePicker aria-label="@(Localizer.GetText(GridLocaleKeys.FilterValue))" @ref="DatePicker" Enabled="@GetNumberClass(_numberIndex, NumberDropDown!)" Format="@Column?.Format" Placeholder="@(Localizer.GetText(GridLocaleKeys.ChooseDate))" TValue="DateTime?" Value=(DateTime?)Fvalue @attributes=datePickerAttributes></SfDatePicker>
+                                        <SfDatePicker aria-label="@(Localizer.GetText(GridLocaleKeys.FilterValue))" @ref="DatePicker" Enabled="@GetNumberClass(_numberIndex, NumberDropDown!)" Format="@Column?.Format" Placeholder="@(Localizer.GetText(GridLocaleKeys.ChooseDate))" TValue="DateTime?" Value=(DateTime?)Fvalue ValueChanged="@OnPickerValueChanged" @attributes=datePickerAttributes @onchange="OnDateValueChanged"></SfDatePicker>
                                         //TODO Ensured Globalization
                                     }
                                     @if (Column?.Type == ColumnType.DateOnly)
                                     {
-                                        <SfDatePicker aria-label="@(Localizer.GetText(GridLocaleKeys.FilterValue))" @ref="DateOnlyPicker" Enabled="@GetNumberClass(_numberIndex, NumberDropDown!)" Format="@Column?.Format" Placeholder="@(Localizer.GetText(GridLocaleKeys.ChooseDate))" TValue="DateOnly?" Value=(DateOnly?)Fvalue @attributes=datePickerAttributes></SfDatePicker>
+                                        <SfDatePicker aria-label="@(Localizer.GetText(GridLocaleKeys.FilterValue))" @ref="DateOnlyPicker" Enabled="@GetNumberClass(_numberIndex, NumberDropDown!)" Format="@Column?.Format" Placeholder="@(Localizer.GetText(GridLocaleKeys.ChooseDate))" TValue="DateOnly?" Value=(DateOnly?)Fvalue ValueChanged="@OnPickerValueChanged" @attributes=datePickerAttributes @onchange="OnDateValueChanged"></SfDatePicker>
                                         //TODO Ensured Globalization
                                     }
                                     @if (Column?.Type == ColumnType.TimeOnly)
                                     {
-                                        <SfTimePicker aria-label="@(Localizer.GetText(GridLocaleKeys.FilterValue))" @ref="TimeOnlyPicker" Enabled="@GetNumberClass(_numberIndex, NumberDropDown!)" Format="@Column?.Format" Placeholder="@(Localizer.GetText(GridLocaleKeys.ChooseTime))" TValue="TimeOnly?" Value=(TimeOnly?)Fvalue @attributes=timePickerAttributes></SfTimePicker>
+                                        <SfTimePicker aria-label="@(Localizer.GetText(GridLocaleKeys.FilterValue))" @ref="TimeOnlyPicker" Enabled="@GetNumberClass(_numberIndex, NumberDropDown!)" Format="@Column?.Format" Placeholder="@(Localizer.GetText(GridLocaleKeys.ChooseTime))" TValue="TimeOnly?" Value=(TimeOnly?)Fvalue ValueChanged="@OnPickerValueChanged" @attributes=timePickerAttributes @onchange="OnDateValueChanged"></SfTimePicker>
                                     }
                                     @if (Column?.Type == ColumnType.DateTime)
                                     {
-                                        <SfDateTimePicker aria-label="@(Localizer.GetText(GridLocaleKeys.FilterValue))" @ref="DateTimePicker" Enabled="@GetNumberClass(_numberIndex, NumberDropDown!)" Format="@Column?.Format" @key="Column?.Uid" Placeholder="@(Localizer.GetText(GridLocaleKeys.ChooseDate))" TValue="DateTime?" Value=(DateTime?)Fvalue @attributes=dateTimePickerAttributes></SfDateTimePicker>
+                                        <SfDateTimePicker aria-label="@(Localizer.GetText(GridLocaleKeys.FilterValue))" @ref="DateTimePicker" Enabled="@GetNumberClass(_numberIndex, NumberDropDown!)" Format="@Column?.Format" @key="Column?.Uid" Placeholder="@(Localizer.GetText(GridLocaleKeys.ChooseDate))" TValue="DateTime?" Value=(DateTime?)Fvalue ValueChanged="@OnPickerValueChanged" @attributes=dateTimePickerAttributes @onchange="OnDateValueChanged"></SfDateTimePicker>
+                                    }
+                                    @if (Parent?.FilterSettings?.EnableTemporalValidation == true && IsDateFilterInvalid)
+                                    {
+                                        <div class="validation-message">@ValidationMessage</div>
                                     }
 
                                     @if (Column?.Type == ColumnType.String)
                                     {
-                                        DataManager filterDataManager = ((Column?.IsForeignColumn() == true) ? Column.DataManager : Parent.DataManager) ?? new DataManager();
+                                        DataManager filterDataManager = ((Column?.IsForeignColumn() == true) ? Column.DataManager : Parent!.DataManager) ?? new DataManager();
                                         IEnumerable<object> Json = filterDataManager?.Json != null ? (Column?.IsForeignColumn() == true) ? DataUtil.GetDistinct(filterDataManager.Json, Column?.ForeignKeyValue ?? "") : (IEnumerable<object>)DataUtil.GetDistinct<TContent>(filterDataManager.Json.Cast<TContent>(), Column?.Field ?? "") : null!;
 
                                         if ((Column?.IsForeignColumn() == true) && (Column?.IsGridForeignColumn == true))
@@ -158,7 +163,7 @@
                                         }
                                         else if ((Column?.Field?.Contains('.') == true))
                                         {
-                                            <SfAutoComplete aria-label="@(Localizer.GetText(GridLocaleKeys.FilterValue))" @ref="AutoComplete" @key="Column?.Uid" Enabled="@GetClass(_stringIndex, StringDropDown!)" ID="@(($"strui-{Column?.Uid}"))" Query="@Parent.Query" Autofill=enableAutoFill  Placeholder="@(Localizer.GetText(GridLocaleKeys.EnterValue))" TItem="TContent" TValue="string" Value=@((string)Fvalue?.ToString()!) @attributes=autoCompleteAttributes>
+                                            <SfAutoComplete aria-label="@(Localizer.GetText(GridLocaleKeys.FilterValue))" @ref="AutoComplete" @key="Column?.Uid" Enabled="@GetClass(_stringIndex, StringDropDown!)" ID="@(($"strui-{Column?.Uid}"))" Query="@Parent!.Query" Autofill=enableAutoFill  Placeholder="@(Localizer.GetText(GridLocaleKeys.EnterValue))" TItem="TContent" TValue="string" Value=@((string)Fvalue?.ToString()!) @attributes=autoCompleteAttributes>
                                                 <SfDataManager Headers=@filterDataManager?.Headers GraphQLAdaptorOptions=@filterDataManager?.GraphQLAdaptorOptions HttpClientInstance="@filterDataManager?.HttpClientInstance" Url=@filterDataManager?.Url Json="@Json" AdaptorInstance="@filterDataManager?.AdaptorInstance" Adaptor="@filterDataManager!.Adaptor" Offline="@filterDataManager.Offline">
                                                     @filterDataManager?.ChildContent
                                                 </SfDataManager>
@@ -168,7 +173,7 @@
                                         }
                                         else
                                         {
-                                            <SfAutoComplete aria-label="@(Localizer.GetText(GridLocaleKeys.FilterValue))" @ref="AutoComplete" @key="Column?.Uid" Enabled="@GetClass(_stringIndex, StringDropDown!)" ID="@(($"strui-{Column?.Uid}"))" Query="@Parent.Query" Autofill=enableAutoFill Placeholder="@(Localizer.GetText(GridLocaleKeys.EnterValue))" TItem="TContent" TValue="string" Value=@((string)Fvalue?.ToString()!) @attributes=autoCompleteAttributes>
+                                            <SfAutoComplete aria-label="@(Localizer.GetText(GridLocaleKeys.FilterValue))" @ref="AutoComplete" @key="Column?.Uid" Enabled="@GetClass(_stringIndex, StringDropDown!)" ID="@(($"strui-{Column?.Uid}"))" Query="@Parent!.Query" Autofill=enableAutoFill Placeholder="@(Localizer.GetText(GridLocaleKeys.EnterValue))" TItem="TContent" TValue="string" Value=@((string)Fvalue?.ToString()!) @attributes=autoCompleteAttributes>
                                                 <SfDataManager Headers=@filterDataManager?.Headers GraphQLAdaptorOptions=@filterDataManager?.GraphQLAdaptorOptions HttpClientInstance="@filterDataManager?.HttpClientInstance" Url=@filterDataManager?.Url Json="@Json" AdaptorInstance="@filterDataManager?.AdaptorInstance" Adaptor="@filterDataManager!.Adaptor" Offline="@filterDataManager.Offline">
                                                     @filterDataManager?.ChildContent
                                                 </SfDataManager>
@@ -184,7 +189,7 @@
             </Content>
         </DialogTemplates>
         <DialogButtons>
-            <DialogButton OnClick="@FilterBtnClick" Content=@(Localizer!.GetText(GridLocaleKeys.FilterButton)) IsPrimary="true" CssClass="e-flmenu-okbtn e-primary e-flat">
+            <DialogButton OnClick="@FilterBtnClick" Content=@(Localizer!.GetText(GridLocaleKeys.FilterButton)) IsPrimary="true" CssClass="e-flmenu-okbtn e-primary e-flat" Disabled="@IsDateFilterInvalid">
             </DialogButton>
             <DialogButton OnClick="@ClearBtnClick" Content=@(Localizer.GetText(GridLocaleKeys.ClearButton)) CssClass="e-flmenu-cancelbtn e-flat">
             </DialogButton>
@@ -204,7 +209,7 @@ else if (Parent.EnableAdaptiveUI && ( Parent.AdaptiveUIMode.Equals(AdaptiveMode.
                     <div class="e-res-custom-element">
                         <div class="e-dlg-custom-header" id="@(($"{Parent.ID}_filter_dialog_wrapper"))">@Column?.HeaderText!</div>
                         <SfButton IconCss="e-btn-icon e-icon-filter-clear e-icons" CssClass="e-primary e-flat e-res-filter-clear-btn" @onclick="@ClearBtnClick"></SfButton>
-                        <SfButton CssClass="e-primary e-flat e-res-apply-btn" Content=@(Localizer!.GetText(GridLocaleKeys.OKButton)) @onclick="@FilterBtnClick"></SfButton>
+                        <SfButton CssClass="e-primary e-flat e-res-apply-btn" Content=@(Localizer!.GetText(GridLocaleKeys.OKButton)) Disabled="@IsDateFilterInvalid" @onclick="@FilterBtnClick"></SfButton>
                     </div>
                 </div>
             </Header>
@@ -268,10 +273,12 @@ else if (Parent.EnableAdaptiveUI && ( Parent.AdaptiveUIMode.Equals(AdaptiveMode.
                                     Filter<TContent>.UpdateFilterModel(ModelInstance, GFilterColumn,Fvalue,Column?.ValueType, Parent.EnablePersistence);
                                 }
                                 else
+                                {
                                     ModelInstance?.GetType()?.GetProperty("Uid")?.SetValue(ModelInstance, Column?.Uid);
                                     string filterOperator = GetColumnFilterOperator()!;
                                     ModelInstance?.GetType()?.GetProperty("Operator")?.SetValue(ModelInstance, Filter<TContent>.GetFilterOperator(filterOperator));
-                                    @Column?.FilterTemplate(ModelInstance!);
+                                }
+                                @Column?.FilterTemplate(ModelInstance!);
                             }
                             else
                             {
@@ -302,26 +309,30 @@ else if (Parent.EnableAdaptiveUI && ( Parent.AdaptiveUIMode.Equals(AdaptiveMode.
                                 }
                                 @if (Column?.Type == ColumnType.Date)
                                 {
-                                    <SfDatePicker aria-label="@(Localizer.GetText(GridLocaleKeys.FilterValue))" @ref="DatePicker" Enabled="@GetNumberClass(_numberIndex, NumberDropDown!)" Format="@Column?.Format" Placeholder="@(Localizer.GetText(GridLocaleKeys.ChooseDate))" TValue="DateTime?" Value=(DateTime?)Fvalue @attributes=datePickerAttributes></SfDatePicker>
+                                    <SfDatePicker aria-label="@(Localizer.GetText(GridLocaleKeys.FilterValue))" @ref="DatePicker" Enabled="@GetNumberClass(_numberIndex, NumberDropDown!)" Format="@Column?.Format" Placeholder="@(Localizer.GetText(GridLocaleKeys.ChooseDate))" TValue="DateTime?" Value=(DateTime?)Fvalue ValueChanged="@OnPickerValueChanged" @attributes=datePickerAttributes @onchange="OnDateValueChanged"></SfDatePicker>
                                     //TODO Ensured Globalization
                                 }
                                 @if (Column?.Type == ColumnType.DateOnly)
                                 {
-                                    <SfDatePicker aria-label="@(Localizer.GetText(GridLocaleKeys.FilterValue))" @ref="DateOnlyPicker" Enabled="@GetNumberClass(_numberIndex, NumberDropDown!)" Format="@Column?.Format" Placeholder="@(Localizer.GetText(GridLocaleKeys.ChooseDate))" TValue="DateOnly?" Value=(DateOnly?)Fvalue @attributes=datePickerAttributes></SfDatePicker>
+                                    <SfDatePicker aria-label="@(Localizer.GetText(GridLocaleKeys.FilterValue))" @ref="DateOnlyPicker" Enabled="@GetNumberClass(_numberIndex, NumberDropDown!)" Format="@Column?.Format" Placeholder="@(Localizer.GetText(GridLocaleKeys.ChooseDate))" TValue="DateOnly?" Value=(DateOnly?)Fvalue ValueChanged="@OnPickerValueChanged" @attributes=datePickerAttributes @onchange="OnDateValueChanged"></SfDatePicker>
                                     //TODO Ensured Globalization
                                 }
                                 @if (Column?.Type == ColumnType.TimeOnly)
                                 {
-                                    <SfTimePicker aria-label="@(Localizer.GetText(GridLocaleKeys.FilterValue))" @ref="TimeOnlyPicker" Enabled="@GetNumberClass(_numberIndex, NumberDropDown!)" Format="@Column?.Format" Placeholder="@(Localizer.GetText(GridLocaleKeys.ChooseTime))" TValue="TimeOnly?" Value=(TimeOnly?)Fvalue @attributes=timePickerAttributes></SfTimePicker>
+                                    <SfTimePicker aria-label="@(Localizer.GetText(GridLocaleKeys.FilterValue))" @ref="TimeOnlyPicker" Enabled="@GetNumberClass(_numberIndex, NumberDropDown!)" Format="@Column?.Format" Placeholder="@(Localizer.GetText(GridLocaleKeys.ChooseTime))" TValue="TimeOnly?" Value=(TimeOnly?)Fvalue ValueChanged="@OnPickerValueChanged" @attributes=timePickerAttributes @onchange="OnDateValueChanged"></SfTimePicker>
                                 }
                                 @if (Column?.Type == ColumnType.DateTime)
                                 {
-                                    <SfDateTimePicker aria-label="@(Localizer.GetText(GridLocaleKeys.FilterValue))" @ref="DateTimePicker" Enabled="@GetNumberClass(_numberIndex, NumberDropDown!)" Format="@Column?.Format" @key="Column?.Uid" Placeholder="@(Localizer.GetText(GridLocaleKeys.ChooseDate))" TValue="DateTime?" Value=(DateTime?)Fvalue @attributes=dateTimePickerAttributes></SfDateTimePicker>
+                                    <SfDateTimePicker aria-label="@(Localizer.GetText(GridLocaleKeys.FilterValue))" @ref="DateTimePicker" Enabled="@GetNumberClass(_numberIndex, NumberDropDown!)" Format="@Column?.Format" @key="Column?.Uid" Placeholder="@(Localizer.GetText(GridLocaleKeys.ChooseDate))" TValue="DateTime?" Value=(DateTime?)Fvalue ValueChanged="@OnPickerValueChanged" @attributes=dateTimePickerAttributes @onchange="OnDateValueChanged"></SfDateTimePicker>
+                                }
+                                @if (Parent?.FilterSettings?.EnableTemporalValidation == true && IsDateFilterInvalid)
+                                {
+                                    <div class="validation-message" role="alert" aria-live="polite">@ValidationMessage</div>
                                 }
 
                                 @if (Column?.Type == ColumnType.String)
                                 {
-                                    DataManager filterDataManager = (Column?.IsForeignColumn() == true) ? Column?.DataManager! : Parent.DataManager!;
+                                    DataManager filterDataManager = (Column?.IsForeignColumn() == true) ? Column?.DataManager! : Parent!.DataManager!;
                                     IEnumerable<object> Json = filterDataManager?.Json != null ? (Column?.IsForeignColumn() == true) ? DataUtil.GetDistinct(filterDataManager.Json, Column?.ForeignKeyValue ?? "") : (IEnumerable<object>)DataUtil.GetDistinct<TContent>((IEnumerable<TContent>)filterDataManager.Json, Column?.Field ?? "") : null!;
 
                                     if ((Column?.IsForeignColumn() == true) && (Column?.IsGridForeignColumn == true))
@@ -340,7 +351,7 @@ else if (Parent.EnableAdaptiveUI && ( Parent.AdaptiveUIMode.Equals(AdaptiveMode.
                                     }
                                     else
                                     {
-                                        <SfAutoComplete aria-label="@(Localizer.GetText(GridLocaleKeys.FilterValue))" @ref="AutoComplete" @key="Column?.Uid" Enabled="@GetClass(_stringIndex, StringDropDown!)" ID="@(($"strui-{Column?.Uid}"))" Query="@Parent.Query" Autofill=enableAutoFill  Placeholder="@(Localizer.GetText(GridLocaleKeys.EnterValue))" TItem="TContent" TValue="string" Value=@((string)Fvalue!)  @attributes=autoCompleteAttributes>
+                                        <SfAutoComplete aria-label="@(Localizer.GetText(GridLocaleKeys.FilterValue))" @ref="AutoComplete" @key="Column?.Uid" Enabled="@GetClass(_stringIndex, StringDropDown!)" ID="@(($"strui-{Column?.Uid}"))" Query="@Parent!.Query" Autofill=enableAutoFill  Placeholder="@(Localizer.GetText(GridLocaleKeys.EnterValue))" TItem="TContent" TValue="string" Value=@((string)Fvalue!)  @attributes=autoCompleteAttributes>
                                             <SfDataManager Headers=@filterDataManager?.Headers Url=@filterDataManager?.Url Json="@Json" HttpClientInstance="@filterDataManager?.HttpClientInstance" AdaptorInstance="@filterDataManager?.AdaptorInstance" Adaptor="@filterDataManager!.Adaptor" Offline="@filterDataManager.Offline">
                                                 @filterDataManager?.ChildContent
                                             </SfDataManager>

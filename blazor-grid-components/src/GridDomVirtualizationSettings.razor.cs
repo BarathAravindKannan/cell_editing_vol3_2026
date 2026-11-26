@@ -45,24 +45,8 @@ namespace Syncfusion.Blazor.Grids
         internal int GetEffectiveRowBuffer() => RowBuffer ?? 0;
 
         /// <summary>
-        /// Gets effective column buffer.
-        /// </summary>
-        internal int GetEffectiveColumnBuffer() => ColumnBuffer ?? 0;
-
-        /// <summary>
         /// Gets effective max pool size (element ceiling).
         /// </summary>
         internal int GetEffectiveMaxPoolSize() => MaxPoolSize ?? 500;
-
-        /// <summary>
-        /// Gets effective scroll throttle interval in milliseconds.
-        /// Returns null if not configured; caller uses platform-specific default.
-        /// </summary>
-        internal int? GetEffectiveScrollThrottle() => ScrollThrottle;
-
-        /// <summary>
-        /// Gets whether automatic row height measurement is enabled.
-        /// </summary>
-        internal bool IsAutoRowHeightEnabled() => AutoRowHeight == true;
     }
 }

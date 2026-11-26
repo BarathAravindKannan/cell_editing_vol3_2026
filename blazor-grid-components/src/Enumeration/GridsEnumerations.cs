@@ -949,6 +949,24 @@ namespace Syncfusion.Blazor.Grids
         ClearFiltering,
 
         /// <summary>
+        /// Specifies the action of applying an advanced filter rule using the Query Builder.
+        /// </summary>
+        /// <remarks>
+        /// Applies the configured advanced filtering criteria and updates the filtered result set accordingly.
+        /// </remarks>
+        [EnumMember(Value = "advancedfilter")]
+        AdvancedFilter,
+
+        /// <summary>
+        /// Specifies the action of clearing the active advanced filter rule.
+        /// </summary>
+        /// <remarks>
+        /// Removes any advanced filtering criteria currently applied through the Query Builder and restores the unfiltered state.
+        /// </remarks>
+        [EnumMember(Value = "clearadvancedfilter")]
+        ClearAdvancedFilter,
+
+        /// <summary>
         /// Specifies searching action.
         /// </summary>
         [EnumMember(Value = "searching")]
@@ -2148,6 +2166,91 @@ namespace Syncfusion.Blazor.Grids
         /// <para>Executes the <see cref="Row"/> pass first and then the <see cref="Column"/> pass, giving a full two-direction merge sequence.</para>
         /// </remarks>
         HorizontalAndVertical
+    }
+
+    /// <summary>
+    /// Defines the column width redistribution mode applied during initial layout, AutoFit operations, and manual column resizing.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// The <see cref="ResizeMode"/> property controls whether and how the grid redistributes available width across columns. This setting works in conjunction with the <see cref="Syncfusion.Blazor.Grids.SfGrid{TValue}.AutoFit"/> property and column-level width constraints.
+    /// </para>
+    /// <para>
+    /// When set to <see cref="Normal"/>, the grid preserves existing AutoFit behavior — columns are measured and sized independently, and remaining grid width appears as whitespace on the right.
+    /// </para>
+    /// <para>
+    /// When set to <see cref="Auto"/>, the grid proportionally redistributes available width across eligible columns (visible, resizable, and within MinWidth/MaxWidth bounds) to maximize grid utilization. This redistribution occurs:
+    /// <list type="bullet">
+    /// <item><description>During initial layout: explicit column widths are used as proportional starting weights</description></item>
+    /// <item><description>After AutoFit: surplus width beyond measured content is distributed proportionally</description></item>
+    /// <item><description>During manual column resize: width changes are balanced across other columns to preserve grid occupancy</description></item>
+    /// </list>
+    /// </para>
+    /// <para>
+    /// In grids with frozen columns, redistribution applies across all panes (frozen-left, movable, frozen-right) without pane boundaries restricting reallocation. The proportional calculation respects all constraints: MinWidth, MaxWidth, AllowResizing=false, and hidden columns.
+    /// </para>
+    /// <para>
+    /// <see cref="Syncfusion.Blazor.Grids.SfGrid{TValue}.ResizeMode"/> does not affect the meaning of <see cref="Syncfusion.Blazor.Grids.SfGrid{TValue}.AutoFit"/> or <see cref="Syncfusion.Blazor.Grids.GridColumn.AllowResizing"/>. <see cref="Syncfusion.Blazor.Grids.SfGrid{TValue}.AutoFit"/> still controls content-based measurement; <see cref="Syncfusion.Blazor.Grids.SfGrid{TValue}.ResizeMode"/> controls what happens to those measured widths afterward.
+    /// </para>
+    /// </remarks>
+    /// <example>
+    /// <code><![CDATA[
+    /// <SfGrid DataSource="@Orders" AutoFit="true" ResizeMode="ResizeMode.Auto" Width="800"></SfGrid>
+    /// ]]></code>
+    /// </example>
+    [JsonConverter(typeof(JsonStringEnumConverter))]
+    public enum ResizeMode
+    {
+        /// <summary>
+        /// Normal mode: preserves existing AutoFit and manual resize behavior without width redistribution.
+        /// </summary>
+        /// <remarks>
+        /// <para>
+        /// This is the default mode for backward compatibility. When active:
+        /// <list type="bullet">
+        /// <item><description>AutoFit measures columns independently and applies measured widths exactly</description></item>
+        /// <item><description>Manual column resize changes only the resized column's width</description></item>
+        /// <item><description>If total column width is less than available grid width, whitespace appears on the right</description></item>
+        /// <item><description>No width redistribution occurs across columns</description></item>
+        /// </list>
+        /// </para>
+        /// <para>
+        /// Use <see cref="Normal"/> when you require predictable, column-independent sizing or when migrating from earlier versions of the grid.
+        /// </para>
+        /// </remarks>
+        [EnumMember(Value = "Normal")]
+        Normal = 0,
+
+        /// <summary>
+        /// Auto mode: proportionally redistributes available width across eligible columns during initial layout, after AutoFit, and during manual resize.
+        /// </summary>
+        /// <remarks>
+        /// <para>
+        /// When active, the grid automatically fills available width by distributing it proportionally across eligible columns. Behavior varies by operation:
+        /// <list type="bullet">
+        /// <item><description><strong>Initial Layout</strong>: Explicit column widths (from <see cref="Syncfusion.Blazor.Grids.GridColumn.Width"/>) serve as proportional starting weights. If total width &lt; grid width, available space is distributed proportionally.</description></item>
+        /// <item><description><strong>AutoFit</strong>: After content measurement, if measured total &lt; available grid width, surplus is distributed proportionally based on measured widths. Iterative constraint satisfaction ensures MinWidth and MaxWidth are respected.</description></item>
+        /// <item><description><strong>Manual Resize</strong>: When user drags a resize handle, the width change is balanced across other eligible columns to preserve grid occupancy where possible.</description></item>
+        /// </list>
+        /// </para>
+        /// <para>
+        /// Redistribution respects all width constraints:
+        /// <list type="bullet">
+        /// <item><description>Columns with <see cref="Syncfusion.Blazor.Grids.GridColumn.MinWidth"/> cannot shrink below that threshold</description></item>
+        /// <item><description>Columns with <see cref="Syncfusion.Blazor.Grids.GridColumn.MaxWidth"/> cannot grow beyond that threshold</description></item>
+        /// <item><description>Columns with <see cref="Syncfusion.Blazor.Grids.GridColumn.AllowResizing"/> = <see langword="false"/> are excluded from redistribution</description></item>
+        /// <item><description>Hidden columns are excluded from redistribution</description></item>
+        /// </list>
+        /// </para>
+        /// <para>
+        /// In grids with frozen columns (via <see cref="Syncfusion.Blazor.Grids.GridColumn.IsFrozen"/>), redistribution applies across all panes without pane boundaries. Width can flow freely between frozen-left, movable, and frozen-right panes to maximize utilization.
+        /// </para>
+        /// <para>
+        /// If constraints prevent full-width occupancy (e.g., all other columns are at MaxWidth), the grid displays whitespace or horizontal scrolling rather than violating constraints.
+        /// </para>
+        /// </remarks>
+        [EnumMember(Value = "Auto")]
+        Auto = 1
     }
 
     /// <summary>

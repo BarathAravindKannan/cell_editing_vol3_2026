@@ -447,6 +447,22 @@ namespace Syncfusion.Blazor.Grids.Internal
             // DOM Virt RowBuffer operates independently for DOM-only rendering optimization.
         }
 
+        internal async Task FetchRangeForDomAsync(int startIndex, int endIndex, int scrollTop)
+        {
+            NextRowToNavigate = 0;
+            ScrollTop = _parent.OverscanCount == 0 ? scrollTop : ScrollTop;
+            RequestType = "virtualscroll";
+            ActionArgs action = new ActionArgs
+            {
+                RequestType = "virtualscroll",
+                Axis = "Y",
+                VirtualStartIndex = startIndex,
+                VirtualEndIndex = endIndex,
+                RHeight = RHeight
+            };
+            await HandleVerticalScrollAsync(action, scrollTop, -1, false, -1, false).ConfigureAwait(true);
+        }
+
         /// <summary>
         /// Clears DOM virtualization height cache for specific rows (selective invalidation).
         /// Used when filtering, sorting, or editing affects certain records.
@@ -1297,94 +1313,18 @@ namespace Syncfusion.Blazor.Grids.Internal
         {
             var currentViewData = (IEnumerable<object>?)((DataResult)_parent.Data!).Result ?? Enumerable.Empty<object>();
             var flattenedData = new List<GroupedDataItem>();
-            int rowIndex = 0;
             int index = 0;
             bool isExpand = _parent.GroupSettings?.ExpandAllGroups ?? false;
+            var mode = new GroupFlattenMode(false, 1, _ => isExpand, _ => _parent.GetUid("grid-row"));
             foreach (var item in currentViewData)
             {
                 if (item is Group<T> group)
                 {
-                    var newUid = _parent.GetUid("grid-row");
-                    flattenedData.Add(new GroupedDataItem
-                    {
-                        Index = null,
-                        RowIndex = rowIndex++,
-                        Indent = group.Level - 1,
-                        Visible = true,
-                        Uid = newUid,
-                        ParentUid = null!,
-                        IsExpand = isExpand,
-                        Item = group,
-                        IsCaptionRow = true
-                    });
-                    AddGroupChildren(flattenedData, group, ref rowIndex, ref index, newUid);
+                    Grouping<T>.FlattenGroup(flattenedData, group, mode, 0, string.Empty, null, true, ref index);
                 }
             }
             CurrentGroupedData = flattenedData;
             CurrentGroupedDataCaptionRowMap = CurrentGroupedData.Where(x => x.Uid != null && x.IsCaptionRow).ToDictionary(x => x.Uid!, x => x);
-        }
-
-        private void AddGroupChildren(List<GroupedDataItem> list, Group<T> group, ref int rowIndex, ref int index, string parentUid)
-        {
-            int indent = group.Level;
-            bool isExpanded = _parent.GroupSettings!.ExpandAllGroups;
-
-            foreach (var child in group.Items ?? Enumerable.Empty<T>())
-            {
-                var childUid = _parent.GetUid("grid-row");
-
-                if (child is Group<T> childGroup)
-                {
-                    list.Add(new GroupedDataItem
-                    {
-                        Index = null,
-                        RowIndex = rowIndex++,
-                        Indent = childGroup.Level - 1,
-                        Visible = isExpanded,
-                        Uid = childUid,
-                        ParentUid = parentUid,
-                        IsExpand = isExpanded,
-                        Item = childGroup,
-                        IsCaptionRow = true
-                    });
-
-                    AddGroupChildren(list, childGroup, ref rowIndex, ref index, childUid);
-                }
-                else
-                {
-                    list.Add(new GroupedDataItem
-                    {
-                        Index = index++,
-                        RowIndex = rowIndex++,
-                        Indent = indent,
-                        Visible = isExpanded,
-                        Uid = childUid,
-                        ParentUid = parentUid,
-                        IsExpand = isExpanded,
-                        Item = child,
-                        IsCaptionRow = false
-                    });
-                }
-            }
-            if (group?.Aggregates is IDictionary<string, object> agg)
-            {
-                if (agg.Count > 0)
-                {
-                    list.Add(new GroupedDataItem
-                    {
-                        Index = index++,
-                        RowIndex = rowIndex++,
-                        Indent = indent,
-                        Visible = isExpanded,
-                        Uid = _parent.GetUid("grid-row"),
-                        ParentUid = parentUid,
-                        IsExpand = isExpanded,
-                        Item = group.Aggregates,
-                        IsCaptionRow = false,
-                        IsFooterRow = true
-                    });
-                }
-            }
         }
 
         internal void VirtualExpandCollapse(Dictionary<int, int> expandedRowIndexes = null!)

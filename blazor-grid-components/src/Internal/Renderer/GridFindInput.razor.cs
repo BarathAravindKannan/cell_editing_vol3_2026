@@ -157,7 +157,7 @@ namespace Syncfusion.Blazor.Grids.Internal
         {
             if (TotalMatches == 0 || Grid?.FindHightLightModule == null) return;
             await Grid.FindHightLightModule.GoToNextAsync().ConfigureAwait(true);
-            StateHasChanged();
+            await InvokeAsync(StateHasChanged).ConfigureAwait(true);
         }
 
         /// <summary>
@@ -170,7 +170,7 @@ namespace Syncfusion.Blazor.Grids.Internal
             if (TotalMatches == 0 || Grid?.FindHightLightModule == null) return;
 
             await Grid.FindHightLightModule.GoToPreviousAsync().ConfigureAwait(true);
-            StateHasChanged();
+            await InvokeAsync(StateHasChanged).ConfigureAwait(true);
         }
         #endregion
 

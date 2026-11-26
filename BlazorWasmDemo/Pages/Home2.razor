@@ -1,0 +1,221 @@
+﻿@page "/localPaging"
+@using Syncfusion.Blazor.Grids
+@using Syncfusion.Blazor.DropDowns
+
+<h2>Local Data</h2>
+<h3>Syncfusion Grid Dom Virtualization 10k records - Paging</h3>
+<SfGrid DataSource="@Orders"
+        Toolbar="@(new string[] { "Add", "Edit", "Delete", "Update", "Cancel" })"
+        Height="300"
+        EnableDomVirtualization="true"
+        AllowPaging="true"
+        AllowSorting="true"
+        AllowFiltering="true"
+        AllowGrouping="true"
+        RowHeight="30">
+        <GridDomVirtualizationSettings TValue="Order" RowBuffer="5" />
+    <GridPageSettings PageSize="100"></GridPageSettings>
+    <GridGroupSettings ShowDropArea="true" EnableLazyLoading="true" />
+    <GridEditSettings AllowAdding="true" AllowDeleting="true" AllowEditing="true" Mode="EditMode.Normal" NewRowPosition="NewRowPosition.Bottom"></GridEditSettings>
+    <GridTemplates>
+        <DetailTemplate>
+            @{
+                var data = context as Order;
+                string height = "200px";
+                if (data.OrderId % 2 == 0)
+                {
+                    height = "150px";
+                }
+            }
+            <div style="height: @height;">
+                <p><strong>Order ID:</strong> @data.OrderId</p>
+                <p><strong>Customer:</strong> @data.CustomerName</p>
+                <p><strong>Country:</strong> @data.Country</p>
+                @* <p><strong>Active:</strong> @data.IsActive</p>
+                <p><strong>Order Date:</strong> @data.OrderDate.ToShortDateString()</p>
+                <p><strong>Shipped DateTime:</strong> @data.ShippedDateTime.ToString("g")</p>
+                <p><strong>Amount:</strong> @data.Amount.ToString("C2")</p>
+                <p><strong>Delivery Time:</strong> @data.DeliveryTime.ToString("hh:mm tt")</p> *@
+            </div>
+        </DetailTemplate>
+    </GridTemplates>
+    <GridColumns>
+
+        <!-- DefaultEdit + Identity + PrimaryKey -->
+        <GridColumn Field=@nameof(Order.OrderId)
+                    HeaderText="Order ID"
+                    Width="120"
+                    IsPrimaryKey="true"
+                    IsIdentity="true"
+                    EditType="EditType.DefaultEdit">
+        </GridColumn>
+
+        <!-- DefaultEdit -->
+        <GridColumn Field=@nameof(Order.CustomerName)
+                    HeaderText="Customer"
+                    Width="180"
+                    EditType="EditType.DefaultEdit">
+        </GridColumn>
+
+        <!-- DropDownEdit -->
+        <GridColumn Field=@nameof(Order.Country)
+                    HeaderText="Country"
+                    Width="150"
+                    EditType="EditType.DropDownEdit">
+            <EditTemplate>
+                @{
+                    var data = context as Order;
+                }
+
+                <SfDropDownList TValue="string"
+                                TItem="string"
+                                DataSource="@Countries"
+                                @bind-Value="data.Country">
+                </SfDropDownList>
+            </EditTemplate>
+        </GridColumn>
+
+        <!-- BooleanEdit -->
+        <GridColumn Field=@nameof(Order.IsActive)
+                    HeaderText="Active"
+                    Width="120"
+                    DisplayAsCheckBox="true"
+                    EditType="EditType.BooleanEdit">
+        </GridColumn>
+
+        <!-- DatePickerEdit -->
+        <GridColumn Field=@nameof(Order.OrderDate)
+                    HeaderText="Order Date"
+                    Width="150"
+                    Type="ColumnType.Date"
+                    Format="d"
+                    EditType="EditType.DatePickerEdit">
+        </GridColumn>
+
+        <!-- DateTimePickerEdit -->
+        <GridColumn Field=@nameof(Order.ShippedDateTime)
+                    HeaderText="Shipped DateTime"
+                    Width="190"
+                    Type="ColumnType.DateTime"
+                    Format="g"
+                    EditType="EditType.DateTimePickerEdit">
+        </GridColumn>
+
+        <!-- NumericEdit -->
+        <GridColumn Field=@nameof(Order.Amount)
+                    HeaderText="Amount"
+                    Width="140"
+                    Format="C2"
+                    TextAlign="TextAlign.Right"
+                    EditType="EditType.NumericEdit">
+        </GridColumn>
+
+        <!-- TimePickerEdit -->
+        <GridColumn Field=@nameof(Order.DeliveryTime)
+                    HeaderText="Delivery Time"
+                    Width="160"
+                    Format="hh:mm tt"
+                    EditType="EditType.TimePickerEdit">
+        </GridColumn>
+
+    </GridColumns>
+    <GridAggregates>
+        <GridAggregate>
+            <GridAggregateColumns>
+                <GridAggregateColumn Field=@nameof(Order.IsActive) Type="AggregateType.Custom">
+                    <FooterTemplate>
+                        @{
+                            <div>
+                                <p>True Count: @CustomAggregateFunction()</p>
+                            </div>
+                        }
+                    </FooterTemplate>
+                </GridAggregateColumn>
+                <GridAggregateColumn Field=@nameof(Order.Amount) Type="AggregateType.Max">
+                    <GroupCaptionTemplate>
+                        @{
+                            var aggregate = (context as AggregateTemplateContext);
+                            <div>
+                                <p>Max: @aggregate.Max</p>
+                            </div>
+                        }
+                    </GroupCaptionTemplate>
+                </GridAggregateColumn>
+                <GridAggregateColumn Field=@nameof(Order.Amount) Type="AggregateType.Sum">
+                    <GroupFooterTemplate>
+                        @{
+                            var aggregate = (context as AggregateTemplateContext);
+                            <div>
+                                <p>Sum: @aggregate.Sum</p>
+                            </div>
+                        }
+                    </GroupFooterTemplate>
+                </GridAggregateColumn>
+                <GridAggregateColumn Field=@nameof(Order.Amount) Type="AggregateType.Sum">
+                    <FooterTemplate>
+                        @{
+                            var aggregate = (context as AggregateTemplateContext);
+                            <div>
+                                <p>Sum: @aggregate.Sum</p>
+                            </div>
+                        }
+                    </FooterTemplate>
+                </GridAggregateColumn>
+            </GridAggregateColumns>
+        </GridAggregate>
+    </GridAggregates>
+</SfGrid>
+
+@code
+{
+    private List<Order> Orders = new();
+    private static readonly string[] Countries =
+    {
+        "USA",
+        "India",
+        "Germany",
+        "UK",
+        "France",
+        "Japan"
+    };
+
+    protected override void OnInitialized()
+    {
+        Orders = Enumerable.Range(1, 10000)
+        .Select(i => new Order
+        {
+            OrderId = i,
+            CustomerName = $"Customer {i}",
+            Country = Countries[i % Countries.Length],
+            IsActive = i % 2 == 0,
+            OrderDate = DateTime.Today.AddDays(-(i % 365)),
+            ShippedDateTime = DateTime.Now.AddHours(-(i % 200)),
+            Amount = i * 10,
+            DeliveryTime = DateTime.Today.AddHours(i % 24).AddMinutes(i % 60)
+        })
+        .ToList();
+    }
+    private int CustomAggregateFunction()
+    {
+        return Orders.Count(x => x.IsActive);
+    }
+
+    public class Order
+    {
+        public int OrderId { get; set; }
+
+        public string CustomerName { get; set; } = "";
+
+        public string Country { get; set; } = "";
+
+        public bool IsActive { get; set; }
+
+        public DateTime OrderDate { get; set; }
+
+        public DateTime ShippedDateTime { get; set; }
+
+        public decimal Amount { get; set; }
+
+        public DateTime DeliveryTime { get; set; }
+    }
+}

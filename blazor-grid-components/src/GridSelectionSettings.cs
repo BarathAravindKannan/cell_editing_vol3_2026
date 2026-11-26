@@ -1,4 +1,5 @@
-﻿using System.ComponentModel;
+using System;
+using System.ComponentModel;
 using Microsoft.AspNetCore.Components;
 using System.Text.Json.Serialization;
 using System.Threading.Tasks;
@@ -145,6 +146,74 @@ namespace Syncfusion.Blazor.Grids
         public bool AllowDragSelection { get; set; }
 
         private bool _allowDragSelection { get; set; }
+
+        /// <summary>
+        /// Gets or sets a predicate that determines whether an individual row can be selected.
+        /// </summary>
+        /// <value>
+        /// A nullable <see cref="Func{T, TResult}"/> delegate that receives the row data object as an
+        /// <see cref="object"/> and returns <see langword="true"/> if the row is selectable; otherwise,
+        /// <see langword="false"/>. The default value is <see langword="null"/>, which indicates that all
+        /// rows are selectable.
+        /// </value>
+        /// <remarks>
+        /// <para>
+        /// Use this property to conditionally enable or disable row selection based on the associated
+        /// row data.
+        /// </para>
+        /// <para>
+        /// When this property is <see langword="null"/>, no selection restrictions are applied and all
+        /// rows can be selected.
+        /// </para>
+        /// <para>
+        /// The predicate is evaluated when grid data is processed, and the result is cached for each
+        /// record. The cache is refreshed whenever row selectability is re-evaluated, such as during
+        /// filtering, searching, editing, refresh operations, or when a new response is received from
+        /// a remote data source. Operations such as paging, sorting, grouping, and selection reuse the
+        /// cached results.
+        /// </para>
+        /// <para>
+        /// Selection operations generally use the cached result. If a record has not yet been processed
+        /// and no cached value exists, the predicate may be evaluated once and the result cached for
+        /// subsequent operations.
+        /// </para>
+        /// <para>
+        /// Rows for which the predicate returns <see langword="false"/> are treated as non-selectable.
+        /// These rows are ignored by both user interactions and programmatic selection APIs, including
+        /// <c>SelectRowAsync</c> and <c>SelectRowsAsync</c>.
+        /// </para>
+        /// <para>
+        /// When <c>PersistSelection</c> is enabled, only selectable records participate in persisted
+        /// selection and Select All operations. If a previously selected record becomes non-selectable
+        /// after selectability is re-evaluated, it is automatically removed from the persisted selection.
+        /// </para>
+        /// <para>
+        /// For remote data sources, row selectability is evaluated only for records contained in the
+        /// current server response.
+        /// </para>
+        /// <para>
+        /// This property applies only to row-based selection, including checkbox row selection, and is
+        /// ignored when the grid is configured for cell selection.
+        /// </para>
+        /// </remarks>
+        /// <example>
+        /// <code><![CDATA[
+        /// <SfGrid DataSource="@Orders">
+        ///     <GridSelectionSettings IsRowSelectable="IsSelectable"
+        ///                            PersistSelection="true" />
+        /// </SfGrid>
+        ///
+        /// @code {
+        ///     private bool IsSelectable(object data)
+        ///     {
+        ///         var order = (Order)data;
+        ///         return order.Status != "Shipped";
+        ///     }
+        /// }
+        /// ]]></code>
+        /// </example>
+        [Parameter]
+        public Func<object, bool>? IsRowSelectable { get; set; }
 
         internal static async Task<GridSelectionSettings> Initialize(SfBaseComponent baseComponent)
         {

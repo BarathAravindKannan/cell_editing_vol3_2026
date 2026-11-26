@@ -2409,7 +2409,11 @@ namespace Syncfusion.Blazor.Grids.Internal
             if (!string.IsNullOrEmpty(column.Format) && (column.Type == ColumnType.Integer || column.Type == ColumnType.Double || column.Type == ColumnType.Long || column.Type == ColumnType.Decimal))
             {
                 Type? valueType = column.ValueType;
+#if NET11_0_OR_GREATER
+                if (column.Format.ToLower(System.Globalization.CultureInfo.CurrentCulture).StartsWith('d', System.StringComparison.Ordinal) && valueType != null && value != null)
+#else
                 if (column.Format.ToLower(System.Globalization.CultureInfo.CurrentCulture).StartsWith('d') && valueType != null && value != null)
+#endif
                 {
                     row!.Cells[colIndex - 1].Value = ExportHelper<T>.FormatDConverstion(column.Format, value, column.ValueType);
                 }

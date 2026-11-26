@@ -122,6 +122,13 @@ namespace Syncfusion.Blazor.Grids
         public GridKeySettings? KeySettings { get; set; }
 
         /// <summary>
+        /// Gets or sets the custom keyboard shortcuts for the grid. When set, the
+        /// bindings defined here override the built-in defaults and any bindings
+        /// expressed through the legacy <see cref="KeySettings"/> parameter.
+        /// </summary>
+        public GridCustomKeyboardShortcuts? KeyboardShortcuts { get; set; }
+
+        /// <summary>
         /// Gets or sets a value indicating whether alternate row styling (striped rows) is enabled.
         /// </summary>
         public bool EnableAltRow { get; set; }
@@ -160,6 +167,32 @@ namespace Syncfusion.Blazor.Grids
         /// Gets or sets the filter settings for the grid.
         /// </summary>
         public GridFilterSettings? FilterSettings { get; set; }
+
+        /// <summary>
+        /// Gets or sets the Advanced Filter settings for the Grid.
+        /// </summary>
+        /// <value>
+        /// A <see cref="Syncfusion.Blazor.Grids.GridAdvancedFilterSettings"/> object
+        /// that configures the behavior and initial state of the Advanced Filter
+        /// dialog, or <see langword="null"/> if no custom settings are provided.
+        /// </value>
+        /// <remarks>
+        /// <para>
+        /// Use this property to configure the Grid's Advanced Filter (Query Builder)
+        /// functionality, including specifying an initial filter rule and accessing
+        /// the current filter rule.
+        /// </para>
+        /// <para>
+        /// To configure advanced filtering, declare a
+        /// <see cref="Syncfusion.Blazor.Grids.GridAdvancedFilterSettings"/>
+        /// component within the Grid.
+        /// </para>
+        /// <para>
+        /// When this property is <see langword="null"/>, the Grid uses the default
+        /// Advanced Filter settings.
+        /// </para>
+        /// </remarks>
+        public GridAdvancedFilterSettings? AdvancedFilterSettings { get; set; }
 
         /// <summary>
         /// Gets or sets the infinite scroll settings.
@@ -427,7 +460,7 @@ namespace Syncfusion.Blazor.Grids
     /// input arguments, and interpret tool responses.
     /// </para>
     /// </remarks>
-    public interface IWebMcpTool
+    public interface IGridWebMcpTool
     {
         /// <summary>
         /// Gets the unique name of the tool.

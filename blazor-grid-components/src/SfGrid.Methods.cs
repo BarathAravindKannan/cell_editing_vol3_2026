@@ -3,6 +3,7 @@ using System.ComponentModel;
 using System.Threading.Tasks;
 using System.Collections.Generic;
 using Microsoft.AspNetCore.Components;
+using Microsoft.AspNetCore.Components.Web;
 using System.Text.Json.Serialization;
 using Syncfusion.Blazor.Internal;
 using Syncfusion.Blazor.Data;
@@ -343,7 +344,244 @@ namespace Syncfusion.Blazor.Grids
         /// </example>
         public async Task ClearFilteringAsync(string fieldName) =>
              await (FilterModule?.ClearFiltering(fieldName))!.ConfigureAwait(true)!;
-	
+
+        /// <summary>
+        /// Opens the Advanced Filter (Query Builder) dialog for the Grid.
+        /// </summary>
+        /// <returns>
+        /// A <see cref="Task"/> that represents the asynchronous operation.
+        /// </returns>
+        /// <remarks>
+        /// <para>
+        /// This method displays the Advanced Filter dialog, allowing users to create,
+        /// modify, or clear filter rules using the Query Builder interface.
+        /// </para>
+        /// <para>
+        /// Advanced filtering must be enabled by setting
+        /// <see cref="AllowAdvancedFiltering"/> to <see langword="true"/>. If advanced
+        /// filtering is disabled, calling this method has no effect.
+        /// </para>
+        /// <para>
+        /// Before the dialog is opened, the
+        /// <see cref="GridEvents{TValue}.AdvancedFilterOpen"/> event is raised.
+        /// To prevent the dialog from opening, set
+        /// <see cref="AdvancedFilterEventArgsBase.Cancel"/> to
+        /// <see langword="true"/> in the event handler.
+        /// </para>
+        /// </remarks>
+        /// <example>
+        /// <code><![CDATA[
+        /// <SfGrid @ref="grid" DataSource="@Orders" AllowAdvancedFiltering="true">
+        ///     <GridColumns>
+        ///         ...
+        ///     </GridColumns>
+        /// </SfGrid>
+        ///
+        /// <button @onclick="OpenFilter">Open Advanced Filter</button>
+        ///
+        /// @code {
+        ///     private SfGrid<Order> grid;
+        ///
+        ///     private async Task OpenFilter()
+        ///     {
+        ///         await grid.OpenAdvancedFilterDialogAsync();
+        ///     }
+        /// }
+        /// ]]></code>
+        /// </example>
+        public async Task OpenAdvancedFilterDialogAsync()
+        {
+            if (!AllowAdvancedFiltering)
+            {
+                return;
+            }
+            EventAggregator?.Trigger("OpenAdvancedFilter", null!);
+            await Task.CompletedTask.ConfigureAwait(true);
+        }
+
+        /// <summary>
+        /// Applies the specified Advanced Filter rule to the Grid.
+        /// </summary>
+        /// <param name="rule">
+        /// An <see cref="AdvancedFilterRule"/> that defines the filter criteria to
+        /// apply. The rule can represent either a single filter condition or a group
+        /// of nested filter rules.
+        /// </param>
+        /// <returns>
+        /// A <see cref="Task"/> that represents the asynchronous apply operation.
+        /// </returns>
+        /// <exception cref="ArgumentNullException">
+        /// Thrown when <paramref name="rule"/> is <see langword="null"/>.
+        /// </exception>
+        /// <remarks>
+        /// <para>
+        /// This method applies the specified Advanced Filter rule through the Grid's
+        /// filtering pipeline and updates the displayed data accordingly.
+        /// </para>
+        /// <para>
+        /// Advanced filtering must be enabled by setting
+        /// <see cref="AllowAdvancedFiltering"/> to <see langword="true"/>. If advanced
+        /// filtering is disabled, calling this method has no effect.
+        /// </para>
+        /// <para>
+        /// Before the rule is applied, the
+        /// <see cref="GridEvents{TValue}.AdvancedFiltering"/> event is raised.
+        /// To prevent the rule from being applied, set
+        /// <see cref="AdvancedFilterEventArgsBase.Cancel"/> to
+        /// <see langword="true"/> in the event handler.
+        /// </para>
+        /// <para>
+        /// After the rule is successfully applied, the
+        /// <see cref="GridEvents{TValue}.AdvancedFiltered"/> event is
+        /// raised. If the operation is canceled in the begin event, the complete
+        /// event is not raised.
+        /// </para>
+        /// <para>
+        /// When the operation is canceled, the supplied rule is still stored as the
+        /// Grid's current Advanced Filter rule, although it is not applied to the
+        /// data view.
+        /// </para>
+        /// </remarks>
+        /// <example>
+        /// <code><![CDATA[
+        /// var rule = new AdvancedFilterRule
+        /// {
+        ///     Condition = "or",
+        ///     Rules = new List<AdvancedFilterRule>
+        ///     {
+        ///         new AdvancedFilterRule
+        ///         {
+        ///             Field = "ShipCity",
+        ///             Operator = "startswith",
+        ///             Value = "Be"
+        ///         },
+        ///         new AdvancedFilterRule
+        ///         {
+        ///             Field = "Freight",
+        ///             Operator = "greaterthan",
+        ///             Value = 50
+        ///         }
+        ///     }
+        /// };
+        ///
+        /// await grid.ApplyAdvancedFilterAsync(rule);
+        /// ]]></code>
+        /// </example>
+        public async Task ApplyAdvancedFilterAsync(AdvancedFilterRule rule)
+        {
+            ArgumentNullException.ThrowIfNull(rule);
+
+            if (!AllowAdvancedFiltering)
+            {
+                return;
+            }
+
+            await EnsureAdvancedFilterSettingsAsync().ConfigureAwait(true);
+
+            AdvancedFilterSettings!.CurrentRule = rule;
+
+            if (FilterModule != null)
+            {
+                await FilterModule.ApplyAdvancedFilter(rule).ConfigureAwait(true);
+            }
+        }
+
+        /// <summary>
+        /// Clears the currently active Advanced Filter rule from the Grid.
+        /// </summary>
+        /// <returns>
+        /// A <see cref="Task"/> that represents the asynchronous clear operation.
+        /// </returns>
+        /// <remarks>
+        /// <para>
+        /// This method removes the active Advanced Filter rule and refreshes the Grid
+        /// data view to display records without the applied Advanced Filter criteria.
+        /// </para>
+        /// <para>
+        /// Advanced filtering must be enabled by setting
+        /// <see cref="AllowAdvancedFiltering"/> to <see langword="true"/>. If advanced
+        /// filtering is disabled, calling this method has no effect.
+        /// </para>
+        /// <para>
+        /// Before the active rule is cleared, the
+        /// <see cref="GridEvents{TValue}.AdvancedFiltering"/> event is raised
+        /// with <see cref="AdvancedFilterEventArgs.IsClear"/> set to
+        /// <see langword="true"/>. To prevent the filter from being cleared, set
+        /// <see cref="AdvancedFilterEventArgsBase.Cancel"/> to
+        /// <see langword="true"/> in the event handler.
+        /// </para>
+        /// <para>
+        /// If the operation is canceled, the active filter remains applied to the Grid
+        /// data view and the
+        /// <see cref="GridEvents{TValue}.AdvancedFiltered"/> event is not
+        /// raised. However, the configured Advanced Filter rule is still removed from
+        /// the Advanced Filter settings.
+        /// </para>
+        /// <para>
+        /// If the operation completes successfully, the active filter is cleared and
+        /// the <see cref="GridEvents{TValue}.AdvancedFiltered"/> event is
+        /// raised with <see cref="AdvancedFilterEventArgs.IsClear"/>
+        /// set to <see langword="true"/>.
+        /// </para>
+        /// <para>
+        /// Setting <see cref="AdvancedFilterEventArgsBase.Cancel"/> in the
+        /// completion event does not restore the cleared filter. It only affects the
+        /// Advanced Filter dialog's post-operation behavior, such as keeping the dialog
+        /// open and preserving the Query Builder state.
+        /// </para>
+        /// </remarks>
+        /// <example>
+        /// <code><![CDATA[
+        /// <SfGrid @ref="grid"
+        ///         DataSource="@Orders"
+        ///         AllowAdvancedFiltering="true">
+        ///     <GridColumns>
+        ///         ...
+        ///     </GridColumns>
+        /// </SfGrid>
+        ///
+        /// <button @onclick="ClearNow">
+        ///     Clear Advanced Filter
+        /// </button>
+        ///
+        /// @code {
+        ///     private SfGrid<Order> grid;
+        ///
+        ///     private async Task ClearNow()
+        ///     {
+        ///         await grid.ClearAdvancedFilterAsync();
+        ///     }
+        /// }
+        /// ]]></code>
+        /// </example>
+        public async Task ClearAdvancedFilterAsync()
+        {
+            if (!AllowAdvancedFiltering)
+            {
+                return;
+            }
+
+            await EnsureAdvancedFilterSettingsAsync().ConfigureAwait(true);
+
+            AdvancedFilterSettings!.CurrentRule = null;
+
+            await (FilterModule?.ClearAdvancedFilter() ?? Task.CompletedTask).ConfigureAwait(true);
+        }
+
+        /// <summary>
+        /// Initialises <see cref="AdvancedFilterSettings"/> when the grid
+        /// was created without an explicit <c>GridAdvancedFilterSettings</c>
+        /// child. Centralises the lazy-init pattern used by the public
+        /// Advanced Filter APIs so they all share the same defaults.
+        /// </summary>
+        private async Task EnsureAdvancedFilterSettingsAsync()
+        {
+            if (AdvancedFilterSettings == null)
+            {
+                AdvancedFilterSettings = await GridAdvancedFilterSettings.Initialize(this).ConfigureAwait(true);
+            }
+        }
+
         /// <summary>
         /// Clears all the grouped columns of the Grid, returning it to its original un-grouped state.
         /// </summary>
@@ -354,12 +592,12 @@ namespace Syncfusion.Blazor.Grids
         /// <SfGrid @ref="grid" DataSource="@Orders">
         ///  ........
         /// </SfGrid>
-        /// @code{
+        /// @code {
         ///    SfGrid<Order> grid;
-        ///    private async Task ClearGrouping()
-        ///    {
-        ///       await grid.ClearGroupingAsync();
-        ///    }
+        ///     private async Task ClearGrouping()
+        ///     {
+        ///         await grid.ClearGroupingAsync();
+        ///     }
         /// }
         /// ]]>
         /// </code>
@@ -873,7 +1111,7 @@ namespace Syncfusion.Blazor.Grids
         /// </example>
         public async Task DeleteRecordAsync(IReadOnlyList<string> primaryKeyFields, TValue data)
         {
-            if (primaryKeyFields == null || !primaryKeyFields.Any())
+            if (primaryKeyFields == null || primaryKeyFields.Count == 0)
             {
                 return;
             }
@@ -1112,7 +1350,11 @@ namespace Syncfusion.Blazor.Grids
         /// </example>
         public async Task FilterByColumnAsync(string fieldName, string filterOperator, object filterValue, string predicate = null!, Nullable<bool> matchCase = null, Nullable<bool> ignoreAccent = null, object actualFilterValue = null!, object actualOperator = null!, string columnUid = null!)
         {
-            Operator fOperator = Filter<TValue>.GetOperator(filterOperator?.ToLower(CultureInfo.CurrentCulture)!);
+            if (string.IsNullOrEmpty(filterOperator))
+            {
+                return;
+            }
+            Operator fOperator = Filter<TValue>.GetOperator(filterOperator.ToLower(CultureInfo.CurrentCulture));
             await (FilterModule?.FilterByColumn(fieldName, fOperator, filterValue, predicate, matchCase, ignoreAccent, actualFilterValue, actualOperator, columnUid))!.ConfigureAwait(true)!;
         }
 	
@@ -1720,7 +1962,7 @@ namespace Syncfusion.Blazor.Grids
         {
             List<ValueTuple<int, int>> result = new List<ValueTuple<int, int>>();
 
-            if (Rows.Count == 0 || !AllowSelection || (SelectionModule != null && SelectionModule.IsRowMode()))
+            if ((Rows.Count == 0 && !EnableDomVirtualization) || !AllowSelection || (SelectionModule != null && SelectionModule.IsRowMode()))
             {
                 return result;
             }
@@ -1744,8 +1986,38 @@ namespace Syncfusion.Blazor.Grids
                     });
                 }
             }
+            if (EnableDomVirtualization && DomVirtualModule != null)
+            {
+                HashSet<int> renderedRowIndexes = Rows
+                    .Where(row => row.IsDataRow && !row.IsDetailRow && row.Index.HasValue)
+                    .Select(row => row.Index!.Value)
+                    .ToHashSet();
+                result.AddRange(DomVirtualModule.GetRetainedSelectedCells()
+                    .Where(cell => !renderedRowIndexes.Contains(cell.RowIndex))
+                    .Select(cell => (cell.RowIndex, cell.CellIndex)));
+            }
 
             return await Task.FromResult<List<ValueTuple<int, int>>>(result).ConfigureAwait(true);
+        }
+
+        /// <summary>
+        /// Gets the details of the selected cells.
+        /// </summary>
+        /// <returns>A <see cref="System.Threading.Tasks.Task"/> that results in a list of <see cref="GridSelectedCell{TValue}"/>.</returns>
+        /// <remarks>
+        /// Works when <see cref="GridSelectionSettings.Mode"/> is <see cref="SelectionMode.Cell"/> or <see cref="SelectionMode.Both"/>; otherwise an empty list is returned.
+        /// Only the selected cells of the current page or view are returned, including when <see cref="GridSelectionSettings.PersistSelection"/> is enabled. <see cref="GridSelectedCell{TValue}.RowIndex"/> is relative to the current view.
+        /// </remarks>
+        /// <example>
+        /// <code>
+        /// <![CDATA[
+        /// var selectedCells = await grid.GetSelectedCellsAsync();
+        /// ]]>
+        /// </code>
+        /// </example>
+        public async Task<List<GridSelectedCell<TValue>>> GetSelectedCellsAsync()
+        {
+            return await Task.FromResult(SelectionModule?.GetSelectedCells() ?? new List<GridSelectedCell<TValue>>()).ConfigureAwait(true);
         }
 
         /// <summary>
@@ -2891,6 +3163,49 @@ namespace Syncfusion.Blazor.Grids
         {
             if(SelectionModule != null)
             await SelectionModule.SelectRows(rowIndexes).ConfigureAwait(true);
+        }
+
+        /// <summary>
+        /// Selects every visible data row in the grid. Used by the custom-keyboard
+        /// shortcut <c>SelectAll</c> (<c>Ctrl+A</c> by default). No-op when
+        /// <c>AllowSelection</c> is <c>false</c>.
+        /// </summary>
+        /// <returns>A task that completes when the selection has been applied.</returns>
+        public async Task SelectAllRecordsAsync()
+        {
+            if (SelectionModule == null || !AllowSelection)
+            {
+                return;
+            }
+            if (SelectionSettings != null && SelectionSettings.Mode == SelectionMode.Cell)
+            {
+                return;
+            }
+            var dataRows = Rows?.Where(r => r.Visible && r.IsDataRow && !r.RowType.Equals("DetailRow", StringComparison.Ordinal)).ToList();
+            if (dataRows == null || dataRows.Count == 0)
+            {
+                return;
+            }
+            var indexes = dataRows
+                .Where(r => r.Index.HasValue)
+                .Select(r => (int)r.Index!.Value)
+                .ToArray();
+            await SelectionModule.SelectRows(indexes).ConfigureAwait(true);
+        }
+
+        /// <summary>
+        /// Toggles the header checkbox of a CheckBox column. Used by the
+        /// custom-keyboard shortcut <c>ToggleHeaderCheckbox</c> (<c>Space</c> by
+        /// default) when focus is on a header cell of a CheckBox column.
+        /// </summary>
+        /// <returns>A task that completes when the toggle has been applied.</returns>
+        public async Task SelectAllCheckBoxFromHeaderAsync()
+        {
+            if (SelectionModule == null)
+            {
+                return;
+            }
+            await SelectionModule.HeaderClickHandler(new MouseEventArgs(), CheckBoxState).ConfigureAwait(true);
         }
 
         /// <summary>
@@ -4630,6 +4945,10 @@ namespace Syncfusion.Blazor.Grids
                     var filterSettings = value == null ? await GridFilterSettings.Initialize(this).ConfigureAwait(true) : (GridFilterSettings)value;
                     FilterSettings = _filterSettings = filterSettings;
                     break;
+                case nameof(AdvancedFilterSettings):
+                    var advancedFilterSettings = value == null ? await GridAdvancedFilterSettings.Initialize(this).ConfigureAwait(true) : (GridAdvancedFilterSettings)value;
+                    AdvancedFilterSettings = _advancedFilterSettings = advancedFilterSettings;
+                    break;
                 case nameof(SortSettings):
                     var sortSettings = value == null ? await GridSortSettings.Initialize(this).ConfigureAwait(true) : (GridSortSettings)value;
                     SortSettings = _sortSettings = sortSettings;
@@ -4706,7 +5025,7 @@ namespace Syncfusion.Blazor.Grids
         /// </param>
         /// <returns>
         /// A <see cref="Task{TResult}"/> that resolves to an
-        /// <see cref="IReadOnlyList{T}"/> of <see cref="IWebMcpTool"/> instances
+        /// <see cref="IReadOnlyList{T}"/> of <see cref="IGridWebMcpTool"/> instances
         /// representing the matching WebMCP tool definitions.
         /// </returns>
         /// <remarks>
@@ -4752,10 +5071,10 @@ namespace Syncfusion.Blazor.Grids
         /// }
         /// ]]>
         /// </example>
-        public async Task<IReadOnlyList<IWebMcpTool>> GetWebMcpToolsAsync(IEnumerable<string>? toolNames = null)
+        public async Task<IReadOnlyList<IGridWebMcpTool>> GetWebMcpToolsAsync(IEnumerable<string>? toolNames = null)
         {
             return await Task.FromResult(_webMcpAdapter == null
-                ? new List<IWebMcpTool>()
+                ? new List<IGridWebMcpTool>()
                 : WebMcpAdapter<TValue>.GetTools(toolNames)).ConfigureAwait(false);
         }
 

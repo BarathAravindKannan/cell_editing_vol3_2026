@@ -1845,7 +1845,11 @@ namespace Syncfusion.Blazor.Grids.Internal
                     if (IsCsvExport)
                     {
                         Type? valueType = column.ValueType;
+#if NET11_0_OR_GREATER
+                        if (column.Format.ToLower(System.Globalization.CultureInfo.CurrentCulture).StartsWith('d', System.StringComparison.Ordinal) && valueType != null && value != null)
+#else
                         if (column.Format.ToLower(System.Globalization.CultureInfo.CurrentCulture).StartsWith('d') && valueType != null && value != null)
+#endif
                         {
                             GetCurrentCell.Value = ExportHelper<T>.FormatDConverstion(column.Format, value, valueType);
                         }

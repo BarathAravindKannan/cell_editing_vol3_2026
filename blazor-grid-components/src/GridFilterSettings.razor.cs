@@ -1,4 +1,4 @@
-﻿using System.Collections.Generic;
+using System.Collections.Generic;
 using System.ComponentModel;
 using Microsoft.AspNetCore.Components;
 using System.Text.Json.Serialization;
@@ -165,6 +165,102 @@ namespace Syncfusion.Blazor.Grids
 
         private bool _showFilterBarOperator { get; set; }
 
+        /// <summary>
+        /// Gets or sets a value indicating whether the checkbox value list
+        /// inside the <see cref="FilterType.Excel"/> and <see cref="FilterType.CheckBox"/>
+        /// filter dialogs is loaded in chunks as the user scrolls.
+        /// </summary>
+        /// <value>
+        /// <b>true</b> to enable on-demand (chunked) loading of the
+        /// filter-dialog checkbox list; otherwise <b>false</b>.
+        /// The default is <b>false</b> — existing customers see no change.
+        /// </value>
+        /// <remarks>
+        /// Applies only to <see cref="FilterType.Excel"/> and
+        /// <see cref="FilterType.CheckBox"/>. <see cref="FilterType.FilterBar"/>
+        /// and <see cref="FilterType.Menu"/> ignore this setting. The chunk
+        /// size is controlled by <see cref="FilterDialogItemsCount"/>, and
+        /// may be overridden per request by
+        /// <c>FilterDialogOpeningEventArgs.FilterChoiceCount</c>. The data
+        /// source is the one already supplied for the filter distinct list
+        /// (e.g. <c>CheckboxListData</c> in <c>FilterDialogOpeningEventArgs</c>);
+        /// no new event is raised for the chunked requests.
+        /// </remarks>
+        [Parameter]
+        public bool EnableFilterDialogInfiniteScrolling { get; set; }
+
+        private bool _enableFilterDialogInfiniteScrolling { get; set; }
+
+        /// <summary>
+        /// Gets or sets the chunk size (number of distinct values per
+        /// request) used by the filter-dialog checkbox list when
+        /// <see cref="EnableFilterDialogInfiniteScrolling"/> is <b>true</b>.
+        /// </summary>
+        /// <value>
+        /// An integer ≥ 1. Values ≤ 0 are clamped to <b>50</b>, matching the
+        /// Syncfusion EJ2 default for <c>filterSettings.itemsCount</c>.
+        /// </value>
+        /// <remarks>
+        /// When a positive value is set on
+        /// <c>FilterDialogOpeningEventArgs.FilterChoiceCount</c>, it
+        /// overrides this value for the whole dialog session
+        /// (-AC16 / BLZ-FILT-012a).
+        /// </remarks>
+        [Parameter]
+        public int FilterDialogItemsCount { get; set; } = 50;
+
+        private int _filterDialogItemsCount { get; set; }
+        /// <summary>
+        /// Gets or sets a value indicating whether invalid date values are prevented
+        /// from being applied as filter criteria in date filter dialogs.
+        /// </summary>
+        /// <value>
+        /// A <see cref="bool"/> indicating whether date filter validation is enabled.
+        /// The default value is <see langword="false"/>.
+        /// </value>
+        /// <remarks>
+        /// <para>
+        /// When set to <see langword="true"/>, the Grid validates date values entered
+        /// in Menu and Excel filter dialogs before applying the filter.
+        /// </para>
+        /// <para>
+        /// If an invalid date value is entered:
+        /// <list type="bullet">
+        /// <item>
+        /// <description>The Filter button is disabled until a valid date value is provided.</description>
+        /// </item>
+        /// <item>
+        /// <description>A validation message is displayed to indicate that the entered date is invalid.</description>
+        /// </item>
+        /// <item>
+        /// <description>The Clear button remains available to remove the filter value.</description>
+        /// </item>
+        /// <item>
+        /// <description>Invalid date values are not applied as filter predicates.</description>
+        /// </item>
+        /// </list>
+        /// </para>
+        /// <para>
+        /// This property applies only to Menu and Excel filter types and does not affect
+        /// Filter Bar filtering.
+        /// </para>
+        /// <para>
+        /// When set to <see langword="false"/>, the Grid preserves the existing filtering
+        /// behavior for backward compatibility.
+        /// </para>
+        /// </remarks>
+        /// <example>
+        /// <code><![CDATA[
+        /// <SfGrid DataSource="@Orders" AllowFiltering="true">
+        /// <GridFilterSettings Type="Syncfusion.Blazor.Grids.FilterType.Excel" EnableTemporalValidation="true"/>
+        /// </SfGrid>
+        /// ]]></code>
+        /// </example>
+        [Parameter]
+        public bool EnableTemporalValidation { get; set; } = false;
+
+        private bool _EnableTemporalValidation { get; set; }
+
 
         /// <summary>
         /// Updates the child properties of GridFilterSettings based on the specified key and value.
@@ -209,6 +305,9 @@ namespace Syncfusion.Blazor.Grids
             _type = Type;
             _allowTextWrap = AllowTextWrap;
             _showFilterBarOperator = ShowFilterBarOperator;
+            _enableFilterDialogInfiniteScrolling = EnableFilterDialogInfiniteScrolling;
+            _filterDialogItemsCount = FilterDialogItemsCount;
+            _EnableTemporalValidation = EnableTemporalValidation;
             
             if (!isAutoInitialized && BaseParent != null)
             {
@@ -233,6 +332,9 @@ namespace Syncfusion.Blazor.Grids
             Type = _type = await UpdateProperty(nameof(Type), Type, _type).ConfigureAwait(true);
             AllowTextWrap = _allowTextWrap = await UpdateProperty(nameof(AllowTextWrap), AllowTextWrap, _allowTextWrap).ConfigureAwait(true);
             ShowFilterBarOperator = _showFilterBarOperator = await UpdateProperty(nameof(ShowFilterBarOperator), ShowFilterBarOperator, _showFilterBarOperator).ConfigureAwait(true);
+            EnableFilterDialogInfiniteScrolling = _enableFilterDialogInfiniteScrolling = await UpdateProperty(nameof(EnableFilterDialogInfiniteScrolling), EnableFilterDialogInfiniteScrolling, _enableFilterDialogInfiniteScrolling).ConfigureAwait(true);
+            FilterDialogItemsCount = _filterDialogItemsCount = await UpdateProperty(nameof(FilterDialogItemsCount), FilterDialogItemsCount, _filterDialogItemsCount).ConfigureAwait(true);
+            EnableTemporalValidation = _EnableTemporalValidation = await UpdateProperty(nameof(EnableTemporalValidation), EnableTemporalValidation, _EnableTemporalValidation).ConfigureAwait(true);
             if (ChildContent == null && BaseParent != null)
             {
                 BaseParent.HasFilterColumnChanges = false;
@@ -242,6 +344,16 @@ namespace Syncfusion.Blazor.Grids
                 if (PropertyChanges.ContainsKey("ShowFilterBarOperator"))
                 {
                     ((SfBaseComponent)BaseParent).PropertyChanges.TryAdd("ShowFilterBarOperator", this.ShowFilterBarOperator);
+                    ((SfBaseComponent)BaseParent).PropertyChanges.TryAdd(nameof(IGrid.FilterSettings), this);
+                }
+                if (PropertyChanges.ContainsKey("EnableFilterDialogInfiniteScrolling"))
+                {
+                    ((SfBaseComponent)BaseParent).PropertyChanges.TryAdd("EnableFilterDialogInfiniteScrolling", this.EnableFilterDialogInfiniteScrolling);
+                    ((SfBaseComponent)BaseParent).PropertyChanges.TryAdd(nameof(IGrid.FilterSettings), this);
+                }
+                if (PropertyChanges.ContainsKey("FilterDialogItemsCount"))
+                {
+                    ((SfBaseComponent)BaseParent).PropertyChanges.TryAdd("FilterDialogItemsCount", this.FilterDialogItemsCount);
                     ((SfBaseComponent)BaseParent).PropertyChanges.TryAdd(nameof(IGrid.FilterSettings), this);
                 }
                 PropertyChanges.Clear();

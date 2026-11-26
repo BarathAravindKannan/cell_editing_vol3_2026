@@ -3,8 +3,11 @@
 @using Syncfusion.Blazor.Popups
 @using Syncfusion.Blazor.Buttons
 @using Syncfusion.Blazor.Data
+@using System
 @using System.Globalization;
+@using System.Threading.Tasks;
 
+@implements IAsyncDisposable
 
 
 @namespace Syncfusion.Blazor.Grids.Internal
@@ -53,7 +56,7 @@
                                 </span>
                             </span>
                             <div class="e-checkbox-spinner">
-                                <div class="e-checkboxlist e-fields" id="@($"{Parent.ID}{Column?.Type.ToString().ToLower(CultureInfo.InvariantCulture)}_CheckBoxList")">
+                                <div class="e-checkboxlist e-fields" id="@($"{Parent.ID}{Column?.Type.ToString().ToLower(CultureInfo.InvariantCulture)}_CheckBoxList")" @attributes="GetCheckboxListVirtualizationAttributes()">
                                     @if (CheckedData?.Count() > 0)
                                     {
                                         @if (!Intermediate)
@@ -78,8 +81,14 @@
                                                 <CheckBoxRenderer AriaLabel="aria" Checked=@IsCurrentSelectionChecked CCClass="e-chk-hidden" CheckBoxClass="e-checkboxfiltertext" Lable="@Localizer.GetText(GridLocaleKeys.AddCurrentSelection)"></CheckBoxRenderer>                                       
                                             </div>
                                         }
-                                        @foreach (var val in CheckedData)
+                                        @if (IsCheckboxListVirtualized())
                                         {
+                                            <div class="e-ftrchk-virtual-top-spacer" aria-hidden="true" style="@($"height:{GetVirtualTopSpacerHeight()}px;width:100%;")"></div>
+                                        }
+                                        @foreach (var renderedItem in GetCheckboxDataForRender())
+                                        {
+                                            var val = renderedItem.Data;
+                                            var rowIndex = renderedItem.Index;
                                             string key = val.Key;
                                             var Val = (CheckBoxModel)val.Value;
                                             var CheckBoxValue = Val?.FormattedValue ?? Val?.Value;
@@ -94,8 +103,15 @@
                                             }
                                             @if (CheckBoxValue != null && CheckBoxValue.ToString() != "null" && !string.IsNullOrEmpty(CheckBoxValue.ToString()))
                                             {
-                                                <div class=@($"e-ftrchk {checkBoxFocus}") uid="@key" @onclick="@((MouseEventArgs args) => CheckBoxClickHandler(args, key))">
+                                                <div class=@($"e-ftrchk {checkBoxFocus}") uid="@key" data-index="@(IsCheckboxListVirtualized() ? rowIndex.ToString(CultureInfo.InvariantCulture) : null)" @onclick="@((MouseEventArgs args) => CheckBoxClickHandler(args, key))">
                                                     <CheckBoxRenderer AriaLabel="aria" Checked=@Val!.isChecked CCClass="e-chk-hidden" CheckBoxClass=@GetLabelClassName() Column="Column" Records="Val?.Data" Lable="@(CheckBoxValue.ToString())">
+                                                    </CheckBoxRenderer>
+                                                </div>
+                                            }
+                                            else if (IsCheckboxListVirtualized())
+                                            {
+                                                <div class="e-ftrchk e-blanks" uid="@key" data-index="@(IsCheckboxListVirtualized() ? rowIndex.ToString(CultureInfo.InvariantCulture) : null)" @onclick="@((MouseEventArgs args) => CheckBoxClickHandler(args, key))">
+                                                    <CheckBoxRenderer AriaLabel="aria" Checked=@Val!.isChecked CCClass="e-chk-hidden" Column="Column" Records="Val?.Data" Lable=@Localizer.GetText(GridLocaleKeys.Blanks)>
                                                     </CheckBoxRenderer>
                                                 </div>
                                             }
@@ -107,13 +123,17 @@
                                                 this.NullData = Val?.Data;
                                             }
                                         }
-                                        @if (isBlank)
+                                        @if (isBlank && !IsCheckboxListVirtualized())
                                         {
                                             <div class="e-ftrchk e-blanks" uid="@NullKey" @onclick="@((MouseEventArgs args) => CheckBoxClickHandler(args, this.NullKey!))">
                                                 <CheckBoxRenderer  AriaLabel="aria" Checked=@NullChecked CCClass="e-chk-hidden" Column="Column" Records="NullData" Lable=@Localizer.GetText(GridLocaleKeys.Blanks)>
                                                 </CheckBoxRenderer>
                                             </div>
                                             isBlank = false;
+                                        }
+                                        @if (IsCheckboxListVirtualized())
+                                        {
+                                            <div class="e-ftrchk-virtual-bottom-spacer" aria-hidden="true" style="@($"height:{GetVirtualBottomSpacerHeight()}px;width:100%;")"></div>
                                         }
                                     }
                                     else if (isSearch)
@@ -122,10 +142,18 @@
                                             <span>@Localizer.GetText(GridLocaleKeys.NoResult)</span>
                                         </div>
                                     }
+                                    @if (IsChunkedLoadingActive())
+                                    {
+                                        <div id="@GetScrollSentinelId()" class="e-ftrchk-scroll-sentinel" aria-hidden="true" style="height:1px;width:100%;"></div>
+                                    }
                                 </div>
                             </div>
+                            @if (IsChunkedLoadingActive())
+                            {
+                                <div id="@GetAnnounceRegionId()" role="status" aria-live="polite" aria-atomic="true" style="position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0;">@FilterDialogAnnounceText</div>
+                            }
                         </div>
-                    
+
                     </Content>
             </DialogTemplates>
             <DialogButtons>
@@ -193,7 +221,7 @@ var aria = new Dictionary<string, string>() { { "aria-labelledby", Column!.Uid +
                                     </span>
                                 </span>
                                <div class="e-spinner">
-                                    <div class="e-checkboxlist e-fields" id="@($" {Parent.ID}{Column?.Type.ToString().ToLower(CultureInfo.InvariantCulture)}_CheckBoxList")">
+                                    <div class="e-checkboxlist e-fields" id="@($" {Parent.ID}{Column?.Type.ToString().ToLower(CultureInfo.InvariantCulture)}_CheckBoxList")" @attributes="GetCheckboxListVirtualizationAttributes()">
                                         @if (CheckedData?.Count() > 0)
                                         {
                                             @if (!Intermediate)
@@ -216,8 +244,14 @@ var aria = new Dictionary<string, string>() { { "aria-labelledby", Column!.Uid +
                                                     <CheckBoxRenderer AriaLabel="aria" Checked=@IsCurrentSelectionChecked CCClass="e-chk-hidden" CheckBoxClass=@GetLabelClassName() Lable="@Localizer.GetText(GridLocaleKeys.AddCurrentSelection)"></CheckBoxRenderer>                                                    
                                                 </div>
                                             }
-                                            @foreach (var val in CheckedData)
+                                            @if (IsCheckboxListVirtualized())
                                             {
+                                                <div class="e-ftrchk-virtual-top-spacer" aria-hidden="true" style="@($"height:{GetVirtualTopSpacerHeight()}px;width:100%;")"></div>
+                                            }
+                                            @foreach (var renderedItem in GetCheckboxDataForRender())
+                                            {
+                                                var val = renderedItem.Data;
+                                                var rowIndex = renderedItem.Index;
                                                 string key = val.Key;
                                                 var Val = (CheckBoxModel)val.Value;
                                                 var CheckBoxValue = Val?.FormattedValue ?? Val?.Value;
@@ -231,9 +265,16 @@ var aria = new Dictionary<string, string>() { { "aria-labelledby", Column!.Uid +
                                                 }
                                                 @if (Val?.Value != null && Val.Value.ToString() != "null" && !string.IsNullOrEmpty(Val.Value.ToString()) && CheckBoxValue != null && CheckBoxValue.ToString() != "null" && !string.IsNullOrEmpty(CheckBoxValue.ToString()))
                                                 {
-                                                    <div class="e-ftrchk" uid="@key" @onclick="@((MouseEventArgs args) => CheckBoxClickHandler(args, key))">
+                                                    <div class="e-ftrchk" uid="@key" data-index="@(IsCheckboxListVirtualized() ? rowIndex.ToString(CultureInfo.InvariantCulture) : null)" @onclick="@((MouseEventArgs args) => CheckBoxClickHandler(args, key))">
                                                     <CheckBoxRenderer AriaLabel="aria" Checked=@Val.isChecked CCClass="e-chk-hidden" CheckBoxClass=@GetLabelClassName() Column="Column" Records="Val.Data" Lable="@(CheckBoxValue.ToString())">
                                                     </CheckBoxRenderer>
+                                                    </div>
+                                                }
+                                                else if (IsCheckboxListVirtualized())
+                                                {
+                                                    <div class="e-ftrchk e-blanks" uid="@key" data-index="@(IsCheckboxListVirtualized() ? rowIndex.ToString(CultureInfo.InvariantCulture) : null)" @onclick="@((MouseEventArgs args) => CheckBoxClickHandler(args, key))">
+                                                        <CheckBoxRenderer AriaLabel="aria" Checked=@Val!.isChecked CCClass="e-chk-hidden" Column="Column" Records="Val?.Data" Lable=@Localizer.GetText(GridLocaleKeys.Blanks)>
+                                                        </CheckBoxRenderer>
                                                     </div>
                                                 }
                                                 else
@@ -244,13 +285,17 @@ var aria = new Dictionary<string, string>() { { "aria-labelledby", Column!.Uid +
                                                     this.NullData = Val?.Data;
                                                 }
                                             }
-                                            @if (isBlank)
+                                            @if (isBlank && !IsCheckboxListVirtualized())
                                             {
                                                 <div class="e-ftrchk e-blanks" uid="@NullKey" @onclick="@((MouseEventArgs args) => CheckBoxClickHandler(args, this.NullKey!))">
                                                     <CheckBoxRenderer AriaLabel="aria" Checked=@NullChecked CCClass="e-chk-hidden" Column="Column" Records="NullData" Lable=@Localizer.GetText(GridLocaleKeys.Blanks)>
                                                     </CheckBoxRenderer>
                                                 </div>
                                                 isBlank = false;
+                                            }
+                                            @if (IsCheckboxListVirtualized())
+                                            {
+                                                <div class="e-ftrchk-virtual-bottom-spacer" aria-hidden="true" style="@($"height:{GetVirtualBottomSpacerHeight()}px;width:100%;")"></div>
                                             }
                                         }
                                         else if (isSearch)
@@ -259,7 +304,15 @@ var aria = new Dictionary<string, string>() { { "aria-labelledby", Column!.Uid +
                                                 <span>@Localizer.GetText(GridLocaleKeys.NoResult)</span>
                                             </div>
                                         }
+                                        @if (IsChunkedLoadingActive())
+                                        {
+                                            <div id="@GetScrollSentinelId()" class="e-ftrchk-scroll-sentinel" aria-hidden="true" style="height:1px;width:100%;"></div>
+                                        }
                                     </div>
+                                    @if (IsChunkedLoadingActive())
+                                    {
+                                        <div id="@GetAnnounceRegionId()" role="status" aria-live="polite" aria-atomic="true" style="position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0;">@FilterDialogAnnounceText</div>
+                                    }
                                 </div>
                             </div>
                         }

@@ -198,7 +198,7 @@ namespace Syncfusion.Blazor.Grids.Internal
                 }
                 bool remoteDataPersistSelection = Parent.DataSource == null && Parent.CheckBoxState.Equals(CheckState.Intermediate) && Parent.SelectionModule != null && Parent.SelectionModule.IsHeaderCheckboxChecked && !Parent.SelectionModule.IsDataInDeselectedCollection(RowParameters.Row.Data!);
                 if ((RowParameters.Row.IsDataRow && !RowParameters.Row.RowType.Equals("DetailRow", StringComparison.Ordinal))
-                    && ((Parent.CheckBoxState.Equals(CheckState.Check) && RowParameters.Row.State != "UnSelected")
+                    && ((Parent.CheckBoxState.Equals(CheckState.Check) && RowParameters.Row.State != "UnSelected" && RowParameters.Row.IsSelectable)
                     || (Parent.EnableVirtualization && Parent.CheckBoxState.Equals(CheckState.Check) && RowParameters.Row.State != "UnSelected") && RowParameters.Row.Index != null && Array.IndexOf(Parent.VirtualScrollModule!.SelectRowsMethodIndexes, (int)RowParameters.Row.Index) != -1)
                     || (remoteDataPersistSelection))
                 {
@@ -389,7 +389,7 @@ namespace Syncfusion.Blazor.Grids.Internal
 
         internal bool IsDummyRowNeeded()
         {
-            bool IsDummyRowNeeded = Parent!.EditSettings!.Mode.Equals(EditMode.Batch) && Parent.Rows.Count - Parent.GetBatchChangesAsync().Result.DeletedRecords.Count <= 2;
+            bool IsDummyRowNeeded = Parent!.EditSettings!.Mode.Equals(EditMode.Batch) && Parent.Rows.Count - Parent.EditModule!.GetBatchChanges().DeletedRecords.Count <= 2;
             return (Parent.TotalItemCount <= 2 || IsDummyRowNeeded) && Parent.EditModule!.ErrorResult.Count > 0 && RowParameters!.Row != null && RowParameters.Row.IsLastRow && (Parent.IsAdd || Parent.IsEdit) && Parent.AllowPaging && Parent!.Columns!.Any(x => x.ValidationRules != null)
                 && !Parent.EditSettings.Mode.Equals(EditMode.Dialog) && (Parent.EditModule.IsAdd || Parent.EditModule.IsLastRow || IsDummyRowNeeded && Parent.IsEdit);
         }

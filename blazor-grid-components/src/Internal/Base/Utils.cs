@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections;
 using System.Collections.Generic;
 using System.Globalization;
@@ -198,7 +198,11 @@ namespace Syncfusion.Blazor.Grids.Internal
 
         internal static string GetStyleEndsWithSemiColon(string styleString)
         {
+#if NET11_0_OR_GREATER
+            return styleString.EndsWith(';', System.StringComparison.Ordinal) ? styleString : styleString + ";";
+#else
             return styleString.EndsWith(';') ? styleString : styleString + ";";
+#endif
         }
         internal static List<string> GetUniqueStringList(List<string> existingStringList, string incomingString)
         {
@@ -716,6 +720,67 @@ namespace Syncfusion.Blazor.Grids.Internal
         //    space: 'space',
         internal static bool IsSpace(this KeyboardEventArgs e) => e.Code == "Space";
 
+        /// <summary>
+        /// Returns true only when <paramref name="e"/>.Key is exactly the requested function
+        /// key token (e.g. "F1", "F3", "F10"). Avoids prefix-collision with "F1" matching
+        /// "F10" / "F11" / "F12".
+        /// </summary>
+        internal static bool IsFunctionKey(this KeyboardEventArgs e, int n)
+        {
+            if (n < 1 || n > 12)
+            {
+                return false;
+            }
+
+            return e.Key == "F" + n.ToString(CultureInfo.InvariantCulture);
+        }
+
+        internal static bool IsF1(this KeyboardEventArgs e) => e.IsFunctionKey(1);
+
+        internal static bool IsF3(this KeyboardEventArgs e) => e.IsFunctionKey(3);
+
+        internal static bool IsF4(this KeyboardEventArgs e) => e.IsFunctionKey(4);
+
+        internal static bool IsF5(this KeyboardEventArgs e) => e.IsFunctionKey(5);
+
+        internal static bool IsF6(this KeyboardEventArgs e) => e.IsFunctionKey(6);
+
+        internal static bool IsF7(this KeyboardEventArgs e) => e.IsFunctionKey(7);
+
+        internal static bool IsF8(this KeyboardEventArgs e) => e.IsFunctionKey(8);
+
+        internal static bool IsF9(this KeyboardEventArgs e) => e.IsFunctionKey(9);
+
+        internal static bool IsF10(this KeyboardEventArgs e) => e.IsFunctionKey(10);
+
+        internal static bool IsF11(this KeyboardEventArgs e) => e.IsFunctionKey(11);
+
+        internal static bool IsF12(this KeyboardEventArgs e) => e.IsFunctionKey(12);
+
+        /// <summary>
+        /// Returns true for any of F1..F12. Used by the additive function-key branches in
+        /// <see cref="GetKeyCombination"/>. F2 has its own explicit branch and is intentionally
+        /// excluded so its hard-coded "F2" token (consumed by IsF2KeyPressed which uses
+        /// Contains("F2")) is preserved.
+        /// </summary>
+        internal static bool IsFn(this KeyboardEventArgs e)
+        {
+            for (int n = 1; n <= 12; n++)
+            {
+                if (n == 2)
+                {
+                    continue;
+                }
+
+                if (e.IsFunctionKey(n))
+                {
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
         // ctrlPlusC: 'ctrl+C',
         internal static bool IsCtrlC(this KeyboardEventArgs e) => e.CtrlKey && (e.Key == "C" || e.Key == "c");
 
@@ -800,6 +865,50 @@ namespace Syncfusion.Blazor.Grids.Internal
             {
                 action = "F2";
             }
+            else if (e.IsF1())
+            {
+                action = FunctionKeyHandler(e, "F1", isMacDevice ?? false);
+            }
+            else if (e.IsF3())
+            {
+                action = FunctionKeyHandler(e, "F3", isMacDevice ?? false);
+            }
+            else if (e.IsF4())
+            {
+                action = FunctionKeyHandler(e, "F4", isMacDevice ?? false);
+            }
+            else if (e.IsF5())
+            {
+                action = FunctionKeyHandler(e, "F5", isMacDevice ?? false);
+            }
+            else if (e.IsF6())
+            {
+                action = FunctionKeyHandler(e, "F6", isMacDevice ?? false);
+            }
+            else if (e.IsF7())
+            {
+                action = FunctionKeyHandler(e, "F7", isMacDevice ?? false);
+            }
+            else if (e.IsF8())
+            {
+                action = FunctionKeyHandler(e, "F8", isMacDevice ?? false);
+            }
+            else if (e.IsF9())
+            {
+                action = FunctionKeyHandler(e, "F9", isMacDevice ?? false);
+            }
+            else if (e.IsF10())
+            {
+                action = FunctionKeyHandler(e, "F10", isMacDevice ?? false);
+            }
+            else if (e.IsF11())
+            {
+                action = FunctionKeyHandler(e, "F11", isMacDevice ?? false);
+            }
+            else if (e.IsF12())
+            {
+                action = FunctionKeyHandler(e, "F12", isMacDevice ?? false);
+            }
             else if (e.IsInsert(isMacDevice: isMacDevice ?? false))
             {
                 action = "Insert";
@@ -863,6 +972,29 @@ namespace Syncfusion.Blazor.Grids.Internal
             else if (isEnableUndoRedo && e.IsCtrlShiftZ())
             {
                 action = "CtrlShiftZ";
+            }
+            else if (e.Key.Length == 1 && !char.IsControl(e.Key[0]))
+            {
+                // Generic printable fallback (Mac: Meta -> Ctrl). Modifier order Ctrl > Alt > Shift.
+                bool isMac = isMacDevice ?? false;
+                bool ctrl = e.CtrlKey || (isMac && e.MetaKey);
+                bool alt = e.AltKey;
+                bool shift = e.ShiftKey;
+                if (ctrl || alt || shift)
+                {
+                    string prefix = ctrl ? "Ctrl" : string.Empty;
+                    if (alt)
+                    {
+                        prefix += "Alt";
+                    }
+
+                    if (shift)
+                    {
+                        prefix += "Shift";
+                    }
+
+                    action = prefix + e.Key.ToUpperInvariant();
+                }
             }
 
             return action;
@@ -952,6 +1084,75 @@ namespace Syncfusion.Blazor.Grids.Internal
                 }
             }
             return action;
+        }
+
+        /// <summary>
+        /// Builds a token of the form "F&lt;n&gt;", "CtrlF&lt;n&gt;", "AltF&lt;n&gt;" or
+        /// "ShiftF&lt;n&gt;" for the matched function-key branch in
+        /// <see cref="GetKeyCombination(KeyboardEventArgs, bool?, bool)"/>.
+        /// On Mac, Meta is treated as Ctrl. Modifier precedence (when multiple modifiers
+        /// are held) is Ctrl &gt; Alt &gt; Shift, by design — this is the simplest
+        /// deterministic mapping for the additive function-key tokens.
+        /// </summary>
+        private static string FunctionKeyHandler(KeyboardEventArgs e, string functionKey, bool isMacDevice)
+        {
+            if (string.IsNullOrEmpty(functionKey))
+            {
+                return functionKey;
+            }
+
+            bool ctrl = e.CtrlKey || (isMacDevice && e.MetaKey);
+            bool alt = e.AltKey;
+            bool shift = e.ShiftKey;
+            if (ctrl)
+            {
+                return "Ctrl" + functionKey;
+            }
+
+            if (alt)
+            {
+                return "Alt" + functionKey;
+            }
+
+            if (shift)
+            {
+                return "Shift" + functionKey;
+            }
+
+            return functionKey;
+        }
+
+        /// <summary>
+        /// Phase 0 — Additive companion to <see cref="GetKeyCombination(KeyboardEventArgs, bool?, bool)"/>.
+        /// Returns a layout-independent <see cref="NormalizedKeyBinding"/> built from the physical
+        /// <c>e.code</c> value. Used by the custom-keyboard resolver to compare chords without
+        /// being affected by US/EU keyboard layouts. The original <see cref="GetKeyCombination(KeyboardEventArgs, bool?, bool)"/>
+        /// contract is preserved; this is an additive API.
+        /// </summary>
+        /// <param name="e">The keyboard event args from Blazor.</param>
+        /// <param name="isMac">When true, <c>Ctrl</c> in a binding matches <c>Ctrl</c> OR <c>Meta</c> at runtime.</param>
+        public static NormalizedKeyBinding GetNormalizedKey(this KeyboardEventArgs e, bool isMac = false)
+        {
+            if (e == null)
+            {
+                return default;
+            }
+
+            if (e.IsMetaOrUnidentified())
+            {
+                return default;
+            }
+
+            KeyModifiers mods = KeyModifiers.None;
+            if (e.CtrlKey) mods |= KeyModifiers.Ctrl;
+            if (e.ShiftKey) mods |= KeyModifiers.Shift;
+            if (e.AltKey) mods |= KeyModifiers.Alt;
+            if (e.MetaKey) mods |= KeyModifiers.Meta;
+            if (isMac) mods |= KeyModifiers.MetaOrCtrl;
+
+            string? code = !string.IsNullOrEmpty(e.Code) ? GridKeyCodeCatalog.NormalizeCode(e.Code) : null;
+            string? key = e.Key;
+            return new NormalizedKeyBinding(mods, code, key);
         }
     }
 }

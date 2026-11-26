@@ -46,6 +46,16 @@
             <ValidationDialog T="TValue"></ValidationDialog>
         }
 
+        @if (AllowAdvancedFiltering)
+        {
+            <GridAdvancedFilterDialog T="TValue"></GridAdvancedFilterDialog>
+        }
+
+        @if (EnableWebMcp)
+        {
+            <WebMcpConfirmDialog T="TValue"></WebMcpConfirmDialog>
+        }
+
         @if (_isLoaded && (Toolbar != null || (((IGrid)this).GridTemplates?.ToolbarTemplate != null) || (EnableAdaptiveUI && RowRenderingMode == RowDirection.Vertical 
             && (AllowSorting || (AllowFiltering && !FilterSettings!.Type.Equals(FilterType.FilterBar))))))
         {
@@ -86,7 +96,7 @@
         {
             <div class="e-frozenrow-border"></div>
         }
-        @if (_isLoaded && EnableDomVirtualization && !EnableVirtualization)
+        @if (_isLoaded && EnableDomVirtualization)
         {
             @* DOM Virtualization: GridDomVirtualContent owns the entire e-gridcontent structure *@
             var domVirtualContentParameter = new GridContentParameters()

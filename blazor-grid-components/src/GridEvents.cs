@@ -778,6 +778,132 @@ namespace Syncfusion.Blazor.Grids
         [Parameter]
         public EventCallback<CheckboxFilterSearchingEventArgs> CheckboxFilterSearching { get; set; }
 
+        /// <summary>
+        /// Gets or sets the event callback that is raised before the
+        /// Advanced Filter (Query Builder) dialog opens.
+        /// </summary>
+        /// <remarks>
+        /// The event handler receives a
+        /// <see cref="Syncfusion.Blazor.Grids.AdvancedFilterOpenEventArgs"/>
+        /// object, which provides access to the dialog and Query Builder
+        /// instances. Set <c>args.Cancel = true</c> to prevent the dialog
+        /// from opening.
+        /// </remarks>
+        /// <value>
+        /// An event callback function.
+        /// </value>
+        /// <example>
+        /// This example shows how to handle the AdvancedFilterOpen event:
+        /// <code><![CDATA[
+        /// <SfGrid DataSource="@Orders" AllowAdvancedFiltering="true">
+        /// <GridEvents TValue="Orders" AdvancedFilterOpen="AdvancedFilterOpenHandler"></GridEvents>
+        /// </SfGrid>
+        /// @code {
+        /// public void AdvancedFilterOpenHandler(AdvancedFilterOpenEventArgs args)
+        /// {
+        ///     args.Cancel = true; // Cancels the dialog open.
+        /// }
+        /// }
+        /// ]]>
+        /// </code>
+        /// </example>
+        [Parameter]
+        public EventCallback<AdvancedFilterOpenEventArgs> AdvancedFilterOpen { get; set; }
+
+        /// <summary>
+        /// Gets or sets the event callback that is raised before the
+        /// Advanced Filter dialog closes.
+        /// </summary>
+        /// <remarks>
+        /// The event handler receives a
+        /// <see cref="Syncfusion.Blazor.Grids.AdvancedFilterCloseEventArgs"/>
+        /// object. Set <c>args.Cancel = true</c> to keep the dialog
+        /// open.
+        /// </remarks>
+        /// <value>
+        /// An event callback function.
+        /// </value>
+        /// <example>
+        /// <code><![CDATA[
+        /// <SfGrid DataSource="@Orders" AllowAdvancedFiltering="true">
+        /// <GridEvents TValue="Orders" AdvancedFilterClose="AdvancedFilterCloseHandler"></GridEvents>
+        /// </SfGrid>
+        /// @code {
+        /// public void AdvancedFilterCloseHandler(AdvancedFilterCloseEventArgs args)
+        /// {
+        ///     args.Cancel = true; // Keeps the dialog open.
+        /// }
+        /// }
+        /// ]]></code>
+        /// </example>
+        [Parameter]
+        public EventCallback<AdvancedFilterCloseEventArgs> AdvancedFilterClose { get; set; }
+
+        /// <summary>
+        /// Gets or sets the event callback that is raised before a filter
+        /// is applied or cleared through the Advanced Filter dialog.
+        /// </summary>
+        /// <remarks>
+        /// The event handler receives a
+        /// <see cref="Syncfusion.Blazor.Grids.AdvancedFilteringEventArgs"/>
+        /// object, which includes the active rule, the dialog instance and
+        /// the Query Builder instance. Set <c>args.Cancel = true</c> to
+        /// abort the operation.
+        /// </remarks>
+        /// <value>
+        /// An event callback function.
+        /// </value>
+        /// <example>
+        /// This example cancels a clear operation:
+        /// <code><![CDATA[
+        /// <SfGrid DataSource="@Orders" AllowAdvancedFiltering="true">
+        ///     <GridEvents TValue="Orders" AdvancedFiltering="OnAdvancedFiltering"></GridEvents>
+        /// </SfGrid>
+        /// @code {
+        ///     private void OnAdvancedFiltering(AdvancedFilteringEventArgs args)
+        ///     {
+        ///         if (args.IsClear)
+        ///         {
+        ///             args.Cancel = true;
+        ///         }
+        ///     }
+        /// }
+        /// ]]></code>
+        /// </example>
+        [Parameter]
+        public EventCallback<AdvancedFilteringEventArgs> AdvancedFiltering { get; set; }
+
+        /// <summary>
+        /// Gets or sets the event callback that is raised after a filter
+        /// is applied or cleared through the Advanced Filter dialog.
+        /// </summary>
+        /// <remarks>
+        /// The event handler receives a
+        /// <see cref="Syncfusion.Blazor.Grids.AdvancedFilteredEventArgs"/>
+        /// object. Set <c>args.Cancel = true</c> to keep the dialog
+        /// open after the operation completes.
+        /// </remarks>
+        /// <value>
+        /// An event callback function.
+        /// </value>
+        /// <example>
+        /// This example keeps the Advanced Filter dialog open after the
+        /// operation completes:
+        /// <code><![CDATA[
+        /// <SfGrid DataSource="@Orders" AllowAdvancedFiltering="true">
+        ///     <GridEvents TValue="Orders" AdvancedFiltered="OnAdvancedFiltered"></GridEvents>
+        /// </SfGrid>
+        /// @code {
+        ///     private void OnAdvancedFiltered(AdvancedFilteredEventArgs args)
+        ///     {
+        ///         args.Cancel = true;
+        ///     }
+        /// }
+        /// ]]></code>
+        /// </example>
+        [Parameter]
+        public EventCallback<AdvancedFilteredEventArgs> AdvancedFiltered { get; set; }
+
 
         /// <summary>
         /// Gets or sets the event callback that is raised when columns reordering action is performed in the grid.
@@ -3153,7 +3279,7 @@ namespace Syncfusion.Blazor.Grids
         /// </summary>
         /// <value>
         /// An <see cref="EventCallback{TValue}"/> of type
-        /// <see cref="WebMcpToolExecuteEventArgs"/> that allows the application to
+        /// <see cref="GridWebMcpExecuteEventArgs"/> that allows the application to
         /// inspect, modify, cancel, or override WebMCP tool execution. The default
         /// value is an empty callback.
         /// </value>
@@ -3164,34 +3290,44 @@ namespace Syncfusion.Blazor.Grids
         /// </para>
         /// <para>
         /// Handlers can use the supplied
-        /// <see cref="WebMcpToolExecuteEventArgs"/> instance to:
+        /// <see cref="GridWebMcpExecuteEventArgs"/> instance to:
         /// </para>
         /// <list type="bullet">
         /// <item>
         /// <description>
         /// Inspect the requested tool through
-        /// <see cref="WebMcpToolExecuteEventArgs.ToolName"/> and its input arguments
-        /// through <see cref="WebMcpToolExecuteEventArgs.Arguments"/>.
+        /// <see cref="GridWebMcpExecuteEventArgs.Name"/> and its input arguments
+        /// through <see cref="GridWebMcpExecuteEventArgs.Arguments"/>.
         /// </description>
         /// </item>
         /// <item>
         /// <description>
         /// Cancel execution by setting
-        /// <see cref="WebMcpToolExecuteEventArgs.Cancel"/> to
+        /// <see cref="GridWebMcpExecuteEventArgs.Cancel"/> to
         /// <see langword="true"/>.
         /// </description>
         /// </item>
         /// <item>
         /// <description>
         /// Provide a custom response by setting
-        /// <see cref="WebMcpToolExecuteEventArgs.Result"/>.
+        /// <see cref="GridWebMcpExecuteEventArgs.Result"/>.
         /// </description>
         /// </item>
         /// </list>
         /// <para>
-        /// If <see cref="WebMcpToolExecuteEventArgs.Cancel"/> is set to
+        /// If <see cref="GridWebMcpExecuteEventArgs.Cancel"/> is set to
         /// <see langword="true"/>, tool execution is aborted and a cancellation
-        /// response is returned to the requesting agent.
+        /// response is returned to the requesting agent. Set
+        /// <see cref="GridWebMcpExecuteEventArgs.CancellationResponse"/> to provide
+        /// a custom message; if not set or empty, the default cancellation message
+        /// is used.
+        /// </para>
+        /// <para>
+        /// Set <see cref="GridWebMcpExecuteEventArgs.ShowConfirmationDialog"/> to
+        /// <see langword="true"/> to request a host-controlled confirmation dialog
+        /// for writable (non-read-only) tools. If the user denies confirmation, the
+        /// tool is cancelled without invoking any handler or per-tool callback.
+        /// Read-only tools bypass confirmation regardless of this setting.
         /// </para>
         /// <para>
         /// This event serves as the execution entry point for custom WebMCP tools
@@ -3199,7 +3335,7 @@ namespace Syncfusion.Blazor.Grids
         /// <c>Command</c> is <see cref="GridWebMcpToolCommand.Custom"/>. Custom tools
         /// do not provide built-in execution logic. Applications are responsible for
         /// handling custom tool requests and supplying an appropriate response
-        /// through <see cref="WebMcpToolExecuteEventArgs.Result"/>.
+        /// through <see cref="GridWebMcpExecuteEventArgs.Result"/>.
         /// </para>
         /// <para>
         /// A custom tool requires an assigned handler. If no handler is assigned or
@@ -3220,7 +3356,7 @@ namespace Syncfusion.Blazor.Grids
         /// browser context.
         /// </para>
         /// <para>
-        /// Setting <see cref="WebMcpToolExecuteEventArgs.Result"/> overrides the
+        /// Setting <see cref="GridWebMcpExecuteEventArgs.Result"/> overrides the
         /// normal execution flow and returns the supplied response to the requesting
         /// agent instead of the built-in tool output.
         /// </para>
@@ -3244,9 +3380,9 @@ namespace Syncfusion.Blazor.Grids
         /// </SfGrid>
         ///
         /// @code {
-        ///     private Task HandleToolExecute(WebMcpToolExecuteEventArgs args)
+        ///     private Task HandleToolExecute(GridWebMcpExecuteEventArgs args)
         ///     {
-        ///         if (args.ToolName == "getTopCustomers")
+        ///         if (args.Name == "getTopCustomers")
         ///         {
         ///             args.Result = new
         ///             {
@@ -3261,7 +3397,7 @@ namespace Syncfusion.Blazor.Grids
         /// </example>
         [Parameter]
         [JsonIgnore]
-        public EventCallback<WebMcpToolExecuteEventArgs> OnWebMcpExecute { get; set; }
+        public EventCallback<GridWebMcpExecuteEventArgs> OnWebMcpExecute { get; set; }
 
         /// <summary>
         /// Initializes the GridEvents and assigns it to the parent grid instance.

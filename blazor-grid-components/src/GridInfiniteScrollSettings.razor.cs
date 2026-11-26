@@ -1,4 +1,4 @@
-﻿using System.Collections.Generic;
+using System.Collections.Generic;
 using System.ComponentModel;
 using Microsoft.AspNetCore.Components;
 using System.Text.Json.Serialization;
@@ -66,6 +66,38 @@ namespace Syncfusion.Blazor.Grids
         public bool EnableCache { get; set; }
         private bool _enableCache { get; set; }
 
+        /// <summary>
+        /// Gets or sets a value indicating whether the Grid supports unbounded scrolling 
+        /// (data loading without requiring a total record count from the server).
+        /// </summary>
+        /// <value>
+        /// <c>false</c> by default (requires TotalItemCount for scroll termination).
+        /// When <c>true</c>, the grid detects end-of-data when server returns fewer records than requested.
+        /// </value>
+        /// <remarks>
+        /// <para>
+        /// When <c>EnableUnboundedScrolling</c> is set to <c>true</c>, infinite scrolling will work 
+        /// with APIs that don't provide a total record count. The grid automatically detects the end 
+        /// of available data by checking if the server returned fewer records than the requested page size.
+        /// </para>
+        /// <para>
+        /// This enables integration with modern APIs such as:
+        /// <list type="bullet">
+        /// <item><description>Cursor-based pagination (GraphQL, AWS, Azure patterns)</description></item>
+        /// <item><description>Server-side streaming APIs</description></item>
+        /// <item><description>APIs that don't expose total record count for performance reasons</description></item>
+        /// </list>
+        /// </para>
+        /// <para>
+        /// Backward Compatible: Default is <c>false</c>, preserving all existing behavior. When enabled, 
+        /// the grid uses sentinel-based detection (rows returned less than page size indicates end of data) 
+        /// instead of relying on TotalItemCount.
+        /// </para>
+        /// </remarks>
+        [Parameter]
+        public bool EnableUnboundedScrolling { get; set; } = false;
+        private bool _enableUnboundedScrolling { get; set; }
+
         internal static async Task<GridInfiniteScrollSettings> Initialize(SfBaseComponent baseComponent)
         {
             var GridInfiniteScrollSettings = new GridInfiniteScrollSettings();
@@ -87,22 +119,24 @@ namespace Syncfusion.Blazor.Grids
             _enableCache = EnableCache;
             _initialBlocks = InitialBlocks;
             _maximumBlocks = MaximumBlocks;
+            _enableUnboundedScrolling = EnableUnboundedScrolling;
         }
 
         /// <summary>
         /// Invoked when component parameters are set or updated.
         /// Updates internal state for virtualization settings such as initial blocks, cache enablement,
-        /// and maximum blocks if any of these values have changed.
+        /// maximum blocks, and unbounded scrolling if any of these values have changed.
         /// </summary>
         protected override async Task OnParametersSetAsync()
         {
             await base.OnParametersSetAsync().ConfigureAwait(true);
             if (!SfBaseUtils.Equals(InitialBlocks, _initialBlocks) || !SfBaseUtils.Equals(EnableCache, _enableCache)
-                || !SfBaseUtils.Equals(MaximumBlocks, _maximumBlocks))
+                || !SfBaseUtils.Equals(MaximumBlocks, _maximumBlocks) || !SfBaseUtils.Equals(EnableUnboundedScrolling, _enableUnboundedScrolling))
             {
                 _initialBlocks = InitialBlocks;
                 _enableCache = EnableCache;
                 _maximumBlocks = MaximumBlocks;
+                _enableUnboundedScrolling = EnableUnboundedScrolling;
             }
             // Telemetry for infinite scroll
             GridTelemetryHelper.LogTelemetry(true, "InfiniteScroll");

@@ -456,13 +456,13 @@ namespace Syncfusion.Blazor.Grids.Internal
                     // Refactored right freeze border condition
                     bool isFirstRightFrozenColumn = (!_parent.EnableColumnVirtualization && FrozenRightColumns?.Count > 0 && (Column.Index == FrozenRightColumns[0].Index)) || (_parent.EnableColumnVirtualization && Column?.Index == _parent.VirtualScrollModule?.VirtualizedColumns.Where(x => x.IsFrozen && x.Freeze.Equals(FreezeDirection.Right)).FirstOrDefault()?.Index);
                     bool hasNoGroupedColumns = groupedColumnCount == 0;
-                    bool shouldApplyRightFreezeBorder = Column!= null && Column.Freeze.Equals(FreezeDirection.Right) && Column.IsFrozen && Column.Visible && FrozenRightColumns != null && FrozenRightColumns.Count > 0 && isFirstRightFrozenColumn && hasNoGroupedColumns;
+                    bool shouldApplyRightFreezeBorder = Column != null && Column.Freeze.Equals(FreezeDirection.Right) && Column.IsFrozen && Column.Visible && FrozenRightColumns != null && FrozenRightColumns.Count > 0 && isFirstRightFrozenColumn && hasNoGroupedColumns;
 
                     if (shouldApplyRightFreezeBorder)
                     {
                         classNames = string.Concat(classNames, " e-rightfreeze e-freezerightborder");
                     }
-                    else if (Column!= null && Column.Freeze.Equals(FreezeDirection.Right) && Column.IsFrozen)
+                    else if (Column != null && Column.Freeze.Equals(FreezeDirection.Right) && Column.IsFrozen)
                     {
                         classNames = string.Concat(classNames, " e-rightfreeze");
                         if (_parent.GroupSettings!.Columns != null && _parent.GroupSettings.Columns.Length > 0)
@@ -484,7 +484,7 @@ namespace Syncfusion.Blazor.Grids.Internal
                         }
                     }
                     // Refactored fixed freeze border conditions
-                    bool isFixedFrozen = Column!= null && Column.Freeze.Equals(FreezeDirection.Fixed) && Column.IsFrozen;
+                    bool isFixedFrozen = Column != null && Column.Freeze.Equals(FreezeDirection.Fixed) && Column.IsFrozen;
 
                     if (isFixedFrozen)
                     {
@@ -615,18 +615,7 @@ namespace Syncfusion.Blazor.Grids.Internal
                             LeftRightWidth += GridUtils.GetDoubleParsedWidth(frozenColumnsLeft[i].Width);
                         }
                     }
-                    for (int i = 0; i < groupedColumnCount; i++)
-                    {
-                        LeftRightWidth += 30;
-                    }
-                    if (_parent.AllowRowDragAndDrop)
-                    {
-                        LeftRightWidth += 30;
-                    }
-                    if (((IGrid)_parent).GridTemplates?.DetailTemplate != null)
-                    {
-                        LeftRightWidth += 30;
-                    }
+                    LeftRightWidth += GetFrozenLeftIndentWidth();
 #pragma warning disable BL0005
                     Column.TranslateLeftRightValue = LeftRightWidth;
 #pragma warning restore BL0005
@@ -779,10 +768,32 @@ namespace Syncfusion.Blazor.Grids.Internal
                 if (IsFrozenColumn(Column!))
                 {
                     LeftWidth = _parent.SetStyleWidth(FrozenLeftColumns, Column!);
+                    LeftWidth += GetFrozenLeftIndentWidth();
+#pragma warning disable BL0005
+                    Column!.TranslateLeftRightValue = LeftWidth;
+#pragma warning restore BL0005
+                    if (_parent.EnableColumnVirtualization && _parent.VirtualScrollModule != null && _parent.VirtualScrollModule.TranslateX != 0)
+                    {
+                        LeftWidth -= _parent.VirtualScrollModule.TranslateX;
+                    }
                     text = " left:" + LeftWidth + "px";
                 }
             }
             return text;
+        }
+
+        private int GetFrozenLeftIndentWidth()
+        {
+            var indentWidth = _parent.AllowGrouping ? (_parent.GroupSettings?.Columns?.Length ?? 0) * 30 : 0;
+            if (_parent.AllowRowDragAndDrop)
+            {
+                indentWidth += 30;
+            }
+            if (((IGrid)_parent).GridTemplates?.DetailTemplate != null)
+            {
+                indentWidth += 30;
+            }
+            return indentWidth;
         }
 
         #endregion

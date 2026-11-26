@@ -13,8 +13,16 @@ namespace Syncfusion.Blazor.Grids.Internal
     /// Handles focus and keyboard navigation in grid.
     /// </summary>
     /// <typeparam name="T"></typeparam>
-    internal class FocusHandler<T>
+    internal partial class FocusHandler<T>
     {
+        private static readonly string[] MoveUpCellAction = { "MoveUpCell" };
+
+        private static readonly string[] MoveDownCellAction = { "MoveDownCell" };
+
+        private static readonly string[] MoveLeftCellAction = { "MoveLeftCell" };
+
+        private static readonly string[] MoveRightCellAction = { "MoveRightCell" };
+
         #region Private Properties
 
         private SfGrid<T> _parent;
@@ -22,6 +30,15 @@ namespace Syncfusion.Blazor.Grids.Internal
         private bool _isHeader { get; set; }
 
         private bool _isJump { get; set; }
+
+        // Set by ProcessKeyDown and ProcessKeyCombination when the resolved
+        // GridKeyboardAction came from a user-bound custom chord (resolver Layer 1/2)
+        // rather than a built-in default (Layer 4) or a suppression (Layer 3). The
+        // Layer 1/2 vs Layer 4 distinction uses ResolveResult.PreventDefault: only
+        // Layer 1/2 set it to true. Read by the action-switch branches and the Batch
+        // pre-gate to decide whether to bypass the legacy "no modifiers" guard that
+        // exists for the default F2/Insert/Delete chords.
+        private bool _isCustomKeyboardBinding { get; set; }
 
         private Cell<Object>? _previouslyFocusedCell { get; set; }
 
@@ -46,6 +63,23 @@ namespace Syncfusion.Blazor.Grids.Internal
         #region Internal Properties
 
         internal bool IsByKey { get; set; }
+
+        /// <summary>
+        /// DOM virtualization: data index and column index of the focused content cell. Unlike the Row/Cell objects
+        /// (which are dropped when a row leaves the rendered window) these survive re-rendering.
+        /// </summary>
+        internal int? DomFocusRowIndex { get; private set; }
+
+        internal int? DomFocusCellIndex { get; private set; }
+
+        internal bool DomFocusOutline { get; private set; }
+
+        // DOM virtualization: a keyboard jump (Ctrl+Home/End, Ctrl+Up/Down) to a row that is not rendered yet.
+        // The row/cell cannot be focused until the new window is in the DOM, so the target is kept here and applied
+        // from ApplyPendingDomFocusAsync after the window has rendered.
+        private (int RowIndex, int? CellIndex, KeyboardEventArgs Args, string KeyCombination)? _domPendingFocus;
+
+        internal bool HasPendingDomFocus => _domPendingFocus != null;
 
         internal bool IsChildFocused { get; set; }
 
@@ -125,7 +159,7 @@ namespace Syncfusion.Blazor.Grids.Internal
         /// <returns>Tuple of (nextCell, nextRow), or (null, null) if at grid boundaries.</returns>
         private (Cell<object>?, Row<object>?) FindNextEditableCell(Row<object> currentRow, Cell<object> currentCell, bool isTab)
         {
-            var visibleRows = _currentRows?.Where(r => r.Visible && r.IsDataRow).ToList() ?? new List<Row<object>>();
+            var visibleRows = _parent.Rows?.Where(r => r.Visible && r.IsDataRow).ToList() ?? new List<Row<object>>();
             if (visibleRows.Count == 0)
             {
                 return (null, null);
@@ -216,6 +250,40 @@ namespace Syncfusion.Blazor.Grids.Internal
                 && cell.Column != null
                 && (_parent!.EditModule?.isEditable(cell.Column) == true)
                 && cell.CellType.Equals(CellType.Data);
+        }
+
+        private async Task StartEditFromKeyboardAsync(Row<object>? row, Cell<object>? cell)
+        {
+            row ??= KeyInvokedRow ?? _currentRows?.FirstOrDefault(currentRow => currentRow.Uid == _current.Item1);
+            cell ??= KeyInvokedCell ?? row?.Cells.FirstOrDefault(currentCell => currentCell.Uid == _current.Item2);
+
+            if (_parent?.EditSettings?.AllowEditing != true
+                || _parent.EditModule == null
+                || row?.IsDataRow != true
+                || cell == null
+                || cell.IsEdit
+                || cell.EditDisabled
+                || !IsEditableCell(cell))
+            {
+                return;
+            }
+
+            if (_parent.EditModule.IsCellOrBatchEditMode())
+            {
+                if (_parent.EditModule.IsCellEditMode() && _parent.IsEdit)
+                {
+                    return;
+                }
+
+                await ClearFocus(row, cell).ConfigureAwait(true);
+                await _parent.EditModule.EditCell(row, cell).ConfigureAwait(true);
+                return;
+            }
+
+            if (!_parent.IsEdit)
+            {
+                await _parent.EditModule.StartEdit(row).ConfigureAwait(true);
+            }
         }
 
         private (Row<object>, Cell<object>) GetCurrentRowAndCell(Row<object>? row, Cell<object>? staleCell)
@@ -379,6 +447,67 @@ namespace Syncfusion.Blazor.Grids.Internal
             }
         }
 
+        private async Task HandleEditEndNavigation(Row<object>? row, Cell<object> cell, bool moveNext)
+        {
+            if (_parent.EditModule == null)
+            {
+                return;
+            }
+
+            if (_parent.EditSettings?.Mode == EditMode.Cell && row != null)
+            {
+                await HandleTabNavigationInCellMode(row, cell, moveNext ? "Tab" : "ShiftTab").ConfigureAwait(true);
+                return;
+            }
+
+            if (_parent.EditSettings?.Mode == EditMode.Batch && row != null)
+            {
+                await _parent.EditModule.SaveCell().ConfigureAwait(true);
+                if (cell.IsEdit)
+                {
+                    return;
+                }
+
+                row = _parent.Rows?.FirstOrDefault(currentRow => currentRow.Uid == row.Uid) ?? row;
+                cell = GridUtils.ResolveCurrentCell(row, cell) ?? cell;
+                var (nextEditCell, nextEditRow) = FindNextEditableCell(row, cell, moveNext);
+                SelectedRowIndex = nextEditRow?.Index;
+                SelectedCellIndex = nextEditCell?.Index;
+                if (nextEditCell != null && nextEditRow != null)
+                {
+                    _current = (nextEditRow.Uid!, nextEditCell.Uid!);
+                    await TransitionToNextCell(cell, nextEditCell, nextEditRow).ConfigureAwait(true);
+                }
+
+                return;
+            }
+
+            await _parent.EditModule.EndEdit(cell).ConfigureAwait(true);
+        }
+
+        private (Row<object>? Row, Cell<object>? Cell) GetActiveEditRowAndCell()
+        {
+            var editModule = _parent.EditModule;
+            Row<object>? row = editModule?.OriginalRow ?? editModule?.EditedRow ?? KeyInvokedRow;
+            Cell<object>? cell = editModule?.OriginalCell ?? KeyInvokedCell;
+
+            if (row == null)
+            {
+                row = _parent.Rows?.FirstOrDefault(currentRow => currentRow.Uid == _current.Item1);
+            }
+
+            if (row != null)
+            {
+                row = _parent.Rows?.FirstOrDefault(currentRow => currentRow.Uid == row.Uid) ?? row;
+                cell = row.Cells.FirstOrDefault(currentCell => currentCell.IsEdit)
+                    ?? (cell == null ? null : GridUtils.ResolveCurrentCell(row, cell));
+                cell ??= row.Cells.FirstOrDefault(currentCell => currentCell.IsFocused)
+                    ?? row.Cells.FirstOrDefault(currentCell => currentCell.Uid == _current.Item2);
+            }
+
+            return (row, cell);
+        }
+
         /// <summary>
         /// Transitions focus from current cell to next cell and auto-enters edit mode.
         /// </summary>
@@ -483,6 +612,13 @@ namespace Syncfusion.Blazor.Grids.Internal
                 cell.IsFocused = true;
                 cell.ShowFocusLine = outline;
                 SelectedCellIndex = cell.Index;
+                if (_parent.EnableDomVirtualization)
+                {
+                    DomFocusRowIndex = row.Index;
+                    DomFocusCellIndex = row.Index != null ? cell.Index : null;
+                    DomFocusOutline = outline;
+                    _domPendingFocus = null;
+                }
                 if (IsByKey && row.IsSelected)
                 {
                     SelectedRowIndex = row.Index;
@@ -518,6 +654,44 @@ namespace Syncfusion.Blazor.Grids.Internal
 
         #region Keyboard Event Processing
 
+        /// <summary>
+        /// Detects the zone for the current (row, cell). Returns <see cref="GridKeyboardZone.None"/>
+        /// for filter bar, toolbar, pager, search box, dialogs, column chooser, footer and any other chrome.
+        /// </summary>
+        private GridKeyboardZone DetectZone(Row<object>? row, Cell<object>? cell)
+        {
+            if (row == null || cell == null)
+            {
+                return GridKeyboardZone.None;
+            }
+            if (row.IsDetailRow || cell.CellType == CellType.Detail)
+            {
+                return GridKeyboardZone.DetailRow;
+            }
+            if (row.IsCaptionRow)
+            {
+                return GridKeyboardZone.GroupRow;
+            }
+            if (row.Index == null)
+            {
+                return GridKeyboardZone.Header;
+            }
+            if (cell.IsEdit || _parent.IsEdit)
+            {
+                return GridKeyboardZone.EditCell;
+            }
+            return GridKeyboardZone.DataCell;
+        }
+
+        internal static GridKeyboardZone ResolveKeyboardZone(bool isEditing, bool isHeader, GridKeyboardZone detectedZone)
+        {
+            if (isEditing)
+            {
+                return GridKeyboardZone.EditCell;
+            }
+            return isHeader ? GridKeyboardZone.Header : detectedZone;
+        }
+
         internal async Task ProcessKeyDown(KeyboardEventArgs e, Row<object> row, Cell<object> cell, bool isHeader = false)
         {
             IsByKey = true;
@@ -528,12 +702,60 @@ namespace Syncfusion.Blazor.Grids.Internal
             if (_parent != null && _parent.EnableColumnVirtualization)
             {
                 List<GridColumn> orderedColumns = _parent.RearrangeColumns(_parent.Columns!);
-                LastNavigatedCellIdx = cell != null && !string.IsNullOrEmpty(cell.Column?.Field) ? orderedColumns.FindIndex(x => x.Field == cell?.Column.Field) 
+                LastNavigatedCellIdx = cell != null && !string.IsNullOrEmpty(cell.Column?.Field) ? orderedColumns.FindIndex(x => x.Field == cell?.Column.Field)
                     : orderedColumns.Count - 1;
             }
             KeyInvokedRow = row!;
             KeyInvokedCell = cell!;
             var keyCombination = e.GetKeyCombination(isMacDevice: _parent!.IsMacDevice ?? false, isEnableUndoRedo: _parent!.EditSettings!.EnableUndoRedo);
+
+            // Resolve the keystroke to a GridKeyboardAction using the existing
+            // resolver. The resolver handles BOTH user-bound custom bindings AND
+            // default chords via GridKeyboardActionDefaults, so the action id
+            // drives the same switch the legacy keyCombination switch used to
+            // drive. The resolver call is fully inlined here so the existing
+            // switch remains the single source of truth for what each action does.
+            //
+            // This is the Blazor direct path (ProcessKeyDown). Pager focus and
+            // toolbar focus are JS-side concepts; this entry point never has
+            // them, so they default to false. See ProcessKeyCombination for
+            // the JS-routed path which propagates the real pager/toolbar state
+            // from ProcessGridKeyDown.
+            //
+            // Normalized-first: the resolver compares the physical `e.code`
+            // via `GetNormalizedKey`, so we no longer require a non-null
+            // `keyCombination` (the legacy token from `GetKeyCombination`).
+            // This is what makes F3/F4/F5… and any chord outside the legacy
+            // whitelist user-bindable. When the legacy token is null the
+            // resolver simply skips the default/suppression layers and only
+            // consults the user-bound ScopeBindings.
+            GridKeyboardAction? action = null;
+            GridKeyboardAction? suppressedAction = null;
+            if (_parent == null)
+            {
+                return;
+            }
+
+            var zone = DetectZone(row, cell);
+            if (zone == GridKeyboardZone.DataCell && GridKeyDispatchTable.IsHeaderOnlyLegacyToken(keyCombination))
+            {
+                zone = GridKeyboardZone.Header;
+            }
+            var resolved = GridKeyResolver.ResolveForKeystroke(
+                _parent.CompiledKeyboardShortcuts,
+                e.GetNormalizedKey(_parent.IsMacDevice ?? false),
+                keyCombination,
+                zone);
+            action = resolved.Action;
+            suppressedAction = resolved.SuppressedOriginalAction;
+            // True ONLY when the keystroke matched a user-bound custom chord
+            // (resolver Layer 1/2). Layer 3 (suppression), Layer 4 (built-in
+            // default like plain F2) and Layer 5 (no match) all return
+            // PreventDefault=false, so this guard excludes them. This is what
+            // makes the if/else wrappers below safe for default F2 users: a
+            // plain F2 keystroke keeps the legacy "no modifiers" guard intact.
+            _isCustomKeyboardBinding = resolved.Consumed && resolved.PreventDefault && action != null;
+
             bool isFilterBar = _parent.AllowFiltering && _parent.FilterSettings!.Type == FilterType.FilterBar;
             bool isAddForm = _parent.EditSettings!.ShowAddNewRow;
             bool isArrowUp = keyCombination != null && keyCombination.Equals("ArrowUp", StringComparison.Ordinal);
@@ -553,6 +775,24 @@ namespace Syncfusion.Blazor.Grids.Internal
                     isPopUpOpened = false;
                     return;
                 }
+            }
+
+            if (suppressedAction.HasValue)
+            {
+                return;
+            }
+
+            var activeEditTarget = GetActiveEditRowAndCell();
+
+            // Edit-end actions are also dispatched by ProcessGridKeyDown. Let that
+            // path own Batch transitions so a single key cannot save and advance twice.
+            if (_isCustomKeyboardBinding
+                && _parent.EditSettings?.Mode == EditMode.Batch
+                && activeEditTarget.Cell?.IsEdit == true
+                && (action == GridKeyboardAction.EditEndAndTabNext
+                    || action == GridKeyboardAction.EditEndAndShiftTabPrev))
+            {
+                return;
             }
 
             if (ShouldHandleKeyPressInCellEditMode(cell, e))
@@ -601,7 +841,8 @@ namespace Syncfusion.Blazor.Grids.Internal
             {
                 cell!.IsFocused = true;
             }
-            if (cell?.Column?.AllowFiltering == true && isFilterBar && ((_parent.Rows?.Count > 0 && _parent.Rows.FirstOrDefault()!.Equals(row) && isArrowUp && !isAddForm) || (_isHeader && isArrowDown)))
+            if (action == GridKeyboardAction.FocusFilterBar && cell?.Column?.AllowFiltering == true && isFilterBar
+                && ((_parent.Rows?.Count > 0 && _parent.Rows.FirstOrDefault()!.Equals(row) && isArrowUp && !isAddForm) || (_isHeader && isArrowDown)))
             {
                 int columnIndex = -1;
                 bool filterTemplate = false;
@@ -690,9 +931,29 @@ namespace Syncfusion.Blazor.Grids.Internal
             }
             SelectedCellIndex = cell?.Index;
 
-            if (string.IsNullOrEmpty(keyCombination) || (keyCombination.Equals("Space", StringComparison.Ordinal) && (_parent.IsEdit || (cell?.Column != null && cell.Column.Type.Equals(ColumnType.CheckBox) && !_parent.SelectionSettings!.CheckboxOnly))))
+            if (string.IsNullOrEmpty(keyCombination) ||
+                (keyCombination.Equals("Space", StringComparison.Ordinal) &&
+                 (_parent.IsEdit || (!isHeader && cell?.Column != null &&
+                                     cell.Column.Type.Equals(ColumnType.CheckBox) && !_parent.SelectionSettings!.CheckboxOnly))))
             {
                 return;
+            }
+
+            string[] actions = _settings?.GetAction(keyCombination) ?? Array.Empty<string>();
+            GridKeyboardAction? legacyNavigationAction = actions.FirstOrDefault() switch
+            {
+                "MoveUpCell" => GridKeyboardAction.NavigateUp,
+                "MoveDownCell" => GridKeyboardAction.NavigateDown,
+                "MoveLeftCell" => GridKeyboardAction.NavigateLeft,
+                "MoveRightCell" => GridKeyboardAction.NavigateRight,
+                _ => null
+            };
+            if (legacyNavigationAction.HasValue
+                && action != legacyNavigationAction
+                && (_isCustomKeyboardBinding
+                    || _parent.CompiledKeyboardShortcuts.OverrideActions.Contains(legacyNavigationAction.Value)))
+            {
+                actions = Array.Empty<string>();
             }
 
             // OPSX-20261016-ctrl-arrow-virtualization-nav: Handle Ctrl+Arrow Up/Down for first/last row navigation
@@ -700,16 +961,16 @@ namespace Syncfusion.Blazor.Grids.Internal
             // Restriction: Only execute when focus is on content cells (not headers, filter rows, or grouping headers).
             // Feature works when: AllowGrouping is false OR (AllowGrouping is true AND Columns is null - meaning grouping enabled but no columns grouped)
             if ((keyCombination.Equals("CtrlUp", StringComparison.Ordinal) || keyCombination.Equals("CtrlDown", StringComparison.Ordinal))
+                && !_isCustomKeyboardBinding
                 && !_isHeader
-                && _parent.EnableVirtualization
+                && !_parent.IsRenderedFromTreeGrid
+                && (_parent.EnableVirtualization || IsDomVirtualNavigationSupported())
                 && !_parent.EnableInfiniteScrolling
                 && (!_parent.AllowGrouping || _parent.GroupSettings?.Columns == null))
             {
                 await HandleCtrlArrowFirstLastRowNavigation(keyCombination, e).ConfigureAwait(true);
                 return;
             }
-
-            string[] actions = _settings?.GetAction(keyCombination)?? Array.Empty<string>();
             bool isMoveUpOrDown = actions.Length > 0 && (actions[0].Equals("MoveUpCell", StringComparison.Ordinal) || actions[0].Equals("MoveDownCell", StringComparison.Ordinal));
 
             // Escape from template cell to parent cell
@@ -739,10 +1000,9 @@ namespace Syncfusion.Blazor.Grids.Internal
                 return;
             }
 
-            if (actions?.Length != 0)
+            if (actions.Length > 0)
             {
-                
-                await MoveFocusCell(actions!, row!, cell!, e, keyCombination).ConfigureAwait(true);
+                await MoveFocusCell(actions, row!, cell!, e, keyCombination, action).ConfigureAwait(true);
             }
             else
             {
@@ -752,23 +1012,36 @@ namespace Syncfusion.Blazor.Grids.Internal
                 Cell<object> nextCell = cell!;
                 bool isCheckBoxCell = cell?.Column != null && cell.Column.Type.Equals(ColumnType.CheckBox);
 
-                switch (keyCombination)
+                switch (action)
                 {
-                    case "CtrlHome":
+                    case GridKeyboardAction.NavigateGridStart:
+                        if (IsDomVirtualNavigationSupported() && await TryFocusDomRowAsync(0, null, e, keyCombination).ConfigureAwait(true))
+                        {
+                            return;
+                        }
                         nextRow = _rows?[0]!;
                         nextCell = _rows?[0]?.Cells?.Where(x => x.Visible && !x.CellType.Equals(CellType.RowDrag)).First()!;
                         break;
-                    case "CtrlEnd":
+                    case GridKeyboardAction.NavigateGridEnd:
+                        if (IsDomVirtualNavigationSupported() && await TryFocusDomRowAsync(_parent.DomVirtualModule!.TotalRowCount - 1, int.MaxValue, e, keyCombination).ConfigureAwait(true))
+                        {
+                            return;
+                        }
                         nextRow = _rows?.Last()!;
                         nextCell = nextRow?.Cells?.Where(x => x.Visible).Last()!;
                         break;
-                    case "Home":
+                    case GridKeyboardAction.NavigateRowStart:
                         nextCell = nextRow?.Cells?.Where(x => x.Visible && !x.CellType.Equals(CellType.Indent) && !x.CellType.Equals(CellType.RowDrag)).First()!;
                         break;
-                    case "End":
+                    case GridKeyboardAction.NavigateRowEnd:
                         nextCell = nextRow?.Cells?.Where(x => x.Visible).Last()!;
                         break;
-                    case "Space":
+                    case GridKeyboardAction.SelectToggle:
+                    case GridKeyboardAction.ToggleHeaderCheckbox:
+                        // The resolver maps Space to SelectToggle (data cell) or
+                        // ToggleHeaderCheckbox (header zone). For checkbox cells
+                        // the legacy Space handler also routes the selection
+                        // toggle — keep that body here.
                         if (isCheckBoxCell && !isHeader && !nextRow?.IsSelected == true)
                         {
                             await _parent.SelectionModule!.SelectByRow(nextRow!).ConfigureAwait(true);
@@ -777,29 +1050,248 @@ namespace Syncfusion.Blazor.Grids.Internal
                         {
                             await _parent.SelectionModule.ClearSelectionByRow(nextRow).ConfigureAwait(true);
                         }
+                        // Header actions are dispatched by GridHeaderBase through
+                        // BeforeCellFocus. Do not toggle here as well; that would
+                        // run the header-checkbox workflow twice for one keystroke.
                         break;
-                    case "AltDown":
+                    case GridKeyboardAction.NavigateUp:
+                        await MoveFocusCell(MoveUpCellAction, row!, cell!, e, keyCombination, action).ConfigureAwait(true);
+                        return;
+                    case GridKeyboardAction.NavigateDown:
+                        await MoveFocusCell(MoveDownCellAction, row!, cell!, e, keyCombination, action).ConfigureAwait(true);
+                        return;
+                    case GridKeyboardAction.NavigateLeft:
+                        await MoveFocusCell(MoveLeftCellAction, row!, cell!, e, keyCombination, action).ConfigureAwait(true);
+                        return;
+                    case GridKeyboardAction.NavigateRight:
+                        await MoveFocusCell(MoveRightCellAction, row!, cell!, e, keyCombination, action).ConfigureAwait(true);
+                        return;
+                    case GridKeyboardAction.ToggleRowSelection:
+                        if (_parent.AllowSelection && _parent.SelectionModule != null && nextRow != null)
+                        {
+                            if (nextRow.IsSelected)
+                            {
+                                await _parent.SelectionModule.ClearSelectionByRow(nextRow).ConfigureAwait(true);
+                            }
+                            else
+                            {
+                                await _parent.SelectionModule.SelectByRow(nextRow).ConfigureAwait(true);
+                            }
+                        }
+                        break;
+                    case GridKeyboardAction.SelectAll:
+                        await _parent.SelectAllRecordsAsync().ConfigureAwait(true);
+                        break;
+                    case GridKeyboardAction.StartEdit:
+                        if (_isCustomKeyboardBinding || (e != null && !e.AltKey && !e.CtrlKey && !e.ShiftKey))
+                        {
+                            await StartEditFromKeyboardAsync(row, cell).ConfigureAwait(true);
+                        }
+                        return;
+
+                    // ---- Phase 15: focus jumps (LOW risk) ----
+                    case GridKeyboardAction.MoveFocusToFirstRow:
+                        // Default AltW — move focus to first visible cell of first content row.
+                        if (IsDomVirtualNavigationSupported() && await TryFocusDomRowAsync(0, null, e, keyCombination).ConfigureAwait(true))
+                        {
+                            return;
+                        }
+                        if (_parent.Rows != null && _parent.Rows.Count > 0 && string.IsNullOrEmpty(_parent.EditModule?.AlertMessage))
+                        {
+                            var firstRow = _parent.Rows.Where(_ => _.Visible).FirstOrDefault();
+                            var firstCell = firstRow?.Cells?.Where(_ => _.Visible && _.CellType != CellType.RowDrag).FirstOrDefault();
+                            if (firstRow != null && firstCell != null)
+                            {
+                                ClearCurrent();
+                                SetCurrent(firstRow, firstCell, true);
+                                _parent.SoftRefresh = true;
+                                _parent.EventAggregator.Trigger("RowStateChanged", firstRow);
+                                await Focus(firstRow.Uid!, firstCell.Uid!, "MoveRightCell", keyCombination, cellColIndex: (firstCell.Index ?? -1) + 1).ConfigureAwait(true);
+                            }
+                        }
+                        return;
+                    case GridKeyboardAction.FocusFilterBar:
+                        // Default ArrowUp from first content cell OR ArrowDown from header.
+                        // Reuse the existing JS interop; route via resolver when a custom
+                        // binding is also present.
+                        if (_isCustomKeyboardBinding
+                            && _parent.AllowFiltering
+                            && _parent.FilterSettings?.Type == FilterType.FilterBar
+                            && cell?.Column?.AllowFiltering == true)
+                        {
+                            int columnIndex = -1;
+                            bool filterTemplate = ((cell?.IsDataCell == true || _isHeader) && cell?.Column?.FilterTemplate != null) || IsGroupingFilterTemplate(cell!);
+                            ClearCurrent();
+                            await _parent.InvokeMethod("sfBlazor.Grid.focusFilterBar", new object[] { _parent.DataId, keyCombination!, filterTemplate, columnIndex }).ConfigureAwait(true);
+                            return;
+                        }
+                        break;
+                    case GridKeyboardAction.FocusAddForm:
+                        // Default ArrowDown from header OR ArrowUp from first content cell
+                        // when ShowAddNewRow is enabled. Reuse existing private method.
+                        if (_parent.EditSettings?.ShowAddNewRow == true)
+                        {
+                            FocusAddForm(keyCombination!);
+                            return;
+                        }
+                        break;
+
+                    // ---- Phase 14: header popups (MED risk) ----
+                    case GridKeyboardAction.OpenColumnMenu:
                         if (_parent.ShowColumnMenu && cell?.Column?.ShowColumnMenu == true && isHeader)
                         {
                             _parent.ColumnMenuColumn = cell?.Column;
                             _parent.EventAggregator.Trigger("ColumnMenuUpdate", null!);
-                            if (_parent.ColumnMenuInstance != null &&  _parent.ColumnMenuInstance.CssClass.Contains("e-hide-menu", StringComparison.Ordinal))
+                            if (_parent.ColumnMenuInstance != null && _parent.ColumnMenuInstance.CssClass.Contains("e-hide-menu", StringComparison.Ordinal))
                             {
                                 await _parent.ColumnMenuInstance.OpenAsync(1, 1).ConfigureAwait(true);
                             }
+                            return;
                         }
-                        else if (_parent.AllowFiltering && cell?.Column?.AllowFiltering == true && _parent.FilterSettings!.Type != FilterType.FilterBar && isHeader && _parent.FilterModule != null)
+                        break;
+                    case GridKeyboardAction.OpenFilterMenu:
+                        if (_parent.AllowFiltering && cell?.Column?.AllowFiltering == true && _parent.FilterSettings!.Type != FilterType.FilterBar && isHeader && _parent.FilterModule != null)
                         {
                             _parent.FilterModule.FilterIconIsClicked = true;
                             _parent.FilterModule.FilterIconColumn = cell?.Column!;
                             _parent.EventAggregator.Trigger("FilterComponentUpdate", null!);
+                            return;
                         }
+                        break;
 
+                    // ---- Phase 11: clipboard (Common scope) ----
+                    // The JS gate (scripts/clipboard.ts) normally consumes Ctrl+C/Ctrl+V
+                    // before the keydown reaches C#. These cases are the C# backstop
+                    // and the route for any custom-bound chord.
+                    // (ProcessKeyDown has no BeforeCellFocus handle; suppression
+                    //  is applied in the ProcessKeyCombination sister switch.)
+                    case GridKeyboardAction.Copy:
+                        if (!_parent.IsEdit)
+                        {
+                            await _parent.CopyAsync(null).ConfigureAwait(true);
+                            return;
+                        }
+                        break;
+                    case GridKeyboardAction.CopyWithHeaders:
+                        if (!_parent.IsEdit)
+                        {
+                            await _parent.CopyAsync(true).ConfigureAwait(true);
+                            return;
+                        }
+                        break;
+                    case GridKeyboardAction.Paste:
+                        if (!_parent.IsEdit)
+                        {
+                            await _parent.PasteAsync().ConfigureAwait(true);
+                            return;
+                        }
+                        break;
+
+                    // ---- Phase 12: undo/redo (four-gate alignment) ----
+                    // The legacy inline branch (CtrlZ / CtrlY / CtrlShiftZ) at the top of
+                    // ProcessKeyCombination returns before the resolver is consulted, so
+                    // these cases are the route for any custom-bound chord (e.g. Alt+Z).
+                    case GridKeyboardAction.Undo:
+                        if (_parent.EditSettings?.EnableUndoRedo == true
+                            && _parent.EditSettings?.Mode == EditMode.Batch
+                            && _parent.UndoRedoManager != null)
+                        {
+                            if (_parent.IsEdit && _parent.EditModule != null)
+                            {
+                                await _parent.EditModule.CloseEdit(true).ConfigureAwait(true);
+                            }
+                            await _parent.UndoRedoManager.PerformUndoAsync().ConfigureAwait(true);
+                            await _parent.CallStateHasChangedAsync().ConfigureAwait(true);
+                            _parent.EventAggregator?.Trigger("UndoRedoStackChanged", null!);
+                            return;
+                        }
+                        break;
+                    case GridKeyboardAction.Redo:
+                        if (_parent.EditSettings?.EnableUndoRedo == true
+                            && _parent.EditSettings?.Mode == EditMode.Batch
+                            && _parent.UndoRedoManager != null)
+                        {
+                            if (_parent.IsEdit && _parent.EditModule != null)
+                            {
+                                await _parent.EditModule.CloseEdit(true).ConfigureAwait(true);
+                            }
+                            await _parent.UndoRedoManager.PerformRedoAsync().ConfigureAwait(true);
+                            await _parent.CallStateHasChangedAsync().ConfigureAwait(true);
+                            _parent.EventAggregator?.Trigger("UndoRedoStackChanged", null!);
+                            return;
+                        }
+                        break;
+
+                    // ---- Phase 16: selection extensions ----
+                    // Shift+Up/Down/Left/Right is already consumed by Selection.cs
+                    // (ClearRedundantCellsInBoxMode → SelectRangeOfCells) and reaches
+                    // this switch only as the resolution result for a custom-bound
+                    // chord (e.g. Alt+Shift+Down). Return to mark consumed.
+                    case GridKeyboardAction.SelectRowRange:
+                        return;
+
+                    // ExtendSelection is mouse-driven (Shift+Click / Ctrl+Click) and
+                    // marked [NonBindable] by the validator (SFGK011). This case is
+                    // a no-op that exists so the resolver can return a typed action
+                    // and the legacy MouseAndKeyArgs payload can be introspected
+                    // programmatically via grid.State.
+                    case GridKeyboardAction.ExtendSelection:
+                        return;
+
+                    // ---- Phase 17: edit-end tab transitions ----
+                    // Cell-mode edit already ends on Tab/Shift+Tab via
+                    // HandleTabNavigationInCellMode (called from FocusCell). This case
+                    // is the C# backstop for the EditCell-zone resolved action; the
+                    // existing tab-navigation behavior is preserved.
+                    case GridKeyboardAction.EditEndAndTabNext:
+                        if (activeEditTarget.Cell?.IsEdit == true && _parent.EditModule != null)
+                        {
+                            await HandleEditEndNavigation(activeEditTarget.Row, activeEditTarget.Cell, moveNext: true).ConfigureAwait(true);
+                        }
+                        return;
+                    case GridKeyboardAction.EditEndAndShiftTabPrev:
+                        if (activeEditTarget.Cell?.IsEdit == true && _parent.EditModule != null)
+                        {
+                            await HandleEditEndNavigation(activeEditTarget.Row, activeEditTarget.Cell, moveNext: false).ConfigureAwait(true);
+                        }
+                        return;
+
+                    case null:
+                        // AltDown has no default action id and falls through here.
+                        // For users with no custom bindings, route it to the same
+                        // OpenColumnMenu / OpenFilterMenu handlers used by
+                        // custom-bound chords (cases above). If the user has bound
+                        // a custom key for that action, the default AltDown must
+                        // NOT also fire — the custom key alone is the trigger, by
+                        // the same principle every other action follows (resolver
+                        // Layer 3 / OverrideActions suppression). This eliminates
+                        // the duplicated column-menu / filter-icon logic that used
+                        // to live inline in this branch — the named-action cases
+                        // are now the single source of truth.
+                        if (keyCombination == "AltDown" && isHeader && cell?.Column != null)
+                        {
+                            var overrides = _parent.CompiledKeyboardShortcuts.OverrideActions;
+                            if (_parent.ShowColumnMenu && cell.Column.ShowColumnMenu
+                                && !overrides.Contains(GridKeyboardAction.OpenColumnMenu))
+                            {
+                                action = GridKeyboardAction.OpenColumnMenu;
+                                goto case GridKeyboardAction.OpenColumnMenu;
+                            }
+                            if (_parent.AllowFiltering && cell.Column.AllowFiltering
+                                && _parent.FilterSettings!.Type != FilterType.FilterBar && _parent.FilterModule != null
+                                && !overrides.Contains(GridKeyboardAction.OpenFilterMenu))
+                            {
+                                action = GridKeyboardAction.OpenFilterMenu;
+                                goto case GridKeyboardAction.OpenFilterMenu;
+                            }
+                        }
+                        break;
+                    default:
                         break;
                 }
 
                 // Other than navigation other keys will be handled here.
-                await FocusCell(row: nextRow!, cell: nextCell, navigator: (0, 0), e: e, actions: actions, keyCombination: keyCombination).ConfigureAwait(true);
+                await FocusCell(row: nextRow!, cell: nextCell, navigator: (0, 0), e: e, actions: actions, keyCombination: keyCombination, resolvedAction: action).ConfigureAwait(true);
             }
             // Only allow scrollToFocusedCell for Shift+Tab and Left Arrow when frozen columns exist
             bool isShiftTab = keyCombination != null && keyCombination.Equals("ShiftTab", StringComparison.Ordinal);
@@ -845,7 +1337,7 @@ namespace Syncfusion.Blazor.Grids.Internal
 
         #region Focus Cell Movement
 
-        private async Task MoveFocusCell(string[] actions, Row<object> row, Cell<object> cell, KeyboardEventArgs e, string keyCombination)
+        private async Task MoveFocusCell(string[] actions, Row<object> row, Cell<object> cell, KeyboardEventArgs e, string keyCombination, GridKeyboardAction? resolvedAction = null)
         {
             switch (actions?[0])
             {
@@ -854,20 +1346,20 @@ namespace Syncfusion.Blazor.Grids.Internal
                     {
                         return;
                     }
-                    await FocusCell(row: row!, cell: cell!, navigator: (0, -1), e: e, actions: actions, keyCombination: keyCombination).ConfigureAwait(true);
+                    await FocusCell(row: row!, cell: cell!, navigator: (0, -1), e: e, actions: actions, keyCombination: keyCombination, resolvedAction: resolvedAction).ConfigureAwait(true);
                     break;
                 case "MoveRightCell":
                     if (row?.Index == null && cell?.Index == GetLastVisibleColumn()?.Index && (keyCombination.Equals("ArrowRight", StringComparison.Ordinal) || (_parent.AllowFiltering && _parent.FilterSettings?.Type == FilterType.FilterBar && _parent.Columns?.Where(e => e.AllowFiltering).Any() == true)))
                     {
                         return;
                     }
-                    await FocusCell(row: row!, cell: cell!, navigator: (0, 1), e: e, actions: actions, keyCombination: keyCombination).ConfigureAwait(true);
+                    await FocusCell(row: row!, cell: cell!, navigator: (0, 1), e: e, actions: actions, keyCombination: keyCombination, resolvedAction: resolvedAction).ConfigureAwait(true);
                     break;
                 case "MoveUpCell":
-                    await FocusCell(row: row, cell: cell, navigator: (-1, 0), e: e, actions: actions, keyCombination: keyCombination).ConfigureAwait(true);
+                    await FocusCell(row: row, cell: cell, navigator: (-1, 0), e: e, actions: actions, keyCombination: keyCombination, resolvedAction: resolvedAction).ConfigureAwait(true);
                     break;
                 case "MoveDownCell":
-                    await FocusCell(row: row, cell: cell, navigator: (1, 0), e: e, actions: actions, keyCombination: keyCombination).ConfigureAwait(true);
+                    await FocusCell(row: row, cell: cell, navigator: (1, 0), e: e, actions: actions, keyCombination: keyCombination, resolvedAction: resolvedAction).ConfigureAwait(true);
                     break;
             }
         }
@@ -940,7 +1432,7 @@ namespace Syncfusion.Blazor.Grids.Internal
 
         #region Grid Key Down Processing
 
-        internal async Task ProcessGridKeyDown(KeyboardEventArgs e, BeforeCellFocus? bf = null, bool isPagerFocused = true, bool isToolbarFocused = false, int? cellIndex = null, int? rowIndex = null, int? templateCellIndex = null, bool focusColumnTemplate = false)
+        internal async Task ProcessGridKeyDown(KeyboardEventArgs e, BeforeCellFocus? bf = null, bool isPagerFocused = true, bool isToolbarFocused = false, int? cellIndex = null, int? rowIndex = null, int? templateCellIndex = null, bool focusColumnTemplate = false, string? focusCellUid = null)
         {
             var keyCombination = e.GetKeyCombination(isMacDevice: _parent.IsMacDevice ?? false, isEnableUndoRedo: _parent!.EditSettings!.EnableUndoRedo);
             var isTabKey = keyCombination != null && keyCombination.Equals("Tab", StringComparison.Ordinal);
@@ -954,11 +1446,16 @@ namespace Syncfusion.Blazor.Grids.Internal
             IsSelectAllClicked = isExcelOrCheckBoxFilter ? false : IsSelectAllClicked;
 
             // Handling the focus from the template column.		
-            if (rowIndex != null && templateCellIndex != null && focusColumnTemplate && keyCombination != null)
+            if (rowIndex != null && (templateCellIndex != null || focusCellUid != null) && focusColumnTemplate && keyCombination != null)
             {
                 var templateRow = _parent.Rows?.Where(e => e.Index == (int)rowIndex).FirstOrDefault();
-                var templateCell = templateRow?.Cells[(int)templateCellIndex];
-                if (templateRow == _parent.Rows?.Where(e => e.IsLastRow).FirstOrDefault() && templateCell == templateRow?.Cells?.Where(e => e.Visible).LastOrDefault() && keyCombination.Equals("Tab", StringComparison.Ordinal))
+                var templateCell = focusCellUid != null
+                    ? templateRow?.Cells?.FirstOrDefault(cell => string.Equals(cell.Uid, focusCellUid, StringComparison.Ordinal))
+                    : templateRow?.Cells[(int)templateCellIndex!];
+                if (templateRow == _parent.Rows?.Where(e => e.IsLastRow).FirstOrDefault() &&
+                    templateCell == templateRow?.Cells?.Where(e => e.Visible).LastOrDefault() &&
+                    templateCell?.CellType != CellType.CommandColumn &&
+                    keyCombination.Equals("Tab", StringComparison.Ordinal))
                 {
                     return;
                 }
@@ -972,7 +1469,8 @@ namespace Syncfusion.Blazor.Grids.Internal
                 ClearCurrent();
                 SetCurrent(templateRow!, templateCell!);
                 await Task.Yield();
-                await Focus(templateRow?.Uid!, templateCell?.Uid!, keyCombination: keyCombination, cellColIndex: templateCell?.Index + 1 ?? -1).ConfigureAwait(true);
+                var focusColumnIndex = focusCellUid != null ? -1 : templateCell?.Index + 1 ?? -1;
+                await Focus(templateRow?.Uid!, templateCell?.Uid!, keyCombination: keyCombination, cellColIndex: focusColumnIndex).ConfigureAwait(true);
                 return;
             }
 
@@ -1064,12 +1562,9 @@ namespace Syncfusion.Blazor.Grids.Internal
 
             await ProcessKeyCombination(keyCombination, tPage, bf, isPagerFocused, e).ConfigureAwait(true);
 
-            if (keyCombination.Equals("AltW", StringComparison.Ordinal) && _parent.Rows != null && _parent.Rows.Count > 0 && string.IsNullOrEmpty(_parent.EditModule.AlertMessage))
-            {
-                var firstRow = _parent.Rows?.Where(_ => _.Visible).FirstOrDefault();
-                var firstCell = firstRow?.Cells?.Where(_ => _.Visible && _.CellType != CellType.RowDrag).FirstOrDefault();
-                await ProcessKeyDown(e!, firstRow!, firstCell!).ConfigureAwait(true);
-            }
+            // Legacy AltW inline handler removed: MoveFocusToFirstRow is now resolved
+            // through the standard action switch in ProcessKeyCombination. The default
+            // chord AltW is registered in GridKeyboardActionDefaults._dataCellDefaults.
             if (((_parent.GridEvents?.RowDataBound.HasDelegate == true) || _parent.IsRenderedFromTreeGrid) && !_parent.IsEdit && _parent.EditSettings!.Mode.Equals(EditMode.Batch) && _parent.Rows!.Any(_ => _.Cells.Any(_ => _.IsDirty)) && (_parent.FocusModule != null && _parent.FocusModule.SelectedRowIndex.HasValue))
             {
                 var selectedRow = _currentRows?.Find(_ => _.Index == _parent.FocusModule.SelectedRowIndex);
@@ -1121,52 +1616,86 @@ namespace Syncfusion.Blazor.Grids.Internal
 
         private async Task ProcessKeyCombination(string keyCombination, int tPage, BeforeCellFocus? bf = null, bool isPagerFocused = true, KeyboardEventArgs? e = null)
         {
-        
-            if (_parent.EditSettings?.EnableUndoRedo == true && _parent.EditSettings?.Mode == EditMode.Batch && _parent.UndoRedoManager != null && keyCombination?.Equals("CtrlZ", StringComparison.OrdinalIgnoreCase) == true)
+
+            // Resolve the keystroke to a GridKeyboardAction using the existing
+            // resolver. The resolver handles BOTH user-bound custom bindings AND
+            // default chords via GridKeyboardActionDefaults, so the action id
+            // drives the same switch the legacy keyCombination switch used to
+            // drive. The resolver call is fully inlined here so the existing
+            // switch remains the single source of truth for what each action does.
+            //
+            // Zone detection for the JS path:
+            //   - When _isHeader is true we always take the Header zone, regardless of whether
+            //     KeyInvokedRow/KeyInvokedCell are populated. This matches the legacy JS
+            //     handler: keys like Tab/Enter on a header cell are header-zone keys regardless
+            //     of whether the Blazor-side cell focus has been re-evaluated.
+            //   - When _isHeader is false but we have a populated KeyInvokedRow/KeyInvokedCell,
+            //     use DetectZone as before (covers DataCell/EditCell/GroupRow/DetailRow).
+            //   - When _isHeader is false and there is no KeyInvoked signal at all, default to
+            //     DataCell for legacy parity (the previous code did the same).
+            //   This fixes the prior bug where the dispatcher silently routed header-zone
+            //     custom bindings (e.g. SortColumn, ReorderColumn) to DataCell when the key
+            //     arrived from the JS path before any cell-focus had been triggered.
+            GridKeyboardAction? action = null;
+            if (_parent != null)
             {
-                    if (_parent.IsEdit && _parent.EditModule != null)
-                    {
-                        await _parent.EditModule.CloseEdit(true).ConfigureAwait(true);
-                    }
-                    await _parent.UndoRedoManager.PerformUndoAsync().ConfigureAwait(true);
-                    await _parent.CallStateHasChangedAsync().ConfigureAwait(true); 
-                    _parent.EventAggregator?.Trigger("UndoRedoStackChanged", null!);
-                    return;
-            }
-            else if ((_parent.EditSettings?.EnableUndoRedo == true && _parent.EditSettings?.Mode == EditMode.Batch && _parent.UndoRedoManager != null) && (keyCombination?.Equals("CtrlY", StringComparison.OrdinalIgnoreCase) == true ||
-                     keyCombination?.Equals("CtrlShiftZ", StringComparison.OrdinalIgnoreCase) == true))
-            {
-                    if (_parent.IsEdit && _parent.EditModule != null)
-                    {
-                        await _parent.EditModule.CloseEdit(true).ConfigureAwait(true);
-                    }
-                    await _parent.UndoRedoManager.PerformRedoAsync().ConfigureAwait(true);
-                    await _parent.CallStateHasChangedAsync().ConfigureAwait(true);
-                    _parent.EventAggregator?.Trigger("UndoRedoStackChanged", null!);
-                    return;
+                var detectedZone = KeyInvokedRow != null && KeyInvokedCell != null
+                    ? DetectZone(KeyInvokedRow, KeyInvokedCell)
+                    : GridKeyboardZone.DataCell;
+                var zone = ResolveKeyboardZone(_parent.IsEdit, _isHeader, detectedZone);
+                // When no reliable zone signal is available (e.g. JS-routed key arrived
+                // before the Blazor-side row/cell state was populated) and the legacy
+                // token is one of the header-default tokens, fall back to the Header
+                // zone so custom bindings for SortColumn/GroupColumn/ReorderColumn/
+                // ToggleHeaderCheckbox still resolve from JS-driven keys.
+                if (zone == GridKeyboardZone.DataCell && GridKeyDispatchTable.IsHeaderOnlyLegacyToken(keyCombination))
+                {
+                    zone = GridKeyboardZone.Header;
+                }
+                var resolve = GridKeyResolver.ResolveForKeystroke(
+                    _parent.CompiledKeyboardShortcuts,
+                    e != null ? e.GetNormalizedKey(_parent.IsMacDevice ?? false) : default,
+                    keyCombination,
+                    zone);
+                action = resolve.Action;
+                // True ONLY when the keystroke matched a user-bound custom chord
+                // (resolver Layer 1/2). Layer 3 (suppression), Layer 4 (built-in
+                // default like plain F2) and Layer 5 (no match) all return
+                // PreventDefault=false, so this guard excludes them. This is what
+                // makes the if/else wrappers below safe for default-key users: a
+                // plain F2 keystroke keeps the legacy "no modifiers" guard intact.
+                _isCustomKeyboardBinding = resolve.Consumed && resolve.PreventDefault && action != null;
             }
 
-            switch (keyCombination)
+            if (keyCombination == "Escape")
             {
-                case "Insert":
-                    if ((_parent.EditModule!.AlertMessage is "EditAlert" or "DeleteAlert") || (_parent.IsEdit && _parent.EditSettings?.Mode == EditMode.Batch))
+                if (_parent != null && _parent.ShowColumnChooser && _parent.ChooserDialogInstance != null)
+                {
+                    await _parent.ChooserDialogInstance.HideAsync().ConfigureAwait(true);
+                }
+            }
+
+            switch (action)
+            {
+                case GridKeyboardAction.AddRecord:
+                    if ((_parent != null && _parent.EditModule!.AlertMessage is "EditAlert" or "DeleteAlert") || (_parent != null && _parent.IsEdit && _parent.EditSettings?.Mode == EditMode.Batch))
                     {
                         return;
                     }
-                    await _parent.AddRecordAsync().ConfigureAwait(true);
+                    await _parent!.AddRecordAsync().ConfigureAwait(true);
                     break;
-                case "F2":
-                    if(e != null && !e.AltKey && !e.CtrlKey && !e.ShiftKey && _parent?.EditModule?.IsCellEditMode() == false)
+                case GridKeyboardAction.StartEdit:
+                    if (_isCustomKeyboardBinding || (e != null && !e.AltKey && !e.CtrlKey && !e.ShiftKey))
                     {
-                        await _parent.StartEditAsync().ConfigureAwait(true);
+                        await StartEditFromKeyboardAsync(KeyInvokedRow, KeyInvokedCell).ConfigureAwait(true);
                     }
                     break;
-                case "Delete":
-                    await _parent.DeleteRecordAsync().ConfigureAwait(true);
+                case GridKeyboardAction.DeleteRecord:
+                    await _parent!.DeleteRecordAsync().ConfigureAwait(true);
                     break;
-                case "Escape":
+                case GridKeyboardAction.Escape:
                     // Close all pop-ups here.
-                    if (_parent.IsEdit || (_parent.EditSettings != null && _parent.EditSettings.ShowAddNewRow && !_parent.IsEdit && _parent.IsAdd))
+                    if (_parent != null && _parent.IsEdit || (_parent != null && _parent.EditSettings != null && _parent.EditSettings.ShowAddNewRow && !_parent.IsEdit && _parent.IsAdd))
                     {
                         ClearCurrent();
                         IsByKey = true;
@@ -1174,38 +1703,181 @@ namespace Syncfusion.Blazor.Grids.Internal
                         IsByKey = false;
                     }
 
-                    if (_parent.ShowColumnChooser && _parent.ChooserDialogInstance != null)
-                    {
-                        await _parent.ChooserDialogInstance.HideAsync().ConfigureAwait(true);
-                    }
-
                     break;
-                case "PageUp":
-                case "PageDown":
-                case "CtrlAltPageDown":
-                case "CtrlAltPageUp":
-                case "AltPageUp":
-                case "AltPageDown":
-                    if (!isPagerFocused && e != null && !e.ShiftKey && !_parent.IsEdit)
+                case GridKeyboardAction.PageUp:
+                case GridKeyboardAction.PageDown:
+                case GridKeyboardAction.FirstPage:
+                case GridKeyboardAction.LastPage:
+                case GridKeyboardAction.NextPageGroup:
+                case GridKeyboardAction.PreviousPageGroup:
+                    // Custom-binding branch: when the user has bound a non-default chord
+                    // to a paging action (e.g. Shift+Ctrl+Alt+PageUp → FirstPage) and the
+                    // resolver consumed it, honor the binding by bypassing the legacy
+                    // !e.ShiftKey guard. The isPagerFocused and !IsEdit guards remain
+                    // because they are state guards, not modifier guards.
+                    if (!isPagerFocused && _parent != null && !_parent.IsEdit && (_isCustomKeyboardBinding || (e != null && !e.ShiftKey)))
                     {
-                        await ProcessPageKeyCombinations(keyCombination, tPage, bf).ConfigureAwait(true);
+                        // Map the action id back to the legacy token the existing
+                        // ProcessPageKeyCombinations switch consumes. Done inline
+                        // here so we don't introduce a wrapper method.
+                        var pagingToken = action switch
+                        {
+                            GridKeyboardAction.PageUp            => "PageUp",
+                            GridKeyboardAction.PageDown          => "PageDown",
+                            GridKeyboardAction.FirstPage         => "CtrlAltPageUp",
+                            GridKeyboardAction.LastPage          => "CtrlAltPageDown",
+                            GridKeyboardAction.NextPageGroup     => "AltPageDown",
+                            GridKeyboardAction.PreviousPageGroup => "AltPageUp",
+                            _                                    => keyCombination,
+                        };
+                        await ProcessPageKeyCombinations(pagingToken, tPage, bf).ConfigureAwait(true);
                     }
 
-                    if (_parent.ShowTooltip && _parent.TooltipInstance != null)
+                    if (_parent != null && _parent.ShowTooltip && _parent.TooltipInstance != null)
                     {
                         await (_parent.TooltipInstance?.CloseAsync())!.ConfigureAwait(true);
                     }
                     break;
-                case "CtrlP":
-                case "MetaP":
+                case GridKeyboardAction.Print:
                     if (bf != null)
                     {
                         bf.Cancel = true;
                     }
 
-                    await _parent.PrintAsync().ConfigureAwait(true);
+                    await _parent!.PrintAsync().ConfigureAwait(true);
                     break;
 
+                // ---- Phase 15: document-level focus jump ----
+                case GridKeyboardAction.MoveFocusToFirstRow:
+                    // AltW (default) arrives here from documentKeyHandler. The
+                    // resolver routed it via _dataCellDefaults (the most general
+                    // scope). Move focus to the first cell of the first content row.
+                    if (_parent != null && _parent.Rows != null && _parent.Rows.Count > 0 && string.IsNullOrEmpty(_parent.EditModule?.AlertMessage))
+                    {
+                        var firstRow = _parent.Rows.Where(_ => _.Visible).FirstOrDefault();
+                        var firstCell = firstRow?.Cells?.Where(_ => _.Visible && _.CellType != CellType.RowDrag).FirstOrDefault();
+                        if (firstRow != null && firstCell != null)
+                        {
+                            await ProcessKeyDown(e!, firstRow!, firstCell!).ConfigureAwait(true);
+                        }
+                    }
+                    break;
+
+                // ---- Phase 11: clipboard (Common scope) ----
+                // Document-level backstop. Ctrl+C / Ctrl+V normally consumed by the JS
+                // gate; this branch handles custom-bound chords (e.g. F8 for Paste).
+                case GridKeyboardAction.Copy:
+                    if (_parent != null && (!_parent.IsEdit))
+                    {
+                        await _parent.CopyAsync(null).ConfigureAwait(true);
+                        if (bf != null) { bf.Cancel = true; }
+                        return;
+                    }
+                    break;
+                case GridKeyboardAction.CopyWithHeaders:
+                    if (_parent != null && (!_parent.IsEdit))
+                    {
+                        await _parent.CopyAsync(true).ConfigureAwait(true);
+                        if (bf != null) { bf.Cancel = true; }
+                        return;
+                    }
+                    break;
+                case GridKeyboardAction.Paste:
+                    if (_parent != null && !(_parent.IsEdit))
+                    {
+                        await _parent!.PasteAsync().ConfigureAwait(true);
+                        if (bf != null) { bf.Cancel = true; }
+                        return;
+                    }
+                    break;
+
+                // ---- Phase 12: undo/redo (four-gate alignment) ----
+                // The resolver fires these cases for BOTH the default chord (Ctrl+Z /
+                // Ctrl+Y / Ctrl+Shift+Z) and any user-bound custom chord. The legacy
+                // inline `if (keyCombination?.Equals("CtrlZ", ...))` block at the top
+                // of this method was removed — action dispatch is the only path now.
+                case GridKeyboardAction.Undo:
+                    if (_parent?.EditSettings?.EnableUndoRedo == true
+                        && _parent.EditSettings?.Mode == EditMode.Batch
+                        && _parent.UndoRedoManager != null)
+                    {
+                        if (_parent.IsEdit && _parent.EditModule != null)
+                        {
+                            await _parent.EditModule.CloseEdit(true).ConfigureAwait(true);
+                        }
+                        await _parent.UndoRedoManager.PerformUndoAsync().ConfigureAwait(true);
+                        await _parent.CallStateHasChangedAsync().ConfigureAwait(true);
+                        _parent.EventAggregator?.Trigger("UndoRedoStackChanged", null!);
+                        if (bf != null) { bf.Cancel = true; }
+                        return;
+                    }
+                    break;
+                case GridKeyboardAction.Redo:
+                    if (_parent?.EditSettings?.EnableUndoRedo == true
+                        && _parent.EditSettings?.Mode == EditMode.Batch
+                        && _parent.UndoRedoManager != null)
+                    {
+                        if (_parent.IsEdit && _parent.EditModule != null)
+                        {
+                            await _parent.EditModule.CloseEdit(true).ConfigureAwait(true);
+                        }
+                        await _parent.UndoRedoManager.PerformRedoAsync().ConfigureAwait(true);
+                        await _parent.CallStateHasChangedAsync().ConfigureAwait(true);
+                        _parent.EventAggregator?.Trigger("UndoRedoStackChanged", null!);
+                        if (bf != null) { bf.Cancel = true; }
+                        return;
+                    }
+                    break;
+
+                // ---- Phase 16: selection extensions ----
+                // Shift+Up/Down/Left/Right is already routed through Selection.cs
+                // (ClearRedundantCellsInBoxMode → SelectRangeOfCells). Cases below
+                // mark the gesture as consumed when reached via the resolver.
+                case GridKeyboardAction.SelectRowRange:
+                    if (bf != null) { bf.Cancel = true; }
+                    return;
+                case GridKeyboardAction.ExtendSelection:
+                    if (bf != null) { bf.Cancel = true; }
+                    return;
+
+                // ---- Phase 17: edit-end tab transitions ----
+                // In Cell edit mode Tab / Shift+Tab already ends edit and moves
+                // focus via HandleTabNavigationInCellMode (called from FocusCell).
+                // These cases are the C# backstop for any custom-bound chord.
+                case GridKeyboardAction.EditEndAndTabNext:
+                case GridKeyboardAction.EditEndAndShiftTabPrev:
+                    var editTarget = GetActiveEditRowAndCell();
+                    if (editTarget.Cell?.IsEdit == true && _parent != null && _parent.EditModule != null)
+                    {
+                        await HandleEditEndNavigation(
+                            editTarget.Row,
+                            editTarget.Cell,
+                            moveNext: action == GridKeyboardAction.EditEndAndTabNext).ConfigureAwait(true);
+                        if (bf != null) { bf.Cancel = true; }
+                        return;
+                    }
+                    break;
+                case GridKeyboardAction.FocusFilterBar:
+                    if (_isCustomKeyboardBinding && _parent != null
+                        && _parent.AllowFiltering
+                        && _parent.FilterSettings?.Type == FilterType.FilterBar
+                        && KeyInvokedCell?.Column?.AllowFiltering != false)
+                    {
+                        if (bf != null) { bf.Cancel = true; }
+                        bool isFilterTemplate = KeyInvokedCell?.Column?.FilterTemplate != null;
+                        await _parent.InvokeMethod(
+                            "sfBlazor.Grid.focusFilterBar",
+                            new object[] { _parent.DataId, keyCombination, isFilterTemplate, -1 }).ConfigureAwait(true);
+                        return;
+                    }
+                    break;
+
+                case null:
+                default:
+                    // No matching action (either no CompiledKeyboardShortcuts loaded
+                    // or the keystroke did not match any default). Silent no-op,
+                    // matching the pre-Custom-Key behavior for unrecognized keys.
+                    break;
             }
         }
 
@@ -1366,7 +2038,7 @@ namespace Syncfusion.Blazor.Grids.Internal
 
         private async Task FocusCell(Row<object> row, Cell<object> cell,
     string keyCombination, string[] actions, KeyboardEventArgs e,
-    ValueTuple<int, int> navigator)
+    ValueTuple<int, int> navigator, GridKeyboardAction? resolvedAction = null)
         {
             var isheader = _isHeader;
             ValueTuple<Row<object>, Cell<object>> tuple = (null!, null!);
@@ -1383,6 +2055,33 @@ namespace Syncfusion.Blazor.Grids.Internal
                 {
                     bool isEnterKeyFromDetailCell = keyCombination.Equals("Enter", StringComparison.Ordinal) && cell?.CellType == CellType.Detail;
                     tuple = isEnterKeyFromDetailCell ? (row!, cell!) : GetNextRowCell(row!, cell!, e, navigator, action!);
+                    if (_isCustomKeyboardBinding
+                        && row?.IsDataRow == true
+                        && cell != null
+                        && (resolvedAction == GridKeyboardAction.NavigateRight || resolvedAction == GridKeyboardAction.NavigateLeft))
+                    {
+                        var navigableCells = row.Cells
+                            .Where(currentCell => currentCell.Visible
+                                && currentCell.CellType != CellType.RowDrag
+                                && currentCell.CellType != CellType.Indent
+                                && currentCell.CellType != CellType.DetailIndent)
+                            .ToList();
+                        bool isHorizontalBoundary = navigableCells.Count > 0
+                            && (resolvedAction == GridKeyboardAction.NavigateRight
+                                ? navigableCells[^1].Uid == cell.Uid
+                                : navigableCells[0].Uid == cell.Uid);
+
+                        if (isHorizontalBoundary)
+                        {
+                            var adjacentRowCell = GetAdjacentDataRowCell(
+                                row,
+                                moveNext: resolvedAction == GridKeyboardAction.NavigateRight);
+                            if (adjacentRowCell.Row != null && adjacentRowCell.Cell != null)
+                            {
+                                tuple = (adjacentRowCell.Row, adjacentRowCell.Cell);
+                            }
+                        }
+                    }
                 }
 
                 if (_parent.AllowPaging && tuple.Item1 == null && tuple.Item2 == null)
@@ -1414,18 +2113,30 @@ namespace Syncfusion.Blazor.Grids.Internal
             BeforeCellFocus bcf = new BeforeCellFocus()
             {
                 KeyCombination = keyCombination,
-                Action = action!,
+                Action = resolvedAction?.ToString() ?? action!,
                 Cancel = false,
                 Cell = cell!,
                 Row = row!,
                 KeyArgs = e,
                 IsKeyEvent = e != null,
                 IsHeader = isheader,
-                Tuple = tuple
+                Tuple = tuple,
+                IsCustomBinding = _isCustomKeyboardBinding
             };
 
             _parent.EventAggregator.Trigger("BeforeCellFocus", bcf);
-             if (bcf.Cancel == true || (_parent.EditSettings != null && _parent.EditSettings.Mode.Equals(EditMode.Batch) && IsF2KeyPressed(e!) && !cell?.EditDisabled == true))
+            bool isBatchEditArrowNavigation = _parent.EditSettings?.Mode == EditMode.Batch
+                && cell?.IsEdit == true
+                && (keyCombination is "ArrowUp" or "ArrowDown" or "ArrowLeft" or "ArrowRight"
+                    or "ShiftUp" or "ShiftDown" or "ShiftLeft" or "ShiftRight");
+            if (isBatchEditArrowNavigation
+                || (_isCustomKeyboardBinding && resolvedAction == GridKeyboardAction.StartEdit
+                    && _parent.EditSettings != null && _parent.EditSettings.Mode.Equals(EditMode.Batch) && !cell?.EditDisabled == true))
+            {
+                return;
+            }
+            if (bcf.Cancel == true || (resolvedAction == GridKeyboardAction.StartEdit
+                && _parent.EditSettings != null && _parent.EditSettings.Mode.Equals(EditMode.Batch) && IsF2KeyPressed(e!) && !cell?.EditDisabled == true))
             {
                 return;
             }
@@ -1539,6 +2250,34 @@ namespace Syncfusion.Blazor.Grids.Internal
         #endregion
 
         #region Row and Cell Navigation
+
+        private (Row<object>? Row, Cell<object>? Cell) GetAdjacentDataRowCell(Row<object> row, bool moveNext)
+        {
+            var dataRows = _parent.Rows?
+                .Where(currentRow => currentRow.Visible && currentRow.IsDataRow && !currentRow.IsDetailRow)
+                .ToList();
+            if (dataRows == null)
+            {
+                return (null, null);
+            }
+
+            int currentRowIndex = dataRows.FindIndex(currentRow => currentRow.Uid == row.Uid);
+            int nextRowIndex = currentRowIndex + (moveNext ? 1 : -1);
+            if (currentRowIndex < 0 || nextRowIndex < 0 || nextRowIndex >= dataRows.Count)
+            {
+                return (null, null);
+            }
+
+            Row<object> nextRow = dataRows[nextRowIndex];
+            var cells = nextRow.Cells
+                .Where(currentCell => currentCell.Visible
+                    && currentCell.CellType != CellType.RowDrag
+                    && currentCell.CellType != CellType.Indent
+                    && currentCell.CellType != CellType.DetailIndent)
+                .ToList();
+
+            return (nextRow, moveNext ? cells.FirstOrDefault() : cells.LastOrDefault());
+        }
 
         private ValueTuple<Row<object>, Cell<object>> GetNextRowCell(Row<object> row, Cell<object> cell,
     KeyboardEventArgs e, ValueTuple<int, int> navigator, string? action = null)
@@ -1982,8 +2721,14 @@ namespace Syncfusion.Blazor.Grids.Internal
             }
 
             int targetRowIndex = keyCombination.Equals("CtrlDown", StringComparison.Ordinal)
-                ? _parent.TotalItemCount - 1
+                ? (IsDomVirtualNavigationSupported() ? _parent.DomVirtualModule!.TotalRowCount : _parent.TotalItemCount) - 1
                 : 0;
+
+            if (IsDomVirtualNavigationSupported())
+            {
+                await TryFocusDomRowAsync(targetRowIndex, null, e, keyCombination).ConfigureAwait(true);
+                return;
+            }
 
             int columnIndex = _parent.FocusModule?.SelectedCellIndex ?? -1;
 
@@ -1995,6 +2740,102 @@ namespace Syncfusion.Blazor.Grids.Internal
             // with the VirtualRefresh → VirtualComponentUpdate → HandleVirtualScrollKeyDown
             // event-driven pipeline. This ensures the DOM is updated and focus is applied.
             await _parent.ScrollIntoViewAsync(columnIndex, targetRowIndex, -1).ConfigureAwait(true);
+        }
+
+        #endregion
+
+        #region DOM Virtualization Navigation
+
+        /// <summary>
+        /// Row-index based navigation only applies to a flat list of data rows; grouped, detail-template and
+        /// column-virtualized grids keep the regular behaviour for now.
+        /// </summary>
+        internal bool IsDomVirtualNavigationSupported()
+        {
+            return _parent.EnableDomVirtualization
+                && _parent.DomVirtualModule?.Content != null
+                && !_isHeader
+                && !_parent.EnableColumnVirtualization
+                && !(_parent.AllowGrouping && _parent.GroupSettings?.Columns?.Length > 0)
+                && ((IGrid)_parent).GridTemplates?.DetailTemplate == null;
+        }
+
+        private Row<object>? FindWindowRow(int rowIndex)
+        {
+            return _parent.Rows?.FirstOrDefault(r => r.Index == rowIndex && r.IsDataRow && r.Visible);
+        }
+
+        private static Cell<object>? FindNavigableCell(Row<object> row, int? cellIndex)
+        {
+            List<Cell<object>> cells = row.Cells.Where(c => c.Visible && c.CellType != CellType.RowDrag
+                && c.CellType != CellType.Indent && c.CellType != CellType.DetailIndent).ToList();
+            if (cellIndex == null)
+            {
+                return cells.FirstOrDefault();
+            }
+            if (cellIndex == int.MaxValue)
+            {
+                return cells.LastOrDefault();
+            }
+            return cells.FirstOrDefault(c => c.Index == cellIndex) ?? cells.FirstOrDefault();
+        }
+
+        /// <summary>
+        /// Moves focus straight to a row/column (Ctrl+Home/End, Ctrl+Up/Down, Alt+W). When the row is not rendered yet,
+        /// the target is remembered and the window is scrolled/rendered; the focus is applied once the rows are in the DOM.
+        /// <paramref name="cellIndex"/> null picks the first cell, int.MaxValue the last, otherwise the cell with that index.
+        /// </summary>
+        private async Task<bool> TryFocusDomRowAsync(int rowIndex, int? cellIndex, KeyboardEventArgs e, string keyCombination)
+        {
+            if (cellIndex == null && DomFocusCellIndex != null && !keyCombination.StartsWith("CtrlHome", StringComparison.Ordinal)
+                && !keyCombination.Equals("AltW", StringComparison.Ordinal))
+            {
+                cellIndex = DomFocusCellIndex;
+            }
+            if (rowIndex < 0 || rowIndex >= _parent.DomVirtualModule!.TotalRowCount)
+            {
+                return false;
+            }
+            Row<object>? target = FindWindowRow(rowIndex);
+            if (target == null)
+            {
+                _domPendingFocus = (rowIndex, cellIndex, e, keyCombination);
+                if (!await _parent.DomVirtualModule!.EnsureRowRenderedAsync(rowIndex, DomFocusRowIndex ?? 0).ConfigureAwait(true))
+                {
+                    _domPendingFocus = null;
+                    return false;
+                }
+                return true;
+            }
+            Cell<object>? targetCell = FindNavigableCell(target, cellIndex);
+            if (targetCell == null)
+            {
+                return false;
+            }
+            await FocusCell(row: target, cell: targetCell, navigator: (0, 0), e: e, actions: Array.Empty<string>(), keyCombination: keyCombination).ConfigureAwait(true);
+            return true;
+        }
+
+        /// <summary>
+        /// Called after the DOM virtualization window rendered: focuses the row/cell a keyboard jump was waiting for.
+        /// Returns true when the focus was applied.
+        /// </summary>
+        internal async Task<bool> ApplyPendingDomFocusAsync()
+        {
+            if (_domPendingFocus == null)
+            {
+                return false;
+            }
+            var pending = _domPendingFocus.Value;
+            Row<object>? row = FindWindowRow(pending.RowIndex);
+            Cell<object>? cell = row != null ? FindNavigableCell(row, pending.CellIndex) : null;
+            if (row == null || cell == null)
+            {
+                return false;
+            }
+            _domPendingFocus = null;
+            await FocusCell(row: row, cell: cell, navigator: (0, 0), e: pending.Args, actions: Array.Empty<string>(), keyCombination: pending.KeyCombination).ConfigureAwait(true);
+            return true;
         }
 
         #endregion
@@ -2025,6 +2866,14 @@ namespace Syncfusion.Blazor.Grids.Internal
         public bool IsHeader { get; set; }
 
         public ValueTuple<Row<object>, Cell<object>> Tuple { get; set; }
+
+        /// <summary>
+        /// True when the keystroke that triggered this focus event was resolved from a
+        /// user-bound custom chord (KeyboardShortcuts Layer 1/2/3) rather than a
+        /// built-in default (Layer 4). Subscribers (e.g. Edit.CurrentFocus) use this
+        /// to bypass legacy "no modifiers" guards for default chords like F2/Insert.
+        /// </summary>
+        public bool IsCustomBinding { get; set; }
     }
 
     /// <summary>

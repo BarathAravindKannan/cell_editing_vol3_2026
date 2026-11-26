@@ -186,12 +186,12 @@
 
             @if (!isStackedCell && ((Parent.AllowSorting && column!.AllowSorting) || (Parent.AllowGrouping && Parent.GroupSettings!.ShowGroupedColumn && Parent.GroupSettings?.Columns?.Any(col => col == column?.Field) == true)))
             {
-                <div class="@($"e-sortfilterdiv e-icons {GetSortIconOrAriaValue(column!, "sortIcon")}")"></div>
+                <div aria-hidden="true" class="@($"e-sortfilterdiv e-icons {GetSortIconOrAriaValue(column!, "sortIcon")}")"></div>
             }
 
             @if (requiresFilterIcon)
             {
-                <div class="@($"e-filtermenudiv e-icons e-icon-filter {AddFilteredClass(column!)}")" title="@Localizer?.GetText(GridLocaleKeys.FilterMenuIconARIA)" role="button" e-mappinguid="@column?.Uid" @onmousedown:stopPropagation="true" @onkeydown:stopPropagation="true" @onclick:stopPropagation="true" @onclick="@(async e => await  FilterIconClicked(column!, e))"></div>
+                <div class="@($"e-filtermenudiv e-icons e-icon-filter {AddFilteredClass(column!)}")" role="button" e-mappinguid="@column?.Uid" @onmousedown:stopPropagation="true" @onkeydown:stopPropagation="true" @onclick:stopPropagation="true" @onclick="@(async e => await  FilterIconClicked(column!, e))"></div>
             }
 
             @if (requiresColumnMenuIcon)

@@ -148,7 +148,8 @@ namespace Syncfusion.Blazor.Grids.Internal
                 ForeignKeyData = new Dictionary<string, IEnumerable<object>>()
             };
             Parent.ForeignKeyModule!.RefreshForeignKeyRow(row, item);
-            row.IsSelected = EnsureSelectionState(row);
+            row.IsSelectable = Parent.SelectionModule == null || Parent.SelectionModule.IsRowSelectable(item);
+            row.IsSelected = row.IsSelectable && EnsureSelectionState(row);
             List<Cell<object>>? cells = Parent.Rows?.FirstOrDefault(x => x.Data == item)?.Cells;
             row.Cells = GenerateCells(row, cells!);
             if (Parent.EnableVirtualization && Parent.VirtualScrollModule != null)
@@ -271,6 +272,10 @@ namespace Syncfusion.Blazor.Grids.Internal
                     }
                 }
             }
+            if (Parent.EnableDomVirtualization && row?.IsDataRow == true && !row.IsDetailRow && row.Index is int domRowIndex)
+            {
+                return Parent.DomVirtualModule?.IsRowSelected(domRowIndex) == true;
+            }
             if(row != null && Parent.EnableVirtualization && Parent.VirtualScrollModule!.CurrentGroupedData != null && Parent.VirtualScrollModule!.CurrentGroupedData.Count > 0)
             {
                 return row.IsSelected;
@@ -292,6 +297,10 @@ namespace Syncfusion.Blazor.Grids.Internal
 
         private bool EnsureCellIsSelected(Row<object> row, int? cellIndex)
         {
+            if (Parent.EnableDomVirtualization && row?.IsDataRow == true && !row.IsDetailRow && row.Index is int domRowIndex)
+            {
+                return Parent.DomVirtualModule?.IsCellSelected(domRowIndex, cellIndex) == true;
+            }
             if (Parent.EnableVirtualization && row?.Index >= Parent.VirtualScrollModule?.ShiftSelectionRowIndexes.Item1 && row?.Index <= Parent.VirtualScrollModule.ShiftSelectionRowIndexes.Item2
                 && Parent.VirtualScrollModule.RequestType != null && Parent.VirtualScrollModule.RequestType.Equals("virtualscroll", System.StringComparison.Ordinal)
                 && (Parent.SelectionModule != null && Parent.SelectionModule.IsCellMode()))

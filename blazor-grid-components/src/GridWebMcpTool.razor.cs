@@ -59,9 +59,9 @@ namespace Syncfusion.Blazor.Grids
     /// </SfGrid>
     ///
     /// @code {
-    ///     private Task HandleToolExecute(WebMcpToolExecuteEventArgs args)
+    ///     private Task HandleToolExecute(GridWebMcpExecuteEventArgs args)
     ///     {
-    ///         if (args.ToolName == "getTopCustomers")
+    ///         if (args.Name == "getTopCustomers")
     ///         {
     ///             args.Result = new
     ///             {
@@ -129,7 +129,7 @@ namespace Syncfusion.Blazor.Grids
         /// Custom tool execution is not handled automatically by the grid. Applications
         /// must process tool invocations through the
         /// <see cref="GridEvents{TValue}.OnWebMcpExecute"/> event and provide a result
-        /// by setting <see cref="WebMcpToolExecuteEventArgs.Result"/>. A custom tool
+        /// by setting <see cref="GridWebMcpExecuteEventArgs.Result"/>. A custom tool
         /// cannot be configured unless this event has an assigned handler.
         /// </para>
         /// <para>
@@ -165,7 +165,7 @@ namespace Syncfusion.Blazor.Grids
         /// </para>
         /// <para>
         /// During tool execution, the configured tool name is available through
-        /// <see cref="WebMcpToolExecuteEventArgs.ToolName"/>, allowing applications
+        /// <see cref="GridWebMcpExecuteEventArgs.Name"/>, allowing applications
         /// to identify the invoked tool and provide an appropriate result.
         /// </para>
         /// <para>
@@ -254,6 +254,8 @@ namespace Syncfusion.Blazor.Grids
         /// </remarks>
         [Parameter]
         public bool Enabled { get; set; } = true;
+
+
 
         #endregion
 

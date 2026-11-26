@@ -4,15 +4,16 @@
     <SignAssembly>true</SignAssembly>
     <Nullable>enable</Nullable>
 	  <AssemblyOriginatorKeyFile>..\sf.snk</AssemblyOriginatorKeyFile>
-    <TargetFrameworks>net8.0;net9.0;net10.0;</TargetFrameworks>
+    <TargetFrameworks>net8.0;net9.0;net10.0;net11.0</TargetFrameworks>
     <IsPackable>true</IsPackable>
     <BlazorLinkOnBuild>false</BlazorLinkOnBuild>
     <LangVersion Condition="'$(TargetFramework)'=='net8.0'">12</LangVersion>
     <LangVersion Condition="'$(TargetFramework)'=='net9.0'">13</LangVersion>
     <LangVersion Condition="'$(TargetFramework)'=='net10.0'">14</LangVersion>
+    <LangVersion Condition="'$(TargetFramework)'=='net11.0'">15</LangVersion>
     <AddRazorSupportForMvc>true</AddRazorSupportForMvc>
-    <Version>35.1.37</Version>
-    <FileVersion>35.1.37</FileVersion>
+    <Version>100.2.1</Version>
+    <FileVersion>100.2.1</FileVersion>
     <PackageId>Syncfusion.Blazor.Grid</PackageId>
     <Title>Syncfusion Blazor Grid Component</Title>
     <Company>Syncfusion Inc.</Company>
@@ -49,18 +50,19 @@
   </ItemGroup>
 
   <ItemGroup>
-      <PackageReference Include="Syncfusion.Blazor.Core" Version="35.1.37" />
-      <PackageReference Include="Syncfusion.Blazor.Buttons" Version="35.1.37" />
-      <PackageReference Include="Syncfusion.Blazor.Calendars" Version="35.1.37" />
-      <PackageReference Include="Syncfusion.Blazor.Data" Version="35.1.37" />
-      <PackageReference Include="Syncfusion.Blazor.DropDowns" Version="35.1.37" />
-      <PackageReference Include="Syncfusion.Blazor.Inputs" Version="35.1.37" />
-      <PackageReference Include="Syncfusion.Blazor.Navigations" Version="35.1.37" />
-      <PackageReference Include="Syncfusion.Blazor.Popups" Version="35.1.37" />
-      <PackageReference Include="Syncfusion.Blazor.Spinner" Version="35.1.37" />
-      <PackageReference Include="Syncfusion.PdfExport.Net.Core" Version="35.1.37" />
-      <PackageReference Include="Syncfusion.ExcelExport.Net.Core" Version="35.1.37" />
-      <PackageReference Include="Syncfusion.Telemetry" Version="35.1.37" />
+      <PackageReference Include="Syncfusion.Blazor.Core" Version="35.2.13" />
+      <PackageReference Include="Syncfusion.Blazor.Buttons" Version="35.2.13" />
+      <PackageReference Include="Syncfusion.Blazor.Calendars" Version="35.2.13" />
+      <PackageReference Include="Syncfusion.Blazor.Data" Version="35.2.13" />
+      <PackageReference Include="Syncfusion.Blazor.DropDowns" Version="35.2.13" />
+      <PackageReference Include="Syncfusion.Blazor.Inputs" Version="35.2.13" />
+      <PackageReference Include="Syncfusion.Blazor.Navigations" Version="35.2.13" />
+	  <PackageReference Include="Syncfusion.Blazor.QueryBuilder" Version="35.2.13" />
+      <PackageReference Include="Syncfusion.Blazor.Popups" Version="35.2.13" />
+      <PackageReference Include="Syncfusion.Blazor.Spinner" Version="35.2.13" />
+      <PackageReference Include="Syncfusion.PdfExport.Net.Core" Version="35.2.13" />
+      <PackageReference Include="Syncfusion.ExcelExport.Net.Core" Version="35.2.13" />
+      <PackageReference Include="Syncfusion.Telemetry" Version="35.2.13" />
   </ItemGroup>
 	<PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|AnyCPU'">
 		<DefineConstants>TRACE;DEBUG;$(SyncfusionLicensing);Release</DefineConstants>

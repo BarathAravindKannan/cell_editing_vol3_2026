@@ -1,8 +1,9 @@
-﻿using Microsoft.AspNetCore.Components;
+using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Components.Web;
 using Syncfusion.Blazor.Data;
 using Syncfusion.Blazor.Internal;
 using System;
+using System.Collections;
 using System.Collections.Generic;
 using System.Globalization;
 using System.Linq;
@@ -121,7 +122,7 @@ namespace Syncfusion.Blazor.Grids.Internal
             // Extra frozen TD if needed
             if (Parent.GroupModule != null && !Parent.GroupModule.DisableExtraFrozenTd && !hasGroupCaptionTemplate())
             {
-                if (Parent.FreezeModule!.GetFreezeLeftCount() > 0 || (Parent.FreezeModule!.GetFrozenCount() > 0 && Parent.FreezeModule!.GetFreezeRightCount() < 1))
+                if (Parent.FreezeModule!.GetFreezeLeftCount() > 0 || (Parent.FreezeModule!.GetFrozenCount() > 0 && Parent.FreezeModule!.GetFreezeRightCount() < 1) && Colspan > 0)
                 {
                     builder.OpenElement(sequence++, "td");
                     builder.AddAttribute(sequence++, "class", $"{GetClass(row, cell!, false)} {txtClass}");
@@ -219,6 +220,21 @@ namespace Syncfusion.Blazor.Grids.Internal
                 }
             }
 
+            IReadOnlyList<GroupInfo> parentGroupSnapshots = Array.Empty<GroupInfo>();
+            if (Parent.GroupSettings.CaptionTemplate != null)
+            {
+                var snapshots = new List<GroupInfo>(Row?.ParentGroupSnapshots ?? new List<GroupInfo>());
+                parentGroupSnapshots = snapshots;
+            }
+
+            IEnumerable childRecords = Array.Empty<object>();
+            IReadOnlyList<GroupInfo> childGroups = Array.Empty<GroupInfo>();
+            if (Parent.GroupSettings.CaptionTemplate != null && groupedData?.Items != null)
+            {
+                childGroups = CreateChildGroupSnapshots(groupedData.Items);
+                childRecords = GetGroupRecords(groupedData.Items);
+            }
+
             templateData = new CaptionTemplateContext()
             {
                 Field = groupedData!.Field,
@@ -226,7 +242,10 @@ namespace Syncfusion.Blazor.Grids.Internal
                 GroupGuid = groupedData!.GroupGuid,
                 Key = groupedData?.Key?.ToString()!,
                 Level = groupedData!.Level,
-                GroupAggregates = groupAggregate
+                GroupAggregates = groupAggregate,
+                ParentGroups = parentGroupSnapshots,
+                ChildRecords = childRecords,
+                ChildGroups = childGroups
             };
             column = GridUtils.GetColumnByField(groupedData.Field!, (List<GridColumn>)Parent.Columns!)!;
 
@@ -270,67 +289,65 @@ namespace Syncfusion.Blazor.Grids.Internal
                 return styleText;
             }
 
-            var indent = 0;
+            var indent = row?.Cells?.IndexOf(cell) ?? 0;
+            indent = Math.Max(indent, 0) * 30;
             var isGroupCaptionTemplate = Parent.GroupModule.IsGroupCaptionTemplate();
 
             if (hasGroupCaptionTemplate() && row?.Cells != null)
             {
-                indent = row.Cells.IndexOf(cell) * 30;
                 return $"Left: {indent}px";
             }
 
-            for (int i = 0; i < row?.Cells.Count; i++)
+            styleText = $"Left: {indent}px";
+            if (Parent!.GroupSettings!.EnableLazyLoading && Parent.IsColumnHideOrShow && !isGroupCaptionTemplate && row?.Cells != null)
             {
-                if (i > 0)
+                List<GridColumn> gridColumns = GridUtils.GetColumns(Parent);
+                List<string> originalGroupedColumns = Parent!.GroupSettings!.Columns!
+                    .Where(gcol => gridColumns.Any(e => e.Field == gcol)).ToList();
+                int groupedLen = originalGroupedColumns.Count;
+                int visibleColumnsLen = gridColumns.Where(col => col.Visible).Count();
+                int colSpan = visibleColumnsLen + groupedLen +
+                    ((((IGrid)Parent).GridTemplates != null && ((IGrid)Parent).GridTemplates.DetailTemplate != null) ? 1 : 0) -
+                    row.Indent + (visibleColumnsLen > 0 ? -1 : 0);
+                foreach (var rowCell in row.Cells)
                 {
-                    indent += 30;
-                }
-                styleText = $"Left: {indent}px";
-
-                if (Parent!.GroupSettings!.EnableLazyLoading && Parent.IsColumnHideOrShow && !isGroupCaptionTemplate)
-                {
-                    List<GridColumn> gridColumns = GridUtils.GetColumns(Parent);
-                    List<string> originalGroupedColumns = Parent!.GroupSettings!.Columns!
-                        .Where(gcol => gridColumns.Any(e => e.Field == gcol)).ToList();
-                    int groupedLen = originalGroupedColumns.Count;
-                    int visibleColumnsLen = gridColumns.Where(col => col.Visible).Count();
-                    row.Cells[i].ColSpan = visibleColumnsLen + groupedLen +
-                        ((((IGrid)Parent).GridTemplates != null && ((IGrid)Parent).GridTemplates.DetailTemplate != null) ? 1 : 0) -
-                        row.Indent + (visibleColumnsLen > 0 ? -1 : 0);
+                    rowCell.ColSpan = colSpan;
                 }
             }
+
+            List<GridColumn> columns = GridUtils.GetColumns(Parent)
+                .Where(gridColumn => gridColumn.Visible)
+                .ToList();
 
             if (Parent.FreezeModule!.GetFreezeLeftCount() > 0 || (Parent.FreezeModule!.GetFrozenCount() > 0 && Parent.FreezeModule!.GetFreezeRightCount() < 1))
             {
-                int ActualColSpan = 0;
-                int totalColumnWidth = 0;
-
                 if (cell.CellType == CellType.GroupCaption)
                 {
-                    int GridWidth = (Parent.Width == "100%" || Parent.Width == "auto")
-                        ? Parent.GroupModule.GridOffsetWidth
-                        : GridUtils.GetParsedWidth(Parent.Width);
-
-                    foreach (var column in Parent.Columns!)
-                    {
-                        int currentColumnWidth = GridUtils.GetParsedWidth(column.Width);
-                        totalColumnWidth += currentColumnWidth;
-
-                        if (currentColumnWidth != 0 && totalColumnWidth < (GridWidth - indent))
-                        {
-                            ActualColSpan++;
-                        }
-                    }
-                    cell.ColSpan = ActualColSpan;
+                    int remainingIndentColumns = Math.Max(
+                        (Parent.GroupSettings?.Columns?.Length ?? 0) - (row?.Indent ?? 0) - 1,
+                        0);
+                    int frozenLeftColumns = columns.Count(column =>
+                        column.Index < Parent.FrozenColumns ||
+                        (column.IsFrozen && column.Freeze == FreezeDirection.Left));
+                    cell.ColSpan = remainingIndentColumns + frozenLeftColumns;
+                    Colspan = columns.Count - frozenLeftColumns;
                 }
                 else
                 {
-                    cell.ColSpan = Parent.Columns!.Count / 2;
+                    cell.ColSpan = GridUtils.GetColumns(Parent).Count / 2;
+                    Colspan = Math.Max(columns.Count - (cell.ColSpan ?? 0), 0);
                 }
             }
-
-            Colspan = Parent.Columns!.Count - cell.ColSpan;
+            else
+            {
+                Colspan = Math.Max(columns.Count - (cell.ColSpan ?? 0), 0);
+            }
             return styleText;
+        }
+
+        private bool HasFrozenLeftPane()
+        {
+            return Parent!.FrozenColumns > 0 || Parent.FreezeModule!.GetFreezeLeftCount() > 0;
         }
 
         private string GetClass(Row<object> row, Cell<object> cell, bool isFirstFrozenTd = true)
@@ -340,7 +357,7 @@ namespace Syncfusion.Blazor.Grids.Internal
 
             if (isFirstFrozenTd)
             {
-                if (Parent!.FreezeModule!.GetFreezeLeftCount() > 0)
+                if (HasFrozenLeftPane())
                 {
                     classNames += " e-leftfreeze";
                 }
@@ -383,6 +400,60 @@ namespace Syncfusion.Blazor.Grids.Internal
             return Parent!.Aggregates?.Any(aggregate => aggregate.Columns != null &&
                 aggregate.Columns.Any(column => column.GroupCaptionTemplate != null)) ?? false;
         }
+
+        /// <summary>
+        /// Creates snapshots of the direct sub-groups contained in a group's items.
+        /// </summary>
+        private List<GroupInfo> CreateChildGroupSnapshots(IEnumerable items)
+        {
+            var childGroups = new List<GroupInfo>();
+            foreach (var item in items)
+            {
+                if (item is not Group<TRow> childGroup)
+                {
+                    return childGroups;
+                }
+
+                var field = childGroup.Field;
+                childGroups.Add(new GroupInfo
+                {
+                    Field = field,
+                    Key = childGroup.Key?.ToString(),
+                    Count = childGroup.CountItems,
+                    Level = childGroup.Level - 1,
+                    HeaderText = field != null ? GridUtils.GetColumnByField(field, (List<GridColumn>)Parent!.Columns!)?.HeaderText ?? field : null
+                });
+            }
+
+            return childGroups;
+        }
+
+        /// <summary>
+        /// Lazily yields the data records of a group, descending into nested sub-groups.
+        /// </summary>
+        private static IEnumerable<object> GetGroupRecords(IEnumerable items)
+        {
+            foreach (var item in items)
+            {
+                if (item is Group<TRow> childGroup)
+                {
+                    if (childGroup.Items == null)
+                    {
+                        continue;
+                    }
+
+                    foreach (var record in GetGroupRecords(childGroup.Items))
+                    {
+                        yield return record;
+                    }
+                }
+                else if (item != null)
+                {
+                    yield return item;
+                }
+            }
+        }
+
         #endregion
     }
 }

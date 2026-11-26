@@ -601,6 +601,10 @@
         await this.Parent.HideColumnsOperation(hColumns?.ToArray()!, "HeaderText", true);
         List<GridColumn> refCols = Parent.Columns!;
         await Parent.InvokeViewRefresh(refCols);
+        if (Parent.AllowResizing && Parent.ResizeMode == ResizeMode.Auto)
+        {
+            await Parent.InvokeMethod("sfBlazor.Grid.updateTableWidth", new object[] { Parent.DataId, Parent.Columns! }).ConfigureAwait(true);
+        }
         InputValue = null!;
 
         if (Parent.GridEvents?.OnActionComplete.HasDelegate == true || Parent.GridEvents?.ColumnVisibilityChanged.HasDelegate == true || Parent.IsRenderedFromTreeGrid)

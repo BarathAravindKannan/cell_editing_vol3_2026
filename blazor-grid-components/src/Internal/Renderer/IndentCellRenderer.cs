@@ -1,4 +1,4 @@
-﻿using Microsoft.AspNetCore.Components;
+using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Components.Rendering;
 using Microsoft.AspNetCore.Components.Web;
 using Syncfusion.Blazor.Internal;
@@ -60,7 +60,7 @@ namespace Syncfusion.Blazor.Grids.Internal
             var cellClassName = BaseClassName(cell, row);
             string classNames = cellClassName.Replace(" e-freezeleftborder", string.Empty, StringComparison.Ordinal).Trim();
 
-            if (Parent!.FreezeModule!.GetFreezeLeftCount() > 0)
+            if (HasFrozenLeftPane())
             {
                 return string.Concat(classNames, " e-leftfreeze");
             }

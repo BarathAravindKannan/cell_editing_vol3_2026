@@ -1,4 +1,4 @@
-﻿@namespace Syncfusion.Blazor.Grids.Internal
+@namespace Syncfusion.Blazor.Grids.Internal
 @using Syncfusion.Blazor.Navigations
 @using Syncfusion.Blazor.Inputs
 @using Syncfusion.Blazor.Buttons
@@ -8,8 +8,8 @@
 @if (RenderToolbar &&  Parent != null && Parent.Toolbar != null && (!Parent.EnableAdaptiveUI || (Parent.EnableAdaptiveUI && Parent.AdaptiveUIMode.Equals(AdaptiveMode.Desktop) && Parent.SyncfusionService.IsDeviceMode) ||(Parent.EnableAdaptiveUI && Parent.AdaptiveUIMode.Equals(AdaptiveMode.Mobile) && !Parent.SyncfusionService.IsDeviceMode)))
 {
     var items = ((IEnumerable<Object>)Parent.Toolbar);
-    var leftItems = items.Where(item => ((item.GetType() == typeof(string) && ((String)item != "Search" && (String)item != "ColumnChooser" && (String)item != "Find")) || (item is ToolbarItem && (item as ToolbarItem)?.Align == ItemAlign.Left) || (item is ItemModel && (item as ItemModel)?.Align == ItemAlign.Left)));
-    var rightItems = items.Where(item => item.GetType() == typeof(string) && ((String)item == "Search" || (String)item == "ColumnChooser" || (String)item == "Find") || (item is ToolbarItem && (item as ToolbarItem)?.Align == ItemAlign.Right) || (item is ItemModel && (item as ItemModel)?.Align == ItemAlign.Right));
+    var leftItems = items.Where(item => ((item.GetType() == typeof(string) && ((String)item != "Search" && (String)item != "ColumnChooser" && (String)item != "Find" && (String)item != "Filter")) || (item is ToolbarItem && (item as ToolbarItem)?.Align == ItemAlign.Left) || (item is ItemModel && (item as ItemModel)?.Align == ItemAlign.Left)));
+    var rightItems = items.Where(item => item.GetType() == typeof(string) && ((String)item == "Search" || (String)item == "ColumnChooser" || (String)item == "Find" || ((String)item == "Filter" && Parent.AllowAdvancedFiltering)) || (item is ToolbarItem && (item as ToolbarItem)?.Align == ItemAlign.Right) || (item is ItemModel && (item as ItemModel)?.Align == ItemAlign.Right));
     var centerItems = items.Where(item => item is ToolbarItem && (item as ToolbarItem)?.Align == ItemAlign.Center || (item is ItemModel && (item as ItemModel)?.Align == ItemAlign.Center));
     var toolbarItems = GetToolbarItems(leftItems, centerItems, rightItems);
     <SfToolbar ID="@($"{Parent.ID}_toolbarItems")" EnableRtl="@((Parent.EnableRtl ? true : false))">
@@ -62,10 +62,10 @@
                             <Template>
                                 <div class="e-toolbar-search" @onclick:stopPropagation="true" @onkeydown:stopPropagation="true">
                                     <span class="e-input-group e-control-wrapper @InputFocus">
-                                        <input type="search" id="@($"{Parent.ID}_ToolbarSearchBox")" class="e-control e-textbox e-lib e-searchinput e-input" value="@Parent.SearchSettings!.Key" @oninput="@((e) => InputArgs(e))" @onkeydown="((e) => KeyDownHandler(e))" @onblur="@OnBlur" @onfocus="@OnFocus" placeholder=@Localizer?.GetText(GridLocaleKeys.Search) role="searchbox">
+                                        <input type="search" id="@($"{Parent.ID}_ToolbarSearchBox")" class="e-control e-textbox e-lib e-searchinput e-input" value="@Parent.SearchSettings!.Key" @oninput="@((e) => InputArgs(e))" @onkeydown="((e) => KeyDownHandler(e))" @onblur="@OnBlur" @onfocus="@OnFocus" placeholder=@Localizer?.GetText(GridLocaleKeys.Search) aria-label="@Localizer?.GetText(GridLocaleKeys.Search)" role="searchbox">
                                         @if (Parent.SearchClearIcon.Equals("e-clear-icon") && (SearchInput != null || !string.IsNullOrEmpty(Parent.SearchSettings.Key)))
                                         {
-                                            <span class="@($"{Parent.SearchClearIcon} {focusCancelIcon}")" tabindex="0" @onfocus="@(()=>focusCancelIcon = "e-focus e-focused")" @onblur="@(()=> focusCancelIcon = string.Empty)" @onclick="@((e) => CancelIconClick(e, null!))" @onkeydown="@((e) => CancelIconClick(null!, e))" title=@Localizer?.GetText(GridLocaleKeys.Cancel)>
+                                            <span class="@($"{Parent.SearchClearIcon} {focusCancelIcon}")" tabindex="0" @onfocus="@(()=>focusCancelIcon = "e-focus e-focused")" @onblur="@(()=> focusCancelIcon = string.Empty)" @onclick="@((e) => CancelIconClick(e, null!))" @onkeydown="@((e) => CancelIconClick(null!, e))" title=@Localizer?.GetText(GridLocaleKeys.ClearSearch) aria-label=@Localizer?.GetText(GridLocaleKeys.ClearSearch) role="button">
                                             </span>
                                         }
                                         <span class="e-searchclear e-search-icon e-icons e-input-group-icon" @onclick="@((e) => SearchText(e))" title=@Localizer!.GetText(GridLocaleKeys.Search)></span>
@@ -105,7 +105,9 @@
                     else if (PreItems.Any(dItem => dItem == DefaultItem))
                     {
                         var itemLabel = Localizer?.GetText($"Grid_{localeName}") ?? localeName;
-                        <ToolbarItem @key=key Id="@($"{Parent.ID}_{itemStr}")" CssClass="" PrefixIcon="@($"e-{itemStr}")" Text="@itemLabel"
+                        var isAdvancedFilterActive = string.Equals(DefaultItem, "Filter", StringComparison.Ordinal) && Parent.AllowAdvancedFiltering && Parent.AdvancedFilterWhereFilter != null && Parent.AdvancedFilterWhereFilter.Count > 0;
+                        var prefixIcon = isAdvancedFilterActive ? $"e-{itemStr} e-filtered" : $"e-{itemStr}";
+                        <ToolbarItem @key=key Id="@($"{Parent.ID}_{itemStr}")" CssClass="" PrefixIcon="@prefixIcon" Text="@itemLabel"
                                      TooltipText="@itemLabel" OnClick="@ToolbarClickHandler" TabIndex="0"
                                      HtmlAttributes="@(new Dictionary<string, object>() { { "aria-disabled", false }, { "padding-left", "4px" } })">
                         </ToolbarItem>
@@ -249,7 +251,7 @@ else if (RenderToolbar && Parent != null && Parent.Toolbar != null && ((Parent.E
                           
                             @if ((Parent.RowRenderingMode.Equals(RowDirection.Vertical) && !isItemRendered))
                             {
-                                if(Parent.AllowFiltering)
+                                if(Parent.AllowFiltering && !Parent.AllowAdvancedFiltering)
                                 {
                                    <ToolbarItem Id="@($"{Parent.ID}_filter")" Visible="@(!IsSearchClicked && Parent.FindHightLightModule?.IsFindClickedInAdaptive == false)" TabIndex="0" CssClass="e-gridresponsiveicons e-icons e-tbtn-align" Text="@(Localizer?.GetText(GridLocaleKeys.FilterButton))" Type="ItemType.Input" OnClick="@ToolbarClickHandler">
                                     <Template>
@@ -337,6 +339,16 @@ else if (RenderToolbar && Parent != null && Parent.Toolbar != null && ((Parent.E
                                                  HtmlAttributes="@(new Dictionary<string, object>() { { "aria-disabled", false }, { "padding-left", "4px" } })">
                                     </ToolbarItem>
                                 }
+                                else if (Parent.AllowAdvancedFiltering && DefaultItem.Equals("Filter", StringComparison.Ordinal))
+                                {
+                                    var itemLabel = Localizer?.GetText($"Grid_{localeName}") ?? localeName;
+                                    var isAdvancedFilterActive = Parent.AdvancedFilterWhereFilter != null && Parent.AdvancedFilterWhereFilter.Count > 0;
+                                    var prefixIcon = isAdvancedFilterActive ? $"e-{itemStr} e-filtered" : $"e-{itemStr}";
+                                    <ToolbarItem @key=key Id="@($"{Parent.ID}_{itemStr}")" Visible="@((!IsSearchClicked && Parent.FindHightLightModule?.IsFindClickedInAdaptive == false) || Parent.RowRenderingMode.Equals(RowDirection.Horizontal))" CssClass="e-icons e-tbtn-align" PrefixIcon="@prefixIcon" Text="@itemLabel"
+                                                 TooltipText="@itemLabel" OnClick="@ToolbarClickHandler" TabIndex="0"
+                                                 HtmlAttributes="@(new Dictionary<string, object>() { { "aria-disabled", false }, { "padding-left", "4px" } })">
+                                    </ToolbarItem>
+                                }
 
                             }
                             @if (DefaultItem == "SpacerCenter" || DefaultItem == "SpacerRight")
@@ -381,7 +393,7 @@ else if (RenderToolbar && Parent != null && Parent.Toolbar != null && ((Parent.E
                                     <Template>
                                     <div  @onclick:stopPropagation="true" @onkeydown:stopPropagation="true">
                                             <span class="e-input-group e-control-wrapper  @InputFocus">
-                                                <input type="text" id="@($"{Parent.ID}_ToolbarSearchBox")" class="e-control e-textbox e-lib e-searchinput e-input" value="@Parent.SearchSettings!.Key" @oninput="@((e) => InputArgs(e))" @onkeydown="((e) => KeyDownHandler(e))" @onblur="@OnBlur" @onfocus="@OnFocus" placeholder=@Localizer!.GetText(GridLocaleKeys.Search)>
+                                                <input type="text" id="@($"{Parent.ID}_ToolbarSearchBox")" class="e-control e-textbox e-lib e-searchinput e-input" value="@Parent.SearchSettings!.Key" @oninput="@((e) => InputArgs(e))" @onkeydown="((e) => KeyDownHandler(e))" @onblur="@OnBlur" @onfocus="@OnFocus" placeholder=@Localizer!.GetText(GridLocaleKeys.Search)  aria-label="@Localizer!.GetText(GridLocaleKeys.Search)">
                                                 @if (Parent.SearchClearIcon.Equals("e-clear-icon") && (!string.IsNullOrEmpty(SearchInput) || !string.IsNullOrEmpty(Parent.SearchSettings.Key)))
                                                 {
                                                     showClearIcon = "visibility: visible";
@@ -390,7 +402,7 @@ else if (RenderToolbar && Parent != null && Parent.Toolbar != null && ((Parent.E
                                                 {
                                                     showClearIcon = "visibility: hidden";
                                                 }
-                                                <span class="@($"{"e-clear-icon"} {focusCancelIcon}")" data-sf-style="@showClearIcon" tabindex="0" @onfocus="@(()=> focusCancelIcon = "e-focus e-focused")" @onblur="@(()=> focusCancelIcon = string.Empty)" @onclick="@((e) => CancelIconClick(e, null!))" @onkeydown="@((e) => CancelIconClick(null!, e))" title=@Localizer.GetText(GridLocaleKeys.Cancel)></span>
+                                                <span class="@($"{"e-clear-icon"} {focusCancelIcon}")" data-sf-style="@showClearIcon" tabindex="0" @onfocus="@(()=> focusCancelIcon = "e-focus e-focused")" @onblur="@(()=> focusCancelIcon = string.Empty)" @onclick="@((e) => CancelIconClick(e, null!))" @onkeydown="@((e) => CancelIconClick(null!, e))" title=@Localizer.GetText(GridLocaleKeys.ClearSearch) aria-label=@Localizer.GetText(GridLocaleKeys.ClearSearch) role="button"></span>
                                                 <span class="e-searchclear e-search-icon e-icons e-input-group-icon" @onclick="@((e) => SearchText(e))" title=@Localizer.GetText(GridLocaleKeys.Search)></span>
                                             </span>
                                         </div>
@@ -419,7 +431,7 @@ else if (RenderToolbar && Parent != null && Parent.Toolbar != null && ((Parent.E
                     {
                         if ((Parent.RowRenderingMode.Equals(RowDirection.Vertical)) && !isItemRendered)
 			            {
-			                @if (Parent.AllowFiltering)
+			                @if (Parent.AllowFiltering && !Parent.AllowAdvancedFiltering)
 			                {
 			                    <ToolbarItem Id="@($"{Parent.ID}_filter")" Visible="@(!IsSearchClicked)" TabIndex="0" CssClass="e-gridresponsiveicons e-icons e-tbtn-align" Text="@(Localizer?.GetText(GridLocaleKeys.FilterButton))" Type="ItemType.Input" OnClick="@ToolbarClickHandler">
 			                        <Template>
@@ -566,7 +578,7 @@ else if (RenderToolbar && Parent != null && (Parent.AllowFiltering || Parent.All
     private string focusCancelIcon = string.Empty;
 
     private List<string> PreItems = new List<string>() { "Add", "Edit", "Update", "Delete", "Cancel", "Print",
-        "PdfExport", "ExcelExport", "WordExport", "CsvExport", "Undo", "Redo" };
+        "PdfExport", "ExcelExport", "WordExport", "CsvExport", "Undo", "Redo", "Filter" };
 
     private bool IsSearchClicked { get; set; }
 
@@ -814,6 +826,13 @@ else if (RenderToolbar && Parent != null && (Parent.AllowFiltering || Parent.All
 
         if (args.Item.Id.Equals($"{Parent.ID}_filter"))
         {
+            if (Parent.AllowAdvancedFiltering)
+            {
+                await Parent.OpenAdvancedFilterDialogAsync();
+                Parent.IsToolbarInteraction = false;
+                return;
+            }
+
             if(this.Parent .FilterModule != null)
             this.Parent.FilterModule.IsAdaptiveFilter = true;
             Parent.EventAggregator?.Trigger("FilterComponentUpdate", null!);
@@ -851,12 +870,12 @@ else if (RenderToolbar && Parent != null && (Parent.AllowFiltering || Parent.All
 
     private IEnumerable<Object> GetLeftToolbarItems(IEnumerable<object> items){
 
-        return items.Where(item => ((item.GetType() == typeof(string) && ((String)item != "Search" && (String)item != "Find" && (String)item != "ColumnChooser")) || (item is ToolbarItem && (item as ToolbarItem)?.Align == ItemAlign.Left) || (item is ItemModel && (item as ItemModel)?.Align == ItemAlign.Left) || (item.GetType() == typeof(string) && !RightToolbarMenu() && (Parent!.RowRenderingMode.Equals(RowDirection.Vertical) || (Parent.RowRenderingMode.Equals(RowDirection.Horizontal) && Parent.AdaptiveUIMode == AdaptiveMode.Mobile)) && ((Parent.AllowPdfExport && item.ToString()!.Equals("PdfExport", StringComparison.Ordinal)) || (Parent.AllowExcelExport && item.ToString()!.Equals("ExcelExport", StringComparison.Ordinal))))));
+        return items.Where(item => ((item.GetType() == typeof(string) && ((String)item != "Search" && (String)item != "Find" && (String)item != "ColumnChooser" && !(Parent!.AllowAdvancedFiltering && (String)item == "Filter"))) || (item is ToolbarItem && (item as ToolbarItem)?.Align == ItemAlign.Left) || (item is ItemModel && (item as ItemModel)?.Align == ItemAlign.Left) || (item.GetType() == typeof(string) && !RightToolbarMenu() && (Parent!.RowRenderingMode.Equals(RowDirection.Vertical) || (Parent.RowRenderingMode.Equals(RowDirection.Horizontal) && Parent.AdaptiveUIMode == AdaptiveMode.Mobile)) && ((Parent.AllowPdfExport && item.ToString()!.Equals("PdfExport", StringComparison.Ordinal)) || (Parent.AllowExcelExport && item.ToString()!.Equals("ExcelExport", StringComparison.Ordinal))))));
     }
 
     private IEnumerable<Object> GetRightToolbarItems(IEnumerable<object> items)
     {
-        return items.Where(item => item.GetType() == typeof(string) && ((String)item == "Search" || (String)item == "ColumnChooser" || (String)item == "Find") || (item is ToolbarItem && (item as ToolbarItem)?.Align == ItemAlign.Right) || (item is ItemModel && (item as ItemModel)?.Align == ItemAlign.Right) || (item.GetType() == typeof(string) && RightToolbarMenu() && (Parent!.RowRenderingMode.Equals(RowDirection.Vertical) || (Parent.RowRenderingMode.Equals(RowDirection.Horizontal) && Parent.AdaptiveUIMode == AdaptiveMode.Mobile)) && ((Parent.ShowColumnChooser && item.ToString()!.Equals("ColumnChooser", StringComparison.Ordinal)) || (Parent.AllowPdfExport && item.ToString()!.Equals("PdfExport", StringComparison.Ordinal)) || (Parent.AllowExcelExport && item.ToString()!.Equals("ExcelExport", StringComparison.Ordinal)))));
+        return items.Where(item => item.GetType() == typeof(string) && ((String)item == "Search" || (String)item == "ColumnChooser" || (String)item == "Find" || (Parent!.AllowAdvancedFiltering && (String)item == "Filter")) || (item is ToolbarItem && (item as ToolbarItem)?.Align == ItemAlign.Right) || (item is ItemModel && (item as ItemModel)?.Align == ItemAlign.Right) || (item.GetType() == typeof(string) && RightToolbarMenu() && (Parent!.RowRenderingMode.Equals(RowDirection.Vertical) || (Parent.RowRenderingMode.Equals(RowDirection.Horizontal) && Parent.AdaptiveUIMode == AdaptiveMode.Mobile)) && ((Parent.ShowColumnChooser && item.ToString()!.Equals("ColumnChooser", StringComparison.Ordinal)) || (Parent.AllowPdfExport && item.ToString()!.Equals("PdfExport", StringComparison.Ordinal)) || (Parent.AllowExcelExport && item.ToString()!.Equals("ExcelExport", StringComparison.Ordinal)))));
     }
 
     private IEnumerable<object> GetToolbarItems(IEnumerable<object> leftItems, IEnumerable<object> centerItems, IEnumerable<object> rightItems)

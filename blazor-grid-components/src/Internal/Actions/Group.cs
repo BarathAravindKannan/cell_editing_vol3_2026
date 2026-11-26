@@ -155,6 +155,66 @@ namespace Syncfusion.Blazor.Grids.Internal
 
         #endregion
 
+        #region DOM Virtualization
+
+        /// <summary>
+        /// True when DOM virtualization renders the grouped rows; group state then lives in <see cref="DomVirtualHandler{T}"/>.
+        /// </summary>
+        private bool IsDomVirtualGrouping => Parent.EnableDomVirtualization && Parent.DomVirtualModule != null && Parent.DomVirtualModule.IsGroupMode;
+
+        /// <summary>
+        /// Lazy-load request for the children of one group, used by DOM virtualization. Filters by the keys of the group path and groups by the
+        /// remaining grouped columns, through the same query pipeline (filter, search, aggregate, sort) as the regular lazy expand.
+        /// </summary>
+        internal async Task<IEnumerable> FetchLazyGroupChildrenAsync(Group<T> group, IReadOnlyList<Group<T>> path)
+        {
+            Query query = CreateLazyExpandQuery();
+            List<WhereFilter> predicates = new List<WhereFilter>();
+            foreach (Group<T> level in path)
+            {
+                object? sample = (level.GroupedData as IEnumerable)?.Cast<object>().FirstOrDefault();
+                object? value = sample != null && level.Field != null ? Parent.PropHelper?.GetObject(level.Field, sample) : level.Key;
+                predicates.Add(new WhereFilter() { Field = level.Field, value = value, Operator = "equal" });
+            }
+            if (predicates.Count > 0)
+            {
+                query.Where(WhereFilter.And(predicates));
+            }
+            BuildLazyExpandGroupQuery(query, group);
+            query.Queries.LazyLoad = true;
+            return await ExecuteLazyQueryAsync(query).ConfigureAwait(true);
+        }
+
+        /// <summary>
+        /// Base query of a lazy group expand: the grid's filter, search, aggregate and sort state.
+        /// </summary>
+        private Query CreateLazyExpandQuery()
+        {
+            var query = new Query();
+            var dataModule = Parent.DataModule;
+            dataModule?.FilterQuery(query);
+            dataModule?.SearchQuery(query);
+            dataModule?.AggregateQuery(query);
+            dataModule?.SortQuery(query);
+            return query;
+        }
+
+        /// <summary>
+        /// Runs a lazy expand query: OnDataLoad when subscribed (event-driven data), otherwise the DataManager.
+        /// </summary>
+        private async Task<IEnumerable> ExecuteLazyQueryAsync(Query query)
+        {
+            if (Parent.GridEvents?.OnDataLoad.HasDelegate == true)
+            {
+                var eventArgs = await EventDrivenDataHandler<T>.InvokeDataRequestAsync(query).ConfigureAwait(true);
+                await Parent.GridEvents.OnDataLoad.InvokeAsync(eventArgs).ConfigureAwait(true);
+                return eventArgs?.Result ?? Enumerable.Empty<object>();
+            }
+            return (IEnumerable)await Parent.DataManager!.ExecuteQuery<T>(query).ConfigureAwait(true) ?? Enumerable.Empty<object>();
+        }
+
+        #endregion
+
         #region UI Helper Methods
 
         /// <summary>
@@ -325,6 +385,16 @@ namespace Syncfusion.Blazor.Grids.Internal
         /// <returns>A task representing the asynchronous operation.</returns>
         internal async Task ExpandCollapse(Row<object> Row)
         {
+            if (IsDomVirtualGrouping)
+            {
+                if (Parent.EditSettings?.Mode.Equals(EditMode.Normal) == true && Parent.IsEdit)
+                {
+                    await Parent.EditModule!.CloseEdit().ConfigureAwait(true);
+                }
+                IsGroupExpandAndCollapse = true;
+                await Parent.DomVirtualModule!.ToggleGroupAsync(Row).ConfigureAwait(true);
+                return;
+            }
             // Safe: Check VirtualScrollModule null before accessing its properties
             bool isCurrentGroupedDataNotEmpty = Parent.VirtualScrollModule?.CurrentGroupedData?.Count > 0;
             if (isCurrentGroupedDataNotEmpty)
@@ -418,27 +488,11 @@ namespace Syncfusion.Blazor.Grids.Internal
                 {
                     IsLazyExpand = true;
                 }
-                var query = new Query();
-                var dataModule = Parent.DataModule;
-                dataModule?.FilterQuery(query);
-                dataModule?.SearchQuery(query);
-                dataModule?.AggregateQuery(query);
-                dataModule?.SortQuery(query);
+                var query = CreateLazyExpandQuery();
                 BuildLazyExpandFilterQuery(query, index, Rows!, Row);
-                BuildLazyExpandGroupQuery(query, Row);
+                BuildLazyExpandGroupQuery(query, (Row.Data as Group<T>)!);
                 query.Queries.LazyLoad = true;
-                // Event-driven data source: invoke OnLoadData when subscribed, otherwise fall back to DataManager.
-                IEnumerable data;
-                if (Parent.GridEvents?.OnDataLoad.HasDelegate == true)
-                {
-                    var eventArgs = await EventDrivenDataHandler<T>.InvokeDataRequestAsync(query).ConfigureAwait(true);
-                    await Parent.GridEvents.OnDataLoad.InvokeAsync(eventArgs).ConfigureAwait(true);
-                    data = eventArgs?.Result ?? Enumerable.Empty<object>();
-                }
-                else
-                {
-                    data = (IEnumerable)await Parent.DataManager!.ExecuteQuery<T>(query).ConfigureAwait(true) ?? Enumerable.Empty<object>(); ;
-                }
+                IEnumerable data = await ExecuteLazyQueryAsync(query).ConfigureAwait(true);
                 (Row.Data as Group<T>)!.Items = (System.Collections.IEnumerable)data;
 
                 if (Parent.EnableVirtualization || Parent.AllowPaging)
@@ -551,7 +605,27 @@ namespace Syncfusion.Blazor.Grids.Internal
             foreach (Group<T> obj in dataValues!)
             {
                 i++;
-                var ExpandRow = new GroupModelGenerator<T>(Parent).GenerateCaptionRow((Group<T>)obj, Row.Indent + 1, 0, 0, 0, Row.Uid!);
+                // Build ancestor snapshots: parent row's ancestors + parent row itself
+                var ancestorSnapshots = new List<GroupInfo>();
+                if (Row.ParentGroupSnapshots != null)
+                {
+                    ancestorSnapshots.AddRange(Row.ParentGroupSnapshots);
+                }
+                if (Row.Data is Group<T> parentGroup)
+                {
+                    var parentField = parentGroup.Field;
+                    var parentSnapshot = new GroupInfo
+                    {
+                        Field = parentField,
+                        Key = parentGroup.Key?.ToString(),
+                        Count = parentGroup.CountItems,
+                        Level = Row.Indent,
+                        HeaderText = parentField != null ? GridUtils.GetColumnByField(parentField, (List<GridColumn>)Parent.Columns!)?.HeaderText ?? parentField : null
+                    };
+                    ancestorSnapshots.Add(parentSnapshot);
+                }
+                
+                var ExpandRow = new GroupModelGenerator<T>(Parent).GenerateCaptionRow((Group<T>)obj, Row.Indent + 1, 0, 0, 0, Row.Uid!, null, null, null, ancestorSnapshots);
                 LazyRows.Insert(i, (Row<object>)ExpandRow);
                 groupCount++;
             }
@@ -996,10 +1070,10 @@ namespace Syncfusion.Blazor.Grids.Internal
         /// Used exclusively during lazy expand to determine which columns to group by at current level.
         /// </summary>
         /// <param name="query">The Query object to add GROUP BY clause to.</param>
-        /// <param name="Row">The group caption row being expanded, used to determine the grouping level.</param>
-        private void BuildLazyExpandGroupQuery(Query query, Row<object> Row)
+        /// <param name="group">The group being expanded, used to determine the grouping level.</param>
+        private void BuildLazyExpandGroupQuery(Query query, Group<T> group)
         {
-            var level = Parent.GroupSettings!.Columns!.IndexOf((Row.Data as Group<T>)?.Field) + 1;
+            var level = Parent.GroupSettings!.Columns!.IndexOf(group?.Field) + 1;
             if (Parent.GroupSettings.Columns?.Length > 0 && Parent.GroupSettings.Columns.Length != level)
             {
                 var gCols = new List<string>();
@@ -1067,51 +1141,88 @@ namespace Syncfusion.Blazor.Grids.Internal
             }
 
             CellType _type = focus.Cell.CellType;
-            string keyAction = focus.KeyCombination!;
-            switch (keyAction)
+            string? keyAction = focus.KeyCombination;
+            GridKeyboardAction? action = null;
+            bool actionWasSuppressed = false;
+            ResolveResult resolved = GridKeyResolver.ResolveForKeystroke(
+                Parent.CompiledKeyboardShortcuts,
+                focus.KeyArgs != null ? focus.KeyArgs.GetNormalizedKey(Parent.IsMacDevice ?? false) : default,
+                keyAction,
+                GridKeyboardZone.GroupRow);
+            action = resolved.Action;
+            actionWasSuppressed = resolved.Consumed && !resolved.Action.HasValue;
+            if (!action.HasValue && !actionWasSuppressed &&
+                Enum.TryParse(focus.Action, true, out GridKeyboardAction legacyAction))
             {
-                case "Enter":
-                    if (_type.Equals(CellType.Expand) || _type.Equals(CellType.GroupCaption) ||
-                        _type.Equals(CellType.CaptionSummary) || _type.Equals(CellType.GroupCaptionEmpty))
-                    {
-                        focus.Cancel = true;
-                        await ExpandCollapse(focus?.Row!).ConfigureAwait(true);
-                    }
-                    break;
-                case "CtrlDown":
-                    await Parent.ExpandAllGroupAsync().ConfigureAwait(true);
-                    break;
-                case "CtrlUp":
-                    await Parent.CollapseAllGroupAsync().ConfigureAwait(true);
-                    break;
-                case "AltUp":
-                case "AltDown":
-                    Row<object> row = focus?.Row!;
-                    if (row?.RowType != null && row.RowType.Equals("GroupCaption", StringComparison.Ordinal))
-                    {
-                        if ((keyAction.Equals("AltUp", StringComparison.Ordinal) && row.IsExpand) || (keyAction.Equals("AltDown", StringComparison.Ordinal) && !row.IsExpand))
+                action = legacyAction;
+            }
+
+            if (actionWasSuppressed)
+            {
+                return;
+            }
+
+            if (action == GridKeyboardAction.ExpandAllGroup)
+            {
+                await Parent.ExpandAllGroupAsync().ConfigureAwait(true);
+            }
+            else if (action == GridKeyboardAction.CollapseAllGroup)
+            {
+                await Parent.CollapseAllGroupAsync().ConfigureAwait(true);
+            }
+            else if (action == GridKeyboardAction.ExpandGroup || action == GridKeyboardAction.CollapseGroup)
+            {
+                Row<object> row = focus.Row!;
+                if (row.RowType == "GroupCaption" &&
+                    ((action == GridKeyboardAction.ExpandGroup && !row.IsExpand) ||
+                    (action == GridKeyboardAction.CollapseGroup && row.IsExpand)))
+                {
+                    focus.Cancel = true;
+                    await ExpandCollapse(row).ConfigureAwait(true);
+                }
+            }
+            else
+            {
+                switch (keyAction)
+                {
+                    case "Enter":
+                        if (_type.Equals(CellType.Expand) || _type.Equals(CellType.GroupCaption) ||
+                            _type.Equals(CellType.CaptionSummary) || _type.Equals(CellType.GroupCaptionEmpty))
                         {
-                            await ExpandCollapse(row).ConfigureAwait(true);
+                            focus.Cancel = true;
+                            await ExpandCollapse(focus.Row!).ConfigureAwait(true);
                         }
-                    }
-                    else
-                    {
-                        int indx = Parent.Rows.IndexOf(row!);
-                        while (indx >= 0)
+                        break;
+                    case "AltUp":
+                    case "AltDown":
+                        Row<object> row = focus.Row!;
+                        if (row.RowType == "GroupCaption")
                         {
-                            Row<object>? _r = Parent.Rows?[indx];
-                            if (_r != null && _r.RowType != null && _r.RowType.Equals("GroupCaption", StringComparison.Ordinal) && ((keyAction.Equals("AltUp", StringComparison.Ordinal) && _r.IsExpand) || (keyAction.Equals("AltDown", StringComparison.Ordinal) && !_r.IsExpand)))
+                            if ((keyAction == "AltUp" && row.IsExpand) || (keyAction == "AltDown" && !row.IsExpand))
                             {
-                                await ExpandCollapse(_r).ConfigureAwait(true);
-                                break;
+                                await ExpandCollapse(row).ConfigureAwait(true);
                             }
-                            indx--;
                         }
-                    }
-                    break;
-                case "CtrlSpace":
-                    // TODO header grouping/ungrouping
-                    break;
+                        else
+                        {
+                            int index = Parent.Rows.IndexOf(row);
+                            while (index >= 0)
+                            {
+                                Row<object>? groupRow = Parent.Rows?[index];
+                                if (groupRow?.RowType == "GroupCaption" &&
+                                    ((keyAction == "AltUp" && groupRow.IsExpand) || (keyAction == "AltDown" && !groupRow.IsExpand)))
+                                {
+                                    await ExpandCollapse(groupRow).ConfigureAwait(true);
+                                    break;
+                                }
+                                index--;
+                            }
+                        }
+                        break;
+                    case "CtrlSpace":
+                        // TODO header grouping/ungrouping
+                        break;
+                }
             }
         }
 
@@ -1172,6 +1283,11 @@ namespace Syncfusion.Blazor.Grids.Internal
         {
             if (!Parent.AllowGrouping)
             {
+                return;
+            }
+            if (IsDomVirtualGrouping)
+            {
+                await Parent.DomVirtualModule!.ExpandCollapseAllGroupsAsync(true).ConfigureAwait(true);
                 return;
             }
             if (Parent.EnableInfiniteScrolling)
@@ -1262,6 +1378,11 @@ namespace Syncfusion.Blazor.Grids.Internal
             {
                 return;
             }
+            if (IsDomVirtualGrouping)
+            {
+                await Parent.DomVirtualModule!.ExpandCollapseAllGroupsAsync(false).ConfigureAwait(true);
+                return;
+            }
             if (Parent.EnableInfiniteScrolling)
             {
                 Parent.ForceUpdate = true;
@@ -1344,6 +1465,90 @@ namespace Syncfusion.Blazor.Grids.Internal
         #endregion
 
         #region Static Utility Methods for Group Operations
+
+        /// <summary>
+        /// Flattens one group (caption, children, footers) into <paramref name="list"/>. Shared by row virtualization
+        /// (<c>VirtualScroll.SetCurrentGroupedData</c>, every row with a visibility flag) and DOM virtualization (visible rows only).
+        /// </summary>
+        internal static void FlattenGroup(List<GroupedDataItem> list, Group<T> group, in GroupFlattenMode mode, int depth, string parentKey, string? parentUid, bool visible, ref int index)
+        {
+            string key = (group.Key?.ToString() ?? string.Empty) + parentKey;
+            bool expanded = mode.IsExpanded(key);
+            string? uid = mode.UidOf(key);
+            list.Add(new GroupedDataItem
+            {
+                Index = mode.VisibleOnly ? index : null,
+                RowIndex = list.Count,
+                Indent = depth,
+                Visible = visible,
+                Uid = uid,
+                ParentUid = parentUid,
+                IsExpand = expanded,
+                Item = group,
+                IsCaptionRow = true,
+                Key = key
+            });
+            bool childVisible = visible && expanded;
+            if (mode.VisibleOnly && !(childVisible && HasItems(group)))
+            {
+                // Collapsed or not loaded yet: skip its records so the data ordinals of the following groups stay stable.
+                index += Convert.ToInt32(group.CountItems, CultureInfo.InvariantCulture);
+                return;
+            }
+            FlattenChildren(list, group, mode, depth, key, uid, childVisible, ref index);
+        }
+
+        /// <summary>
+        /// Flattens the children and footers of one group (see <see cref="FlattenGroup"/>).
+        /// </summary>
+        internal static void FlattenChildren(List<GroupedDataItem> list, Group<T> group, in GroupFlattenMode mode, int depth, string key, string? uid, bool childVisible, ref int index)
+        {
+            foreach (object child in group.Items ?? Enumerable.Empty<object>())
+            {
+                if (child is Group<T> childGroup)
+                {
+                    FlattenGroup(list, childGroup, mode, depth + 1, key, uid, childVisible, ref index);
+                }
+                else
+                {
+                    list.Add(new GroupedDataItem
+                    {
+                        Index = index++,
+                        RowIndex = list.Count,
+                        Indent = depth + 1,
+                        Visible = childVisible,
+                        Uid = mode.UidOf(null),
+                        ParentUid = uid,
+                        IsExpand = childVisible,
+                        Item = child,
+                        Key = key
+                    });
+                }
+            }
+            if (group.Aggregates is IDictionary<string, object> aggregates && aggregates.Count > 0)
+            {
+                for (int i = 0; i < mode.FooterCount; i++)
+                {
+                    list.Add(new GroupedDataItem
+                    {
+                        // Row virtualization numbers the footer like a record (existing behaviour); DOM virtualization keeps the record ordinal.
+                        Index = mode.VisibleOnly ? index : index++,
+                        RowIndex = list.Count,
+                        Indent = depth + 1,
+                        Visible = childVisible,
+                        Uid = mode.UidOf(null),
+                        ParentUid = uid,
+                        IsExpand = childVisible,
+                        Item = mode.VisibleOnly ? group : group.Aggregates,
+                        IsFooterRow = true,
+                        Key = key,
+                        AggregateIndex = i
+                    });
+                }
+            }
+        }
+
+        internal static bool HasItems(Group<T> group) => group.Items != null && group.Items.GetEnumerator().MoveNext();
 
         /// <summary>
         /// Internal static helper for calculating unique group keys.

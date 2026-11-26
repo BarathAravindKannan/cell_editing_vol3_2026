@@ -50,7 +50,7 @@ namespace Syncfusion.Blazor.Grids.Internal
     /// <summary>
     /// Internal implementation class for a WebMCP tool definition.
     /// </summary>
-    internal class WebMcpTool : IWebMcpTool
+    internal class WebMcpTool : IGridWebMcpTool
     {
         /// <summary>
         /// Unique name of the tool (camelCase).
@@ -81,7 +81,7 @@ namespace Syncfusion.Blazor.Grids.Internal
     /// <summary>
     /// Provides the public metadata for a WebMCP tool.
     /// </summary>
-    public sealed class WebMcpToolInfo : IWebMcpTool
+    public sealed class WebMcpToolInfo : IGridWebMcpTool
     {
         /// <summary>
         /// Gets the unique name of the tool.

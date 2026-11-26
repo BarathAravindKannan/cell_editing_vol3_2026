@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
@@ -51,7 +51,12 @@ namespace Syncfusion.Blazor.Grids.Internal
             else
             {
                 RequestType = Action.CollapseAllComplete;
-                if (Parent.Rows?.Count > 0)
+                if (Parent.EnableDomVirtualization && Parent.DomVirtualModule != null)
+                {
+                    // Details are owned by the DOM virtualization state; the window is rebuilt below without them.
+                    Parent.Rows?.RemoveAll(row => row.IsDetailRow);
+                }
+                else if (Parent.Rows?.Count > 0)
                 {
                     for (var i = 0; i < Parent.Rows.Count; i++)
                     {
@@ -63,6 +68,15 @@ namespace Syncfusion.Blazor.Grids.Internal
                 }
             }
 
+            if (Parent.EnableDomVirtualization && Parent.DomVirtualModule != null)
+            {
+                // Expand all covers the rendered window (the rest of the data set is not materialized); collapse all clears every expansion.
+                if (!ExpandAll)
+                {
+                    Parent.DomVirtualModule.ResetDetailState();
+                }
+                await Parent.DomVirtualModule.RefreshWindowAsync().ConfigureAwait(true);
+            }
             Parent.SoftRefresh = true;
             await Parent.CallStateHasChangedAsync().ConfigureAwait(true);
             if (Parent.GridEvents?.OnActionComplete.HasDelegate == true)
@@ -115,6 +129,10 @@ namespace Syncfusion.Blazor.Grids.Internal
                 row.Cells = GenerateDetailCellsForRow(row, GridUtils.GetColumns(Parent)?.FindAll(_ => _.Visible).Count); // TODO: visible columns
                 DetailRowChanges(true, index, Parent.Rows!);
                 Parent.Rows?.Insert(detailRowIndex, row);
+                if (Parent.EnableDomVirtualization && index.HasValue)
+                {
+                    Parent.DomVirtualModule?.ExpandDetail(index.Value, row);
+                }
                 if (Parent.GridEvents?.DetailDataBound.HasDelegate == true)
                 {
                     await Parent.GridEvents.DetailDataBound.InvokeAsync(new DetailDataBoundEventArgs<T>() { Data = (T)Data!, Parent = Parent }).ConfigureAwait(true);
@@ -139,10 +157,22 @@ namespace Syncfusion.Blazor.Grids.Internal
                 }
                 Parent.Rows?.RemoveAt(detailRowIndex);
                 DetailRowChanges(false, index, Parent.Rows!);
+                if (Parent.EnableDomVirtualization && index.HasValue)
+                {
+                    Parent.DomVirtualModule?.CollapseDetail(index.Value);
+                }
             }
             if (!ExpandCollapseAll)
             {
-                if (Parent.EnableVirtualization)
+                if (Parent.EnableDomVirtualization)
+                {
+                    // The scroll height changed; re-render the window so the track and the following rows move.
+                    if (Parent.DomVirtualModule != null)
+                    {
+                        await Parent.DomVirtualModule.RefreshWindowAsync().ConfigureAwait(true);
+                    }
+                }
+                else if (Parent.EnableVirtualization)
                 {
                     Parent.EventAggregator.Trigger("VirtualComponentUpdate", null!);
                 }
@@ -246,44 +276,66 @@ namespace Syncfusion.Blazor.Grids.Internal
             }
 
             CellType _type = focus!.Cell.CellType;
-            string keyAction = focus.KeyCombination!;
+            string? keyAction = focus.KeyCombination;
             Row<object> row = focus.Row!;
-            switch (keyAction)
+            GridKeyboardAction? action = null;
+            ResolveResult resolved = GridKeyResolver.ResolveForKeystroke(
+                Parent.CompiledKeyboardShortcuts,
+                focus.KeyArgs != null ? focus.KeyArgs.GetNormalizedKey(Parent.IsMacDevice ?? false) : default,
+                keyAction,
+                GridKeyboardZone.DetailRow);
+            action = resolved.Action;
+            bool actionWasSuppressed = resolved.Consumed && !resolved.Action.HasValue;
+            bool isCustomBinding = resolved.Consumed && resolved.PreventDefault && resolved.Action.HasValue;
+            if (!action.HasValue && !actionWasSuppressed &&
+                Enum.TryParse(focus.Action, true, out GridKeyboardAction legacyAction))
             {
-                case "Enter":
-                    if (_type.Equals(CellType.Detail))
-                    {
-                        focus.Cancel = true;
-                        await DetailClick((int?)row.Index, row.Uid!).ConfigureAwait(true);
-                    }
+                action = legacyAction;
+            }
 
-                    break;
-                case "CtrlDown":
-                    if (!Parent.IsRenderedFromTreeGrid)
-                    {
-                        await ExpandOrCollapseAll(true).ConfigureAwait(true);
-                    }
-                    break;
-                case "CtrlUp":
-                    if (!Parent.IsRenderedFromTreeGrid)
-                    {
-                        await ExpandOrCollapseAll(false).ConfigureAwait(true);
-                    }
-                    break;
-                case "AltUp":
-                    if (row.IsExpand)
-                    {
-                        await DetailClick((int?)row.Index, row.Uid!).ConfigureAwait(true);
-                    }
+            if (actionWasSuppressed)
+            {
+                return;
+            }
 
-                    break;
-                case "AltDown":
-                    if (!row.IsExpand)
-                    {
-                        await DetailClick((int?)row.Index, row.Uid!).ConfigureAwait(true);
-                    }
+            if (keyAction == "Enter" && _type == CellType.Detail && row.IsExpand && !isCustomBinding &&
+                !Parent.CompiledKeyboardShortcuts.OverrideActions.Contains(GridKeyboardAction.CollapseDetailRow) &&
+                !Parent.CompiledKeyboardShortcuts.DisabledActions.Contains(GridKeyboardAction.CollapseDetailRow))
+            {
+                focus.Cancel = true;
+                await DetailClick((int?)row.Index, row.Uid!).ConfigureAwait(true);
+                return;
+            }
 
-                    break;
+            if (action == GridKeyboardAction.ExpandAllDetailRows || (!action.HasValue && keyAction == "CtrlDown"))
+            {
+                if (!Parent.IsRenderedFromTreeGrid)
+                {
+                    await ExpandOrCollapseAll(true).ConfigureAwait(true);
+                }
+            }
+            else if (action == GridKeyboardAction.CollapseAllDetailRows || (!action.HasValue && keyAction == "CtrlUp"))
+            {
+                if (!Parent.IsRenderedFromTreeGrid)
+                {
+                    await ExpandOrCollapseAll(false).ConfigureAwait(true);
+                }
+            }
+            else if (action == GridKeyboardAction.ExpandDetailRow || action == GridKeyboardAction.CollapseDetailRow ||
+                (!action.HasValue && (keyAction == "AltUp" || keyAction == "AltDown")))
+            {
+                bool shouldExpand = action == GridKeyboardAction.ExpandDetailRow || (!action.HasValue && keyAction == "AltDown");
+                bool shouldCollapse = action == GridKeyboardAction.CollapseDetailRow || (!action.HasValue && keyAction == "AltUp");
+                if (shouldExpand && _type == CellType.Detail && !row.IsExpand)
+                {
+                    focus.Cancel = true;
+                    await DetailClick((int?)row.Index, row.Uid!).ConfigureAwait(true);
+                }
+                else if (shouldCollapse && _type == CellType.Detail && row.IsExpand)
+                {
+                    focus.Cancel = true;
+                    await DetailClick((int?)row.Index, row.Uid!).ConfigureAwait(true);
+                }
             }
         }
 

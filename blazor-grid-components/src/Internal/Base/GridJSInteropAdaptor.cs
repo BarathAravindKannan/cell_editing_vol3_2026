@@ -163,6 +163,15 @@ namespace Syncfusion.Blazor.Grids.Internal
             GridColumn? column = columns.FirstOrDefault(x => x.Uid == action.ColumnUid);
             column ??= Parent.Columns?.FirstOrDefault(x => x.Uid == action.ColumnUid); // Stacked header resize
             column?.SetWidth(action.Width!.ToString(CultureInfo.InvariantCulture));
+            if (columnResizeStop.RedistributedColumns != null)
+            {
+                foreach (var redistributedColumn in columnResizeStop.RedistributedColumns)
+                {
+                    GridColumn? resizedColumn = columns.FirstOrDefault(x => x.Uid == redistributedColumn.ColumnUid);
+                    resizedColumn ??= Parent.Columns?.FirstOrDefault(x => x.Uid == redistributedColumn.ColumnUid);
+                    resizedColumn?.SetWidth(redistributedColumn.Width!.ToString(CultureInfo.InvariantCulture));
+                }
+            }
             if (columnResizeStop.AllowStopEvent)
             {
                 if (Parent.GridEvents?.ResizeStopped.HasDelegate == true || Parent.IsRenderedFromTreeGrid || Parent.IsRenderedFromPivotTable)
@@ -178,7 +187,7 @@ namespace Syncfusion.Blazor.Grids.Internal
                 }
 
             }
-            if (columnResizeStop.AllowStopEvent && Parent.AllowResizing && Parent.EnablePersistence)
+            if ((columnResizeStop.AllowStopEvent || columnResizeStop.PersistWidths) && Parent.AllowResizing && Parent.EnablePersistence)
             {
                 foreach (var col in Parent.Columns!)
                 {
@@ -270,6 +279,8 @@ namespace Syncfusion.Blazor.Grids.Internal
             public string TableWidth { get; set; }
             public string LeftFrozenTableWidth { get; set; }
             public string RightFrozenTableWidth { get; set; }
+            public List<ActionArgs>? RedistributedColumns { get; set; }
+            public bool PersistWidths { get; set; }
         }
         #endregion
 
@@ -677,14 +688,27 @@ namespace Syncfusion.Blazor.Grids.Internal
             Parent.EventAggregator.Trigger("MouseDown", arguments);
         }
 
+        /// <summary>
+        /// Processes a keyboard event from the grid and applies the corresponding focus behavior.
+        /// </summary>
+        /// <param name="args">Serialized keyboard event data.</param>
+        /// <param name="value">Indicates whether the event originated from a search input.</param>
+        /// <param name="isPagerFocused">Indicates whether focus is within the pager.</param>
+        /// <param name="isToolbarFocused">Indicates whether focus is within the toolbar.</param>
+        /// <param name="cellIndex">The edited cell index, if applicable.</param>
+        /// <param name="rowIndex">The row index for a focus handoff.</param>
+        /// <param name="templateCellIndex">The cell index for a template focus handoff.</param>
+        /// <param name="focusColumnTemplate">Indicates whether focus should return to a grid cell.</param>
+        /// <param name="isPopUpOpened">Indicates whether a popup is open.</param>
+        /// <param name="focusCellUid">The unique cell identifier for a command-cell focus handoff.</param>
         [JSInvokable]
-        public async ValueTask GridKeyDown(object args, bool value, bool isPagerFocused, bool isToolbarFocused, int? cellIndex, int? rowIndex = null, int? templateCellIndex = null, bool focusColumnTemplate = false, bool isPopUpOpened = false)
+        public async ValueTask GridKeyDown(object args, bool value, bool isPagerFocused, bool isToolbarFocused, int? cellIndex, int? rowIndex = null, int? templateCellIndex = null, bool focusColumnTemplate = false, bool isPopUpOpened = false, string? focusCellUid = null)
         {
             KeyboardEventArgs? action = JsonSerializer.Deserialize<KeyboardEventArgs>(args?.ToString()!, _jsonSettings);
             if (Parent.FocusModule != null)
             {
                 Parent.FocusModule.isPopUpOpened = isPopUpOpened;
-                await Parent.FocusModule.ProcessGridKeyDown(action!, null!, isPagerFocused, isToolbarFocused, cellIndex, rowIndex, templateCellIndex, focusColumnTemplate).ConfigureAwait(true);
+                await Parent.FocusModule.ProcessGridKeyDown(action!, null!, isPagerFocused, isToolbarFocused, cellIndex, rowIndex, templateCellIndex, focusColumnTemplate, focusCellUid).ConfigureAwait(true);
             }
         }
         #endregion
@@ -717,6 +741,15 @@ namespace Syncfusion.Blazor.Grids.Internal
             if (Parent.EnableDomVirtualization)
             {
                 await Parent.EventAggregator.NotifyAsync("DomVirtualScroll", scrollTop).ConfigureAwait(true);
+            }
+        }
+
+        [JSInvokable]
+        public async Task SetDomVirtualDetailHeights(string[] uids, int[] heights)
+        {
+            if (Parent.EnableDomVirtualization && Parent.DomVirtualModule != null && uids != null && heights != null)
+            {
+                await Parent.DomVirtualModule.SetDetailHeightsAsync(uids, heights).ConfigureAwait(true);
             }
         }
 

@@ -41,49 +41,148 @@ namespace Syncfusion.Blazor.Grids.Internal
             var rows = new List<Row<object>>();
             var currentGroupedDataCaptionRowMap = Parent.VirtualScrollModule?.CurrentGroupedDataCaptionRowMap;
             Parent.VirtualScrollModule!.UpdateColumnVisibility();
+            var captionRowsByUid = new Dictionary<string, (Row<object> Row, Group<T> Data)>();
             if (groupData != null)
             {
                 foreach (var item in groupData)
                 {
-                    if (Parent.GroupSettings!.Columns != null && Parent.GroupSettings.Columns.Length > 0)
-                    {
-                        if (item.Data is Group<T> groupedData)
-                        {
-                            rows.Add(new GroupModelGenerator<T>(Parent).GenerateCaptionRow(
-                                groupedData,
-                                item.Indent,
-                                rowsIndex: item.RowIndex,
-                                parentUid: item.ParentUid,
-                                uid: item.Uid!,
-                                isExpand: item.IsExpand,
-                                isVisible: item.IsVisible
-                            ));
-                        }
-                        else if (item.IsFooterRow && !string.IsNullOrEmpty(item.ParentUid) &&
-                                 currentGroupedDataCaptionRowMap != null &&
-                                 currentGroupedDataCaptionRowMap.TryGetValue(item.ParentUid, out var captionItem) &&
-                                 captionItem.Item is Group<T> parentGroup)
-                        {
-                            CheckAndGenerateFooterRows(parentGroup, rows, item.Indent, item.RowIndex, item.ParentUid, captionItem.IsExpand);
-                        }
-                        else
-                        {
-                            rows.Add(new GroupModelGenerator<T>(Parent).GenerateRow(
-                                item.Data,
-                                index: (int)item.Index!,
-                                indent: item.Indent,
-                                rowsIndex: item.RowIndex,
-                                parentUid: item.ParentUid,
-                                isVisible: item.IsVisible,
-                                isSelected: item.IsSelected,
-                                uid: item.Uid!
-                            ));
-                        }
-                    }
+                    AddGroupedDataRow(item, rows, currentGroupedDataCaptionRowMap, captionRowsByUid);
                 }
             }
 
             return rows;
+        }
+
+        /// <summary>
+        /// Generates the row(s) of one flattened grouped item: a caption, a data row, or the footer rows of its parent group.
+        /// Shared by <see cref="GroupGeneratorRows"/> and DOM virtualization. DOM virtualization passes <paramref name="footerAggregate"/>
+        /// because each of its footer items stands for exactly one aggregate (and carries the group itself as data).
+        /// </summary>
+        internal void AddGroupedDataRow(GroupedDataParams item, List<Row<object>> rows, Dictionary<string, GroupedDataItem>? captionRowMap, Dictionary<string, (Row<object> Row, Group<T> Data)>? captionRowsByUid, GridAggregate? footerAggregate = null)
+        {
+            if (Parent.GroupSettings!.Columns == null || Parent.GroupSettings.Columns.Length == 0)
+            {
+                return;
+            }
+            if (footerAggregate != null && item.IsFooterRow && item.Data is Group<T> footerGroup)
+            {
+                var footerRow = new GroupModelGenerator<T>(Parent).GenerateFooterRow(footerGroup, item.Indent, footerAggregate, parentId: 0, childId: 0, rowsIndex: item.RowIndex, parentUid: item.ParentUid);
+                footerRow.Visible = item.IsVisible;
+                rows.Add(footerRow);
+            }
+            else if (item.Data is Group<T> groupedData)
+            {
+                // Build ancestor snapshots from parent hierarchy
+                var ancestorSnapshots = BuildAncestorSnapshots(item.ParentUid, rows, captionRowsByUid, captionRowMap);
+                var captionRow = new GroupModelGenerator<T>(Parent).GenerateCaptionRow(
+                    groupedData,
+                    item.Indent,
+                    rowsIndex: item.RowIndex,
+                    parentUid: item.ParentUid,
+                    uid: item.Uid!,
+                    isExpand: item.IsExpand,
+                    isVisible: item.IsVisible,
+                    ancestorSnapshots: ancestorSnapshots
+                );
+                rows.Add(captionRow);
+                // Track this caption row for child lookup
+                captionRowsByUid[captionRow.Uid!] = (captionRow, groupedData);
+            }
+            else if (item.IsFooterRow && !string.IsNullOrEmpty(item.ParentUid) &&
+                     captionRowMap != null &&
+                     captionRowMap.TryGetValue(item.ParentUid, out var captionItem) &&
+                     captionItem.Item is Group<T> parentGroup)
+            {
+                CheckAndGenerateFooterRows(parentGroup, rows, item.Indent, item.RowIndex, item.ParentUid, captionItem.IsExpand);
+            }
+            else
+            {
+                rows.Add(new GroupModelGenerator<T>(Parent).GenerateRow(
+                    item.Data,
+                    index: (int)item.Index!,
+                    indent: item.Indent,
+                    rowsIndex: item.RowIndex,
+                    parentUid: item.ParentUid,
+                    isVisible: item.IsVisible,
+                    isSelected: item.IsSelected,
+                    uid: item.Uid!
+                ));
+            }
+        }
+
+        /// <summary>
+        /// Builds ancestor snapshots for a group by traversing up the parent hierarchy.
+        /// </summary>
+        private List<GroupInfo> BuildAncestorSnapshots(
+            string? parentUid,
+            List<Row<object>> currentRows,
+            Dictionary<string, (Row<object> Row, Group<T> Data)> captionRowsByUid,
+            Dictionary<string, GroupedDataItem>? currentGroupedDataCaptionRowMap)
+        {
+            var ancestorSnapshots = new List<GroupInfo>();
+            if (string.IsNullOrEmpty(parentUid))
+                return ancestorSnapshots;
+
+            // Try to find the parent caption row in the rows we've already generated
+            if (captionRowsByUid.TryGetValue(parentUid, out var parentRowData))
+            {
+                var parentRow = parentRowData.Row;
+                var parentGroup = parentRowData.Data;
+
+                // Copy existing ancestor snapshots from parent row
+                if (parentRow.ParentGroupSnapshots != null)
+                {
+                    ancestorSnapshots.AddRange(parentRow.ParentGroupSnapshots);
+                }
+
+                // Add the parent itself as a snapshot
+                ancestorSnapshots.Add(CreateGroupSnapshot(parentGroup));
+            }
+            // Fallback: try to find from VirtualScroll's caption row map
+            else if (currentGroupedDataCaptionRowMap != null && currentGroupedDataCaptionRowMap.TryGetValue(parentUid, out var captionItem))
+            {
+                if (captionItem.Item is Group<T> parentGroup)
+                {
+                    // For virtual scroll paths, we may not have the full ancestor chain
+                    // Try to find the parent's ancestors recursively
+                    var parentFieldUid = FindParentUidFromVirtualMap(parentUid, currentGroupedDataCaptionRowMap);
+                    var parentAncestors = BuildAncestorSnapshots(parentFieldUid, currentRows, captionRowsByUid, currentGroupedDataCaptionRowMap);
+                    ancestorSnapshots.AddRange(parentAncestors);
+                    ancestorSnapshots.Add(CreateGroupSnapshot(parentGroup));
+                }
+            }
+
+            return ancestorSnapshots;
+        }
+
+        /// <summary>
+        /// Creates a snapshot from a Group object.
+        /// </summary>
+        private GroupInfo CreateGroupSnapshot(Group<T> group)
+        {
+            var field = group.Field;
+            var snapshot = new GroupInfo
+            {
+                Field = field,
+                Key = group.Key?.ToString(),
+                Count = group.CountItems,
+                Level = group.Level - 1,
+                HeaderText = field != null ? GridUtils.GetColumnByField(field, (List<GridColumn>)Parent.Columns!)?.HeaderText ?? field : null
+            };
+            return snapshot;
+        }
+
+        /// <summary>
+        /// Finds the parent UID for a given UID in the virtual scroll caption map.
+        /// </summary>
+        private static string? FindParentUidFromVirtualMap(string uid, Dictionary<string, GroupedDataItem>? map)
+        {
+            if (map == null || uid == null)
+            {
+                return null;
+            }
+
+            return map.TryGetValue(uid, out var captionItem) ? captionItem.ParentUid : null;
         }
 
         public void CheckAndGenerateFooterRows(Group<T> parentGroup, List<Row<object>> rows, int indent, int rowIndex, string parentUid, bool visible = false)
@@ -93,15 +192,7 @@ namespace Syncfusion.Blazor.Grids.Internal
                 return;
             Parent.Aggregates?.ForEach(aggregate =>
             {
-                var isVisibleFooter = false;
-                aggregate.Columns?.ForEach(column =>
-                {
-                    if (visibleColumns.Contains(column.Field) && ((column.GroupCaptionTemplate == null && column.FooterTemplate == null) || column.GroupFooterTemplate != null))
-                    {
-                        isVisibleFooter = true;
-                    }
-                });
-                if (isVisibleFooter)
+                if (IsVisibleGroupFooter(aggregate, visibleColumns))
                 {
                     var footerRow = new GroupModelGenerator<T>(Parent).GenerateFooterRow(
                         parentGroup,
@@ -116,6 +207,15 @@ namespace Syncfusion.Blazor.Grids.Internal
                     rows.Add(footerRow);
                 }
             });
+        }
+
+        /// <summary>
+        /// A group footer row is rendered for an aggregate that has a visible column without a caption-only or grid-footer-only template.
+        /// </summary>
+        internal static bool IsVisibleGroupFooter(GridAggregate aggregate, ICollection<string> visibleColumns)
+        {
+            return aggregate.Columns?.Any(column => column.Field != null && visibleColumns.Contains(column.Field)
+                && ((column.GroupCaptionTemplate == null && column.FooterTemplate == null) || column.GroupFooterTemplate != null)) == true;
         }
 
         public List<Row<object>> GenerateInfiniteGroupedRows(IEnumerable data)
@@ -307,7 +407,25 @@ namespace Syncfusion.Blazor.Grids.Internal
             else
             {
                 Group<T>? groupedData = data as Group<T>;
-                Row<object> captionRow = GenerateCaptionRow(groupedData!, index, 0, 0, 0, parentUid);
+                
+                // Build ancestor snapshots from parent in current rows
+                var ancestorSnapshots = new List<GroupInfo>();
+                if (!string.IsNullOrEmpty(parentUid))
+                {
+                    var parentRow = Rows!.FirstOrDefault(r => r.Uid == parentUid);
+                    if (parentRow != null && parentRow.ParentGroupSnapshots != null)
+                    {
+                        ancestorSnapshots.AddRange(parentRow.ParentGroupSnapshots);
+                    }
+                    // Also add the parent itself if it's a caption row
+                    var parentGroupedData = parentRow?.Data as Group<T>;
+                    if (parentGroupedData != null)
+                    {
+                        ancestorSnapshots.Add(CreateGroupSnapshot(parentGroupedData));
+                    }
+                }
+                
+                Row<object> captionRow = GenerateCaptionRow(groupedData!, index, 0, 0, 0, parentUid, null, null, null, ancestorSnapshots);
                 Rows!.Add(captionRow);
                 if (groupedData?.Items != null && groupedData.Items.GetEnumerator().MoveNext())
                 {
@@ -320,7 +438,7 @@ namespace Syncfusion.Blazor.Grids.Internal
             }
         }
 
-        public Row<object> GenerateCaptionRow(Group<T> data, int indent, int parentId = 0, int childId = 0, int rowsIndex = 0, string parentUid = null!, string uid = null!, bool? isExpand = null, bool? isVisible= null)
+        public Row<object> GenerateCaptionRow(Group<T> data, int indent, int parentId = 0, int childId = 0, int rowsIndex = 0, string? parentUid = null, string? uid = null, bool? isExpand = null, bool? isVisible= null, List<GroupInfo>? ancestorSnapshots = null)
         {
             var row = new Row<object>()
             {
@@ -336,13 +454,14 @@ namespace Syncfusion.Blazor.Grids.Internal
                 Indent = indent,
                 Uid = uid ?? Parent.GetUid("grid-row"),
                 ParentUid = parentUid,
-                ForeignKeyData = new Dictionary<string, IEnumerable<object>>()
+                ForeignKeyData = new Dictionary<string, IEnumerable<object>>(),
+                ParentGroupSnapshots = ancestorSnapshots ?? new List<GroupInfo>()
             };
             var field = data.Field;
 
             if (_isStatePersistence)
             {
-                string groupKey = (data.Key?.ToString() ?? string.Empty) + Grouping<T>.GetUniqueGroupKey(Rows!, parentUid);
+                string groupKey = (data.Key?.ToString() ?? string.Empty) + Grouping<T>.GetUniqueGroupKey(Rows!, parentUid!);
                 row.IsExpand = Parent.GroupStates.GetValueOrDefault(groupKey, row.IsExpand);
             }
             if (isVisible != null)
@@ -356,7 +475,7 @@ namespace Syncfusion.Blazor.Grids.Internal
             }
             else
             {
-                row.Visible = _isStatePersistence ? GetRowVisibility(parentUid!, row.Visible) : row.Visible;
+                row.Visible = _isStatePersistence ? GetRowVisibility(parentUid, row.Visible) : row.Visible;
             }
             row.Cells = GetCaptionRowCells(field!, indent, data);
 
@@ -559,7 +678,8 @@ namespace Syncfusion.Blazor.Grids.Internal
                 CssClass = cssClass,
                 IsTemplate = ((IGrid)Parent).GridTemplates?.RowTemplate != null,
                 IsAltRow = Parent.EnableAltRow && index % 2 != 0,
-                IsSelected = isSelected ?? false,
+                IsSelectable = Parent.SelectionModule == null || Parent.SelectionModule.IsRowSelectable(data),
+                IsSelected = (isSelected ?? false) && (Parent.SelectionModule == null || Parent.SelectionModule.IsRowSelectable(data)),
                 ForeignKeyData = new Dictionary<string, IEnumerable<object>>(),
                 ParentUid = parentUid,
                 IsEdit = Currentrow?.IsEdit ?? false,
@@ -712,7 +832,7 @@ namespace Syncfusion.Blazor.Grids.Internal
             }
         }
 
-        private bool IsValidChildRow(string parentUid, string childRowParentUid)
+        private bool IsValidChildRow(string? parentUid, string? childRowParentUid)
         {
             if (childRowParentUid == null || parentUid == null)
                 return false;
@@ -720,7 +840,7 @@ namespace Syncfusion.Blazor.Grids.Internal
                    && Parent.EnableVirtualization && !Parent.IsExpanded;
         }
 
-        private bool GetRowVisibility(string parentUid, bool existingVisible)
+        private bool GetRowVisibility(string? parentUid, bool existingVisible)
         {
             if (parentUid == null || Rows == null)
                 return existingVisible;

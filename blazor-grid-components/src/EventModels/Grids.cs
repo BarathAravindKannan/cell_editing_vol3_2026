@@ -963,9 +963,95 @@ public class EmptyRecordTemplateContext
     }
 
     /// <summary>
-    /// Class that defines template context detail of CaptionTemplate.
-    /// <seealso cref="Syncfusion.Blazor.Grids.GridGroupSettings.CaptionTemplate"/>
+    /// Represents a read-only snapshot of a group that is related to the current group caption.
     /// </summary>
+    /// <remarks>
+    /// The grid creates <see cref="GroupInfo"/> instances for the <see cref="CaptionTemplateContext.ParentGroups"/> collection,
+    /// which lists the ancestor groups from the outermost group to the immediate parent, and for the
+    /// <see cref="CaptionTemplateContext.ChildGroups"/> collection, which lists the direct sub-groups of the current group.
+    /// All properties are populated by the grid and are read-only to template consumers.
+    /// </remarks>
+    /// <example>
+    /// The following example displays the immediate parent group and the sub-groups of the current group in a caption template.
+    /// <code><![CDATA[
+    /// <GridGroupSettings Columns="@(new string[] { "Region", "Country" })">
+    ///     <CaptionTemplate>
+    ///         @{
+    ///             var captionContext = (CaptionTemplateContext)context;
+    ///             var parent = captionContext.ParentGroups.Count > 0 ? captionContext.ParentGroups[^1] : null;
+    ///         }
+    ///         <span>@parent?.Key / @captionContext.Key</span>
+    ///         @foreach (GroupInfo child in captionContext.ChildGroups)
+    ///         {
+    ///             <span>@child.Key (@child.Count)</span>
+    ///         }
+    ///     </CaptionTemplate>
+    /// </GridGroupSettings>
+    /// ]]></code>
+    /// </example>
+    public class GroupInfo
+    {
+        /// <summary>
+        /// Gets the field name of the column by which the group is created.
+        /// </summary>
+        /// <value>
+        /// A <see cref="string"/> that contains the grouped column's field name, or <see langword="null"/> if the field name is not available.
+        /// </value>
+        /// <remarks>
+        /// Use this property together with <see cref="Key"/> to identify the column and value that the group represents.
+        /// </remarks>
+        public string? Field { get; internal set; }
+
+        /// <summary>
+        /// Gets the key value that identifies the group.
+        /// </summary>
+        /// <value>
+        /// An <see cref="object"/> that contains the group key, or <see langword="null"/> if no key is available.
+        /// </value>
+        /// <remarks>
+        /// Groups with the same key can appear under different parent groups. Use the
+        /// <see cref="CaptionTemplateContext.ParentGroups"/> collection to distinguish them.
+        /// </remarks>
+        public object? Key { get; internal set; }
+
+        /// <summary>
+        /// Gets the number of records in the group.
+        /// </summary>
+        /// <value>
+        /// An <see cref="int"/> that represents the number of records in the group, including the records of its nested sub-groups.
+        /// </value>
+        /// <remarks>
+        /// The value matches the record count displayed in the group caption.
+        /// </remarks>
+        public int Count { get; internal set; }
+
+        /// <summary>
+        /// Gets the zero-based nesting level of the group.
+        /// </summary>
+        /// <value>
+        /// An <see cref="int"/> that is <c>0</c> for the outermost group; larger values indicate deeper nesting.
+        /// </value>
+        /// <remarks>
+        /// For a grid grouped by Region and Country, Region groups have level <c>0</c> and Country groups have level <c>1</c>.
+        /// </remarks>
+        public int Level { get; internal set; }
+
+        /// <summary>
+        /// Gets the header text of the column by which the group is created.
+        /// </summary>
+        /// <value>
+        /// A <see cref="string"/> that contains the grouped column's header text. When the column has no header text, the field name is used.
+        /// </value>
+        /// <remarks>
+        /// Use this property to display a readable label for the group, such as in a breadcrumb of parent groups.
+        /// </remarks>
+        public string? HeaderText { get; internal set; }
+    }
+
+    /// <summary>
+    /// Provides the data available to a caption template for the current group.
+    /// </summary>
+    /// <seealso cref="Syncfusion.Blazor.Grids.GridGroupSettings.CaptionTemplate"/>
     public class CaptionTemplateContext
     {
         /// <summary>
@@ -1022,6 +1108,83 @@ public class EmptyRecordTemplateContext
         /// It's important to note that GroupAggregates holds values only when the first column contains an aggregate value.
         /// </remarks>
         public AggregateTemplateContext? GroupAggregates { get; internal set; }
+
+        /// <summary>
+        /// Gets the ancestor groups of the current group caption.
+        /// </summary>
+        /// <value>
+        /// An <see cref="IReadOnlyList{T}"/> of <see cref="GroupInfo"/> objects ordered from the outermost ancestor to the immediate parent.
+        /// The default value is an empty collection, and it remains empty, not <see langword="null"/>, for a top-level group.
+        /// </value>
+        /// <remarks>
+        /// The collection does not include the current group. For a grid grouped by Region, Country, and City, the collection of a City group
+        /// contains the Region and Country groups. The last item is the immediate parent group.
+        /// Use the collection to identify the full group hierarchy, for example to distinguish groups with the same key under different parent groups.
+        /// <code><![CDATA[
+        /// <CaptionTemplate>
+        ///     @{
+        ///         var captionContext = (CaptionTemplateContext)context;
+        ///     }
+        ///     @foreach (GroupInfo parent in captionContext.ParentGroups)
+        ///     {
+        ///         <span>@parent.HeaderText: @parent.Key / </span>
+        ///     }
+        ///     <span>@captionContext.Key</span>
+        /// </CaptionTemplate>
+        /// ]]></code>
+        /// </remarks>
+        public IReadOnlyList<GroupInfo> ParentGroups { get; internal set; } = new List<GroupInfo>();
+
+        /// <summary>
+        /// Gets the child records that belong to the current group, including records in all nested sub-groups.
+        /// </summary>
+        /// <value>
+        /// An <see cref="IEnumerable"/> of child records in the current group. The default value is an empty collection,
+        /// and it remains empty, not <see langword="null"/>, when the group has no records.
+        /// </value>
+        /// <remarks>
+        /// The collection contains records at every grouping level, so the number of records matches <see cref="Count"/>.
+        /// For a grid grouped by Region and Country, the ChildRecords of a Region group contain the records of all its Country groups.
+        /// The records are collected when the collection is enumerated. When lazy load grouping is enabled, the collection
+        /// contains only the records that are loaded for the group.
+        /// Use this property to perform group-level actions, such as applying, exporting, or processing the records of a group.
+        /// <code><![CDATA[
+        /// <CaptionTemplate>
+        ///     @{
+        ///         var captionContext = (CaptionTemplateContext)context;
+        ///     }
+        ///     <span>@captionContext.Key</span>
+        ///     <SfButton OnClick="@(() => Apply(captionContext.ChildRecords.Cast<Order>()))">Apply</SfButton>
+        /// </CaptionTemplate>
+        /// ]]></code>
+        /// </remarks>
+        public IEnumerable ChildRecords { get; internal set; } = Array.Empty<object>();
+
+        /// <summary>
+        /// Gets the direct sub-groups of the current group.
+        /// </summary>
+        /// <value>
+        /// An <see cref="IReadOnlyList{T}"/> of <see cref="GroupInfo"/> objects for the next grouping level. The default value is an empty collection,
+        /// and it remains empty, not <see langword="null"/>, when the current group is at the last grouping level.
+        /// </value>
+        /// <remarks>
+        /// The collection contains only the immediate sub-groups, not deeper levels. For a grid grouped by Region and Country,
+        /// the ChildGroups of a Region group contain its Country groups. When lazy load grouping is enabled, the collection
+        /// contains only the sub-groups that are loaded for the group.
+        /// <code><![CDATA[
+        /// <CaptionTemplate>
+        ///     @{
+        ///         var captionContext = (CaptionTemplateContext)context;
+        ///     }
+        ///     <span>@captionContext.Key</span>
+        ///     @foreach (GroupInfo child in captionContext.ChildGroups)
+        ///     {
+        ///         <span>@child.Key (@child.Count)</span>
+        ///     }
+        /// </CaptionTemplate>
+        /// ]]></code>
+        /// </remarks>
+        public IReadOnlyList<GroupInfo> ChildGroups { get; internal set; } = Array.Empty<GroupInfo>();
     }
 
     /// <summary>
@@ -7641,6 +7804,14 @@ public class EmptyRecordTemplateContext
         /// This value must correspond to the primary key field of a record in the
         /// grid data source. Together with <see cref="ColumnField"/>, it is used
         /// to identify the cell to update.
+        /// <para>
+        /// Use this property for grids that contain a single primary key column.
+        /// For grids with composite primary keys, use
+        /// <see cref="PrimaryKeyValues"/> instead.
+        /// If both <see cref="PrimaryKeyValue"/> and
+        /// <see cref="PrimaryKeyValues"/> are specified,
+        /// <see cref="PrimaryKeyValues"/> takes precedence.
+        /// </para>
         /// </remarks>
         public object? PrimaryKeyValue { get; set; }
 
@@ -8675,7 +8846,7 @@ public class EmptyRecordTemplateContext
     /// execution-failed responses and returned to the requesting agent.
     /// </para>
     /// </remarks>
-    public class WebMcpToolExecuteEventArgs : GridEventBaseArgs
+    public class GridWebMcpExecuteEventArgs : GridEventBaseArgs
     {
         /// <summary>
         /// Gets the command associated with the tool execution request.
@@ -8717,7 +8888,7 @@ public class EmptyRecordTemplateContext
         /// the requested tool and provide an appropriate response.
         /// </para>
         /// </remarks>
-        public string? ToolName { get; internal set; }
+        public string? Name { get; internal set; }
 
         /// <summary>
         /// Gets or sets the input arguments supplied with the tool execution request.
@@ -8752,11 +8923,11 @@ public class EmptyRecordTemplateContext
         /// <para>
         /// For custom tools, applications can use the supplied argument values
         /// when generating a response through
-        /// <see cref="WebMcpToolExecuteEventArgs.Result"/>.
+        /// <see cref="GridWebMcpExecuteEventArgs.Result"/>.
         /// </para>
         /// <para>
         /// To override the default behavior of a built-in tool, assign a value to
-        /// <see cref="WebMcpToolExecuteEventArgs.Result"/> during the
+        /// <see cref="GridWebMcpExecuteEventArgs.Result"/> during the
         /// <see cref="GridEvents{TValue}.OnWebMcpExecute"/> event.
         /// </para>
         /// </remarks>
@@ -8818,5 +8989,457 @@ public class EmptyRecordTemplateContext
         /// </para>
         /// </remarks>
         public object? Result { get; set; }
+
+        /// <summary>
+        /// Gets or sets a value indicating whether the host requests user confirmation
+        /// before executing the tool.
+        /// </summary>
+        /// <value>
+        /// A <see cref="bool"/> indicating whether a host-controlled confirmation dialog
+        /// should be displayed before tool execution. A value of
+        /// <see langword="true"/> requests confirmation before execution; otherwise,
+        /// <see langword="false"/>. The default value is <see langword="false"/>.
+        /// </value>
+        /// <remarks>
+        /// <para>
+        /// Set this property to <see langword="true"/> within the
+        /// <c>OnWebMcpExecute</c> event to request that the host display a
+        /// confirmation dialog before executing the tool.
+        /// </para>
+        /// <para>
+        /// Confirmation dialogs are only displayed for writable tools. Read-only
+        /// tools execute immediately regardless of this property's value.
+        /// </para>
+        /// <para>
+        /// If the user declines the confirmation request, tool execution is cancelled
+        /// and a terminal cancellation response is returned to the agent. In this
+        /// scenario, no tool handler or per-tool callback is invoked.
+        /// </para>
+        /// <para>
+        /// This property is evaluated only when <see cref="Cancel"/> is
+        /// <see langword="false"/>. If both cancellation and confirmation are
+        /// requested, cancellation takes precedence.
+        /// </para>
+        /// </remarks>
+        public bool ShowConfirmationDialog { get; set; }
+
+        /// <summary>
+        /// Gets or sets the response message returned when execution is cancelled
+        /// or when confirmation is denied.
+        /// </summary>
+        /// <value>
+        /// A <see cref="string"/> representing the message returned to the caller when
+        /// the operation is cancelled or a required confirmation is rejected.
+        /// The default value is <see langword="null"/>.
+        /// </value>
+        /// <remarks>
+        /// <para>
+        /// This property can be used to provide a user-friendly message that explains
+        /// why the operation did not proceed.
+        /// </para>
+        /// <para>
+        /// When set to <see langword="null"/>, no custom cancellation response is
+        /// specified, and the default cancellation behavior is used.
+        /// </para>
+        /// </remarks>
+        public string? CancellationResponse { get; set; }
+    }
+
+    /// <summary>
+    /// Represents a filter rule or a group of filter rules used by the Advanced Filter (Query Builder)
+    /// in <see cref="SfGrid{TValue}"/>.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <see cref="AdvancedFilterRule"/> is a grid-owned data transfer object (DTO) used by the
+    /// Advanced Filtering public API. It represents the filter structure exchanged between the
+    /// Grid and the Query Builder without requiring consumers to reference the
+    /// <c>Syncfusion.Blazor.QueryBuilder</c> namespace.
+    /// </para>
+    /// <para>
+    /// An instance can represent either a <b>group rule</b> or a <b>leaf rule</b>.
+    /// A group rule contains one or more child rules through the <see cref="Rules"/> property
+    /// and combines them using the logical condition specified in <see cref="Condition"/>.
+    /// </para>
+    /// <para>
+    /// A leaf rule defines a single filter expression using <see cref="Field"/>,
+    /// <see cref="Operator"/>, and, when required, <see cref="Value"/>.
+    /// </para>
+    /// </remarks>
+    /// <example>
+    /// <code><![CDATA[
+    /// AdvancedFilterRule rule = new AdvancedFilterRule
+    /// {
+    ///     Condition = "or",
+    ///     Rules = new List<AdvancedFilterRule>
+    ///     {
+    ///         new AdvancedFilterRule
+    ///         {
+    ///             Field = "ShipCity",
+    ///             Operator = "startswith",
+    ///             Value = "Be"
+    ///         },
+    ///         new AdvancedFilterRule
+    ///         {
+    ///             Field = "Freight",
+    ///             Operator = "greaterthan",
+    ///             Value = 50
+    ///         }
+    ///     }
+    /// };
+    ///
+    /// await grid.ApplyAdvancedFilterAsync(rule);
+    /// ]]></code>
+    /// </example>
+    public class AdvancedFilterRule
+    {
+        /// <summary>
+        /// Gets or sets the logical condition used to combine the child rules in a group.
+        /// </summary>
+        /// <value>
+        /// A <see cref="string"/> that specifies the logical condition. Supported values are
+        /// <c>"and"</c> and <c>"or"</c>. The default value is <see langword="null"/>,
+        /// which is treated as <c>"and"</c>.
+        /// </value>
+        /// <remarks>
+        /// This property is applicable only when <see cref="Rules"/> contains one or more
+        /// child rules. It determines whether all child rules must match (<c>"and"</c>)
+        /// or whether any child rule can match (<c>"or"</c>).
+        /// </remarks>
+        public string? Condition { get; set; }
+
+        /// <summary>
+        /// Gets or sets the collection of child rules contained within this rule group.
+        /// </summary>
+        /// <value>
+        /// A <see cref="List{T}"/> of <see cref="AdvancedFilterRule"/> objects that represent
+        /// the child rules in the group. The default value is <see langword="null"/>.
+        /// </value>
+        /// <remarks>
+        /// When this property contains one or more items, the current rule is treated as
+        /// a group rule. In that case, the <see cref="Field"/>, <see cref="Operator"/>,
+        /// and <see cref="Value"/> properties are ignored.
+        /// </remarks>
+        public List<AdvancedFilterRule>? Rules { get; set; }
+
+        /// <summary>
+        /// Gets or sets a value indicating whether the rule is logically negated.
+        /// </summary>
+        /// <value>
+        /// A nullable <see cref="bool"/> that indicates whether the rule is inverted.
+        /// <see langword="true"/> applies the logical negation of the rule;
+        /// <see langword="false"/> or <see langword="null"/> leaves the rule unchanged.
+        /// The default value is <see langword="null"/>.
+        /// </value>
+        /// <remarks>
+        /// For group rules, negation is applied to the entire group expression.
+        /// For leaf rules, the inverse operation is applied when supported by the selected
+        /// operator.
+        /// </remarks>
+        public bool? IsRuleNegated { get; set; }
+
+        /// <summary>
+        /// Gets or sets a value indicating whether the rule is locked for editing.
+        /// </summary>
+        /// <value>
+        /// A <see cref="bool"/> value that indicates whether users can modify the rule
+        /// in the Query Builder. The default value is <see langword="false"/>.
+        /// </value>
+        /// <remarks>
+        /// A locked rule remains active and participates in filtering operations, but
+        /// cannot be edited or removed through the Query Builder user interface.
+        /// </remarks>
+        public bool IsLocked { get; set; }
+
+        /// <summary>
+        /// Gets or sets the field name associated with a leaf rule.
+        /// </summary>
+        /// <value>
+        /// A <see cref="string"/> that specifies the target field or column name.
+        /// The default value is <see langword="null"/>.
+        /// </value>
+        /// <remarks>
+        /// This property is used together with <see cref="Operator"/> and
+        /// <see cref="Value"/> to define a leaf rule. It is ignored when
+        /// <see cref="Rules"/> contains child rules.
+        /// </remarks>
+        public string? Field { get; set; }
+
+        /// <summary>
+        /// Gets or sets the comparison operator used by a leaf rule.
+        /// </summary>
+        /// <value>
+        /// A <see cref="string"/> that specifies the comparison operator, such as
+        /// <c>"equal"</c>, <c>"contains"</c>, <c>"greaterthan"</c>,
+        /// <c>"between"</c>, or <c>"isnull"</c>. The default value is
+        /// <see langword="null"/>.
+        /// </value>
+        /// <remarks>
+        /// The operator determines how the value specified in <see cref="Value"/> is
+        /// compared against the field specified in <see cref="Field"/>. The set of
+        /// supported operators depends on the underlying field data type.
+        /// </remarks>
+        public string? Operator { get; set; }
+
+        /// <summary>
+        /// Gets or sets the comparison value used by a leaf rule.
+        /// </summary>
+        /// <value>
+        /// An <see cref="object"/> that represents the value used for comparison.
+        /// The default value is <see langword="null"/>.
+        /// </value>
+        /// <remarks>
+        /// For unary operators such as <c>"isnull"</c>, <c>"isnotnull"</c>,
+        /// <c>"isempty"</c>, and <c>"isnotempty"</c>, this property should be
+        /// <see langword="null"/>. For multi-value operators such as
+        /// <c>"in"</c>, <c>"notin"</c>, <c>"between"</c>, and
+        /// <c>"notbetween"</c>, this property should contain a collection of values.
+        /// </remarks>
+        public object? Value { get; set; }
+    }
+
+    /// <summary>
+    /// Provides common data for Advanced Filter (Query Builder) event arguments.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// This base class supplies the filter rule involved in the operation and
+    /// references to the Advanced Filter dialog and Query Builder components.
+    /// </para>
+    /// <para>
+    /// The <see cref="Dialog"/> and <see cref="QueryBuilder"/> properties are
+    /// exposed as <see cref="object"/> instances to avoid introducing public
+    /// dependencies on specific dialog or Query Builder component types.
+    /// </para>
+    /// </remarks>
+    public class AdvancedFilterEventArgsBase : GridEventBaseArgs
+    {
+        /// <summary>
+        /// Gets or sets a value indicating whether the event's associated operation or default behavior is canceled.
+        /// </summary>
+        /// <value>
+        /// A <see cref="bool"/> that indicates whether the event's associated behavior should be canceled.
+        /// The default value is <see langword="false"/>.
+        /// </value>
+        /// <remarks>
+        /// For the open, close, and action-begin events, setting this property to
+        /// <see langword="true"/> prevents the requested operation. For the
+        /// action-complete event, it affects only post-operation dialog behavior
+        /// and does not undo the completed filter operation.
+        /// </remarks>
+        public bool Cancel { get; set; }
+
+        /// <summary>
+        /// Gets the Advanced Filter rule associated with the current event.
+        /// </summary>
+        /// <value>
+        /// An <see cref="AdvancedFilterRule"/> that represents the filter rule
+        /// involved in the operation, or <see langword="null"/> if no rule is
+        /// associated with the event.
+        /// </value>
+        /// <remarks>
+        /// For an apply operation, this is the rule being applied. For a clear
+        /// operation, it is the rule being removed in the begin event and
+        /// <see langword="null"/> in the complete event.
+        /// </remarks>
+        public AdvancedFilterRule? Filter { get; internal set; }
+
+        /// <summary>
+        /// Gets the Advanced Filter rule associated with the current event.
+        /// </summary>
+        /// <value>
+        /// An <see cref="AdvancedFilterRule"/> that represents the same rule
+        /// exposed by the <see cref="Filter"/> property, or
+        /// <see langword="null"/> when no rule is associated with the event.
+        /// </value>
+        /// <remarks>
+        /// This property is provided as an alias for <see cref="Filter"/>.
+        /// </remarks>
+        public AdvancedFilterRule? Rule
+        {
+            get => Filter;
+            internal set => Filter = value;
+        }
+
+        /// <summary>
+        /// Gets the dialog component that hosts the Advanced Filter UI.
+        /// </summary>
+        /// <value>
+        /// An <see cref="object"/> representing the dialog component instance,
+        /// or <see langword="null"/> if the dialog is not available.
+        /// </value>
+        /// <remarks>
+        /// This property is exposed as <see cref="object"/> to prevent the Grid
+        /// public API from depending on a specific dialog component type.
+        /// </remarks>
+        public object? Dialog { get; internal set; }
+
+        /// <summary>
+        /// Gets the Query Builder component associated with the current event.
+        /// </summary>
+        /// <value>
+        /// An <see cref="object"/> representing the Query Builder component
+        /// instance, or <see langword="null"/> if it is not available.
+        /// </value>
+        /// <remarks>
+        /// This property is exposed as <see cref="object"/> to prevent the Grid
+        /// public API from depending on a specific Query Builder component type
+        /// or version.
+        /// </remarks>
+        public object? QueryBuilder { get; internal set; }
+    }
+
+    /// <summary>
+    /// Provides information about the
+    /// <see cref="GridEvents{TValue}.AdvancedFilterOpen"/> event.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// This event is raised before the Advanced Filter dialog is displayed.
+    /// </para>
+    /// <para>
+    /// Set the <see cref="AdvancedFilterEventArgsBase.Cancel"/> property to
+    /// <see langword="true"/> to
+    /// prevent the dialog from opening.
+    /// </para>
+    /// </remarks>
+    /// <example>
+    /// <code><![CDATA[
+    /// private void OnAdvancedFilterOpen(AdvancedFilterOpenEventArgs args)
+    /// {
+    ///     args.Cancel = true;
+    /// }
+    /// ]]></code>
+    /// </example>
+    public class AdvancedFilterOpenEventArgs : AdvancedFilterEventArgsBase
+    {
+    }
+
+    /// <summary>
+    /// Provides information about the
+    /// <see cref="GridEvents{TValue}.AdvancedFilterClose"/> event.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// This event is raised before the Advanced Filter dialog is closed.
+    /// </para>
+    /// <para>
+    /// Set the <see cref="AdvancedFilterEventArgsBase.Cancel"/> property to
+    /// <see langword="true"/> to
+    /// prevent the dialog from closing and keep it open.
+    /// </para>
+    /// </remarks>
+    /// <example>
+    /// <code><![CDATA[
+    /// private void OnAdvancedFilterClose(AdvancedFilterCloseEventArgs args)
+    /// {
+    ///     args.Cancel = true;
+    /// }
+    /// ]]></code>
+    /// </example>
+    public class AdvancedFilterCloseEventArgs : AdvancedFilterEventArgsBase
+    {
+    }
+
+    /// <summary>
+    /// Provides the information shared by the
+    /// <see cref="GridEvents{TValue}.AdvancedFiltering"/> and
+    /// <see cref="GridEvents{TValue}.AdvancedFiltered"/> events.
+    /// </summary>
+    /// <remarks>
+    /// This class adds the <see cref="IsClear"/> property, which indicates
+    /// whether the Advanced Filter operation applies a filter rule or clears
+    /// the currently active rule.
+    /// </remarks>
+    public class AdvancedFilterEventArgs : AdvancedFilterEventArgsBase
+    {
+        /// <summary>
+        /// Gets a value indicating whether the operation clears the active Advanced Filter rule.
+        /// </summary>
+        /// <value>
+        /// A <see cref="bool"/> that is <see langword="true"/> when the operation
+        /// clears the active filter rule; otherwise, <see langword="false"/> when
+        /// the operation applies a filter rule. The default value is
+        /// <see langword="false"/>.
+        /// </value>
+        /// <remarks>
+        /// This property is populated by the Grid and cannot be modified by event
+        /// handlers. Use this property together with
+        /// <see cref="AdvancedFilterEventArgsBase.Filter"/> to determine whether
+        /// the event pertains to applying a filter rule or clearing the currently
+        /// active rule.
+        /// </remarks>
+        public bool IsClear { get; internal set; }
+    }
+
+    /// <summary>
+    /// Provides information about the
+    /// <see cref="GridEvents{TValue}.AdvancedFiltering"/> event.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// This event is raised before the Grid applies an Advanced Filter rule or
+    /// clears the currently active rule.
+    /// </para>
+    /// <para>
+    /// Set the <see cref="AdvancedFilterEventArgsBase.Cancel"/> property to
+    /// <see langword="true"/> to prevent
+    /// the requested operation from being performed.
+    /// </para>
+    /// <para>
+    /// Use the <see cref="AdvancedFilterEventArgs.IsClear"/> property to determine whether the operation
+    /// is applying a filter rule or clearing an existing filter.
+    /// </para>
+    /// </remarks>
+    /// <example>
+    /// <code><![CDATA[
+    /// private void OnAdvancedFiltering(AdvancedFilteringEventArgs args)
+    /// {
+    ///     if (args.IsClear)
+    ///     {
+    ///         args.Cancel = true;
+    ///     }
+    /// }
+    /// ]]></code>
+    /// </example>
+    public class AdvancedFilteringEventArgs : AdvancedFilterEventArgs
+    {
+    }
+
+    /// <summary>
+    /// Provides information about the
+    /// <see cref="GridEvents{TValue}.AdvancedFiltered"/> event.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// This event is raised after the Grid successfully applies an Advanced Filter
+    /// rule or clears the currently active rule.
+    /// </para>
+    /// <para>
+    /// Set the <see cref="AdvancedFilterEventArgsBase.Cancel"/> property to
+    /// <see langword="true"/> to override
+    /// the dialog's default post-operation behavior. When set, the Advanced Filter
+    /// dialog remains open and, for clear operations, the Query Builder state is
+    /// preserved.
+    /// </para>
+    /// <para>
+    /// Changing <see cref="AdvancedFilterEventArgsBase.Cancel"/> does not revert or cancel the completed filter
+    /// operation. Use the <see cref="AdvancedFilterEventArgs.IsClear"/> property to determine whether the
+    /// completed operation applied a rule or cleared the active rule.
+    /// </para>
+    /// </remarks>
+    /// <example>
+    /// <code><![CDATA[
+    /// private void OnAdvancedFiltered(AdvancedFilteredEventArgs args)
+    /// {
+    ///     if (args.IsClear)
+    ///     {
+    ///         args.Cancel = true;
+    ///     }
+    /// }
+    /// ]]></code>
+    /// </example>
+    public class AdvancedFilteredEventArgs : AdvancedFilterEventArgs
+    {
     }
 }

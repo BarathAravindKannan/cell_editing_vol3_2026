@@ -1,4 +1,4 @@
-﻿using System;
+﻿﻿using System;
 using System.Collections.Generic;
 using System.Globalization;
 using System.Linq;
@@ -203,7 +203,7 @@ namespace Syncfusion.Blazor.Grids.Internal
                     }
                     else
                     {
-                        //await _parent.DataManager.SaveChanges<T>(new List<T>(), added, deleted, primarykeys, dropIdx).ConfigureAwait(true);
+                        await _parent.DataManager.SaveChanges<T>(new List<T>(), added, deleted, primarykeys, dropIdx).ConfigureAwait(true);
                     }
                 }
             }
@@ -255,7 +255,7 @@ namespace Syncfusion.Blazor.Grids.Internal
                     }
                     else
                     {
-                        //await _parent.DataManager.SaveChanges<T>(updatedRecord.SelectedRecords, new List<T>(), new List<T>(), primarykeys, null).ConfigureAwait(true);
+                        await _parent.DataManager.SaveChanges<T>(updatedRecord.SelectedRecords, new List<T>(), new List<T>(), primarykeys, null).ConfigureAwait(true);
                     }
                 }
             }

@@ -97,6 +97,8 @@ namespace Syncfusion.Blazor.Grids
 
         private bool _setOnce { get; set; } = true;
 
+        private bool _initialAdvancedFilterApplied { get; set; }
+
         private ElementReference _element { get; set; }
 
         private Dictionary<string, object> _cachedAttributes { get; set; } = new Dictionary<string, object>();
@@ -151,6 +153,10 @@ namespace Syncfusion.Blazor.Grids
         internal GridColumn? ColumnMenuColumn { get; set; }
 
         internal SfDialog? ChooserDialogInstance { get; set; }
+
+        internal SfDialog? AdvancedFilterDialogInstance { get; set; }
+
+        internal object? AdvancedFilterQueryBuilderInstance { get; set; }
 
         internal SfContextMenu<MenuItem>? ColumnMenuInstance { get; set; }
 
@@ -210,6 +216,8 @@ namespace Syncfusion.Blazor.Grids
 
         internal Filter<TValue>? FilterModule { get; set; }
 
+        internal List<WhereFilter>? AdvancedFilterWhereFilter { get; set; }
+
         internal Reorder<TValue>? ReorderModule { get; set; }
 
         internal DataGenerator<TValue>? DataModule { get; set; }
@@ -245,6 +253,122 @@ namespace Syncfusion.Blazor.Grids
         internal Selection<TValue>? SelectionModule { get; set; }
 
         internal FocusHandler<TValue>? FocusModule { get; set; }
+
+        internal DomVirtualHandler<TValue>? DomVirtualModule { get; set; }
+
+        /// <summary>
+        /// Per-keystroke compiled keyboard bindings. Recompiled on
+        /// <c>OnInitialized</c> and on every <c>OnParametersSet</c> when the
+        /// canonical snapshot of <see cref="KeyboardShortcuts"/> changes.
+        /// </summary>
+        /// <remarks>
+        /// Always non-null after construction so the resolver's Layer 4 (default
+        /// chords via <see cref="GridKeyboardActionDefaults"/>) handles legacy
+        /// keystrokes for users that do not configure
+        /// <see cref="KeyboardShortcuts"/>. Without this initialization,
+        /// the entry-method switches would skip F2/Insert/etc. between grid
+        /// construction and the first <c>OnInitialized</c> callback.
+        /// </remarks>
+        internal CompiledShortcuts CompiledKeyboardShortcuts { get; set; } = GridKeyboardShortcutCompiler.Compile(null, null, false, _ => { });
+
+        private static readonly System.Collections.Generic.List<KeyboardWarning> _collectedWarnings = new();
+
+        /// <summary>
+        /// Returns the JS projection of the compiled custom key bindings. Each
+        /// entry is a flat <c>{ code, ctrl, shift, alt, meta, owner, ... }</c>
+        /// object the JS gate can match against incoming <c>KeyboardEvent</c>s
+        /// without going through the C# interop on the hot path.
+        /// </summary>
+        internal List<object>? GetCustomKeyBindingsForJs()
+        {
+            if (CompiledKeyboardShortcuts == null)
+            {
+                return null;
+            }
+            var list = new List<object>();
+            foreach (var scopeKv in CompiledKeyboardShortcuts.ScopeBindings)
+            {
+                foreach (var actionKv in scopeKv.Value)
+                {
+                    foreach (var chord in actionKv.Value)
+                    {
+                        list.Add(new
+                        {
+                            key = chord.Key ?? chord.Code ?? string.Empty,
+                            code = chord.Code ?? string.Empty,
+                            ctrl = (chord.Modifiers & KeyModifiers.Ctrl) == KeyModifiers.Ctrl,
+                            shift = (chord.Modifiers & KeyModifiers.Shift) == KeyModifiers.Shift,
+                            alt = (chord.Modifiers & KeyModifiers.Alt) == KeyModifiers.Alt,
+                            meta = (chord.Modifiers & KeyModifiers.Meta) == KeyModifiers.Meta,
+                            metaOrCtrl = (chord.Modifiers & KeyModifiers.MetaOrCtrl) == KeyModifiers.MetaOrCtrl,
+                            owner = OwnerOf(actionKv.Key).ToString().ToUpperInvariant(),
+                            disabled = false,
+                            action = actionKv.Key.ToString(),
+                            consumeDefault = OwnerOf(actionKv.Key) == KeyboardOwner.Js
+                        });
+                    }
+                }
+            }
+            return list;
+        }
+
+        private static KeyboardOwner OwnerOf(GridKeyboardAction action)
+        {
+            switch (action)
+            {
+                case GridKeyboardAction.StartEdit:
+                case GridKeyboardAction.AddRecord:
+                case GridKeyboardAction.DeleteRecord:
+                case GridKeyboardAction.Escape:
+                case GridKeyboardAction.Print:
+                case GridKeyboardAction.PageUp:
+                case GridKeyboardAction.PageDown:
+                case GridKeyboardAction.FirstPage:
+                case GridKeyboardAction.LastPage:
+                case GridKeyboardAction.NextPageGroup:
+                case GridKeyboardAction.PreviousPageGroup:
+                case GridKeyboardAction.EditEndAndTabNext:
+                case GridKeyboardAction.EditEndAndShiftTabPrev:
+                // Copy / CopyWithHeaders MUST be owned by the JS path. The
+                // Clipboard API rejects writeText() whenever the calling task is
+                // not the same task that received the keydown (transient user
+                // activation has expired and document.hasFocus() is false after
+                // the Blazor SignalR round-trip). See OPSX-20261019-clipboard-
+                // custom-key-copy-writeText-focus for the full root cause.
+                case GridKeyboardAction.Copy:
+                case GridKeyboardAction.CopyWithHeaders:
+                    return KeyboardOwner.Js;
+                default:
+                    return KeyboardOwner.Blazor;
+            }
+        }
+
+        /// <summary>
+        /// Recompiles <see cref="CompiledKeyboardShortcuts"/> from the current
+        /// parameter values. Called from <c>OnInitialized</c> and
+        /// <c>OnParametersSet</c>; safe to call on every render.
+        /// </summary>
+        internal void RecompileKeyboardShortcuts()
+        {
+            string? snapshot = KeyboardShortcuts?.ToCanonicalString();
+            if (string.Equals(snapshot, _prevKeyboardShortcutsSnapshot, StringComparison.Ordinal) && CompiledKeyboardShortcuts != null)
+            {
+                return;
+            }
+            _prevKeyboardShortcutsSnapshot = snapshot;
+            _collectedWarnings.Clear();
+            CompiledKeyboardShortcuts = GridKeyboardShortcutCompiler.Compile(
+                KeyboardShortcuts,
+                this,
+                IsMacDevice ?? false,
+                w => _collectedWarnings.Add(w));
+            // Warnings are surfaced through the JS console today; future work
+            // can fan them out to an ILogger and an event hook.
+            foreach (var w in _collectedWarnings)
+            {
+                Console.WriteLine(w.Message);
+            }
+        }
         internal FindHighlight<TValue>? FindHightLightModule { get; set; }
 
         /// <summary>
@@ -368,6 +492,10 @@ namespace Syncfusion.Blazor.Grids
         /// Accessed via public API methods and properties.
         /// </summary>
         internal UndoRedoManager<TValue>? UndoRedoManager { get; set; }
+
+        internal WebMcpConfirmDialog<TValue>? WebMcpConfirmDialog { get; set; }
+
+        internal Syncfusion.Blazor.Grids.Internal.WebMcpConfirmState WebMcpConfirmState { get; set; } = new Syncfusion.Blazor.Grids.Internal.WebMcpConfirmState();
 
         internal bool IsClientInitialized { get; set; }
 
@@ -1245,6 +1373,7 @@ namespace Syncfusion.Blazor.Grids
                 { "columns", comp.Columns! }, { "filterSettings", comp.FilterSettings! },
                 { "searchSettings", comp.SearchSettings! }, { "sortSettings", comp.SortSettings! },
                 { "groupSettings", comp.GroupSettings! }, { "pageSettings", comp.PageSettings! },
+                { "advancedFilterRule", comp.AdvancedFilterSettings?.CurrentRule! },
                 { "autoSpanning", comp.AutoSpan }
             };
             return JsonSerializer.Serialize(model, _serializeModelJsonSettings);
@@ -1881,6 +2010,7 @@ namespace Syncfusion.Blazor.Grids
             isEdit = IsEdit,
             isAdd = EditModule!.IsAdd,
             enableUndoRedo = EditSettings?.EnableUndoRedo == true,
+            customKeyBindings = GetCustomKeyBindingsForJs(),
             allowEditing = EditSettings?.AllowEditing ==true,
             isPrerendered = IsDataLoaded,
             clipMode = ClipMode.ToString(),
@@ -1905,6 +2035,10 @@ namespace Syncfusion.Blazor.Grids
             infiniteCacheMode = InfiniteScrollSettings.EnableCache,
             infiniteInitialBlock = InfiniteScrollSettings.InitialBlocks,
             enableLazyLoading = GroupSettings.EnableLazyLoading,
+            enableUnboundedScrolling = InfiniteScrollSettings.EnableUnboundedScrolling,
+            hasMoreData = EnableInfiniteScrolling && InfiniteScrollModule != null 
+                ? InfiniteScrollModule.HasMoreData 
+                : false,
             isColumnWidthChanged = _isColumnWidthChanged,
             isClipboardEventBinded = GridEvents?.BeforeCopyPaste.HasDelegate ?? false,
             overscanCount = OverscanCount,
@@ -1914,6 +2048,7 @@ namespace Syncfusion.Blazor.Grids
             isColumnClipModeChanged = _isColumnClipModeChanged,
             showColumnChooser = ShowColumnChooser,
             autoFit = AutoFit,
+            resizeMode = (int)ResizeMode,
             isFixedColumnPresent = IsFixedColumnPresent(),
             rowRenderingMode = RowRenderingMode.ToString(),
             allowEmptyAreaDrop = RowDropSettings!.AllowEmptyAreaDrop,
@@ -2431,7 +2566,7 @@ namespace Syncfusion.Blazor.Grids
                 await EditModule!.CloseEdit(preventFocus: true).ConfigureAwait(true);
             }
 
-            if (requestType == "Searching" || requestType == "Paging" || requestType == "Sorting" || requestType == "Grouping" || requestType == "UnGrouping" || requestType == "Filtering" || requestType == "ClearFiltering" || requestType == "Refresh")
+            if (requestType == "Searching" || requestType == "Paging" || requestType == "Sorting" || requestType == "Grouping" || requestType == "UnGrouping" || requestType == "Filtering" || requestType == "ClearFiltering" || requestType == "AdvancedFilter" || requestType == "ClearAdvancedFilter" || requestType == "Refresh")
             {
                 IsEdit = false;
                 EditModule!.ClearRules();
@@ -2559,7 +2694,7 @@ namespace Syncfusion.Blazor.Grids
         /// </summary>
         private async Task<bool> UpdateModulesAfterRequest(string? requestType, bool requireRefresh, object eventArgs = null!)
         {
-            if (GroupModule != null && AllowGrouping && GroupSettings != null && GroupSettings.EnableLazyLoading && AllowPaging && (requestType == "Grouping" || requestType == "UnGrouping" || requestType == "Filtering" || requestType == "ClearFiltering" || requestType == "Searching" || requestType == "Save" || requestType == "Sorting" || requestType == "Delete"))
+            if (GroupModule != null && AllowGrouping && GroupSettings != null && GroupSettings.EnableLazyLoading && AllowPaging && (requestType == "Grouping" || requestType == "UnGrouping" || requestType == "Filtering" || requestType == "ClearFiltering" || requestType == "AdvancedFilter" || requestType == "ClearAdvancedFilter" || requestType == "Searching" || requestType == "Save" || requestType == "Sorting" || requestType == "Delete"))
             {
                 GroupModule.LazyPageSetting();
             }
@@ -2638,6 +2773,8 @@ namespace Syncfusion.Blazor.Grids
                 case "UnGrouping":
                 case "Filtering":
                 case "ClearFiltering":
+                case "AdvancedFilter":
+                case "ClearAdvancedFilter":
                 case "Refresh":
                     requireRefresh = await HandleQueryDataActions(RequestType, args!, eventArgs, sortingEvent).ConfigureAwait(true);
                     break;

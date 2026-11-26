@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.ComponentModel;
 using Microsoft.AspNetCore.Components;
@@ -10,8 +10,16 @@ using Syncfusion.Blazor.Internal;
 namespace Syncfusion.Blazor.Grids
 {
     /// <summary>
-    /// Configures keyboard navigation for grid.
+    /// Configures keyboard navigation for grid using the legacy API.
     /// </summary>
+    /// <remarks>
+    /// This is a legacy API for keyboard navigation configuration. While still fully functional,
+    /// new bindings are recommended to be expressed through the
+    /// <see cref="SfGrid{TValue}.KeyboardShortcuts"/> parameter using
+    /// <see cref="GridCustomKeyboardShortcuts"/>. Both APIs continue to work together,
+    /// with legacy bindings automatically merged with custom bindings through the
+    /// <c>FromLegacy</c> compiler bridge for backward compatibility.
+    /// </remarks>
     public partial class GridKeySettings : SfOwningComponentBase
     {
 

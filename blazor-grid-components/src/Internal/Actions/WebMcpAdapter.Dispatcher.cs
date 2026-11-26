@@ -41,11 +41,11 @@ namespace Syncfusion.Blazor.Grids.Actions
         /// Framework-internal — only <see cref="SfGrid{TValue}.GetWebMcpToolsAsync"/>
         /// calls it from the same assembly.
         /// </summary>
-        internal static List<IWebMcpTool> GetTools(IEnumerable<string>? toolNames = null)
+        internal static List<IGridWebMcpTool> GetTools(IEnumerable<string>? toolNames = null)
         {
             if (toolNames == null || !toolNames.Any())
                 return webMcpTools
-                    .Select(t => (IWebMcpTool)new WebMcpToolInfo
+                    .Select(t => (IGridWebMcpTool)new WebMcpToolInfo
                     {
                         Name = t.Name,
                         Description = t.Description,
@@ -55,7 +55,7 @@ namespace Syncfusion.Blazor.Grids.Actions
 
             return webMcpTools
                 .Where(t => toolNames.Contains(t.Name))
-                .Select(t => (IWebMcpTool)new WebMcpToolInfo
+                .Select(t => (IGridWebMcpTool)new WebMcpToolInfo
                 {
                     Name = t.Name,
                     Description = t.Description,
@@ -163,15 +163,14 @@ namespace Syncfusion.Blazor.Grids.Actions
 
                 // Fire OnWebMcpExecute for every tool — built-in or
                 // custom. The host may cancel, log / audit, set a result
-                // (for fully custom tools), or throw a WebMcpException to
-                // return a structured error. This is the SINGLE execution
-                // point for custom tools (no per-tool Handler callback,
-                // no per-tool confirmation dialog — see the class-level
-                // doc on WebMcpToolExecuteEventArgs).
-                var eventArgs = new WebMcpToolExecuteEventArgs
+                // (for custom tools), or throw a WebMcpException to
+                // return a structured error. For built-in tools, confirmation
+                // is shown only if ShowConfirmationDialog is true and the tool
+                // is writable (not read-only).
+                var eventArgs = new GridWebMcpExecuteEventArgs
                 {
                     Command = GetEventToolCommand(baseCommand, isCustomTool),
-                    ToolName = GetEventToolName(baseCommand, isCustomTool),
+                    Name = GetEventToolName(baseCommand, isCustomTool),
                     Arguments = args
                 };
                 if (_parent!.GridEvents != null && _parent.GridEvents.OnWebMcpExecute.HasDelegate == true)
@@ -188,7 +187,15 @@ namespace Syncfusion.Blazor.Grids.Actions
                         LogExecution(executionId, baseCommand, $"Host-Error:{ex.ErrorCode}", stopwatch);
                         return CreateStructuredErrorResponse(ex.ErrorCode, baseCommand, ex.Message);
                     }
-                    catch (Exception)
+                    catch (OperationCanceledException)
+                    {
+                        LogExecution(executionId, baseCommand, "Host-Error:ExecutionFailed", stopwatch);
+                        return CreateStructuredErrorResponse(
+                            WebMcpErrorCode.ExecutionFailed,
+                            baseCommand,
+                            $"The GridEvents.OnWebMcpExecute handler was cancelled while executing tool '{baseCommand}'.");
+                    }
+                    catch (AggregateException)
                     {
                         LogExecution(executionId, baseCommand, "Host-Error:ExecutionFailed", stopwatch);
                         return CreateStructuredErrorResponse(
@@ -198,31 +205,76 @@ namespace Syncfusion.Blazor.Grids.Actions
                     }
                 }
 
-                // 1. Host cancellation wins over everything else.
+                // 1. Host cancellation wins over everything else. Apply custom cancellation response if provided.
                 if (eventArgs.Cancel)
                 {
                     LogExecution(executionId, baseCommand, "Cancelled", stopwatch);
-                    return CreateCancelledResponse(
-                        $"{CancelledSentinel} Tool \"{baseCommand}\" was cancelled by host. This is final. Do NOT retry.");
+                    var cancellationMessage = !string.IsNullOrEmpty(eventArgs.CancellationResponse)
+                        ? eventArgs.CancellationResponse
+                        : $"{CancelledSentinel} Tool \"{baseCommand}\" was cancelled by host.";
+                    return CreateCancelledResponse(cancellationMessage);
                 }
 
-                // 2. Host pre-set a result (typical for custom tools).
+                // 2. Resolve read-only hint and request confirmation if needed.
+                var isReadOnly = ResolveReadOnlyHint(baseCommand, _parent.WebMcpSettings);
+                if (eventArgs.ShowConfirmationDialog && !isReadOnly)
+                {
+                    var approved = await RequestConfirmationAsync(baseCommand).ConfigureAwait(true);
+                    if (!approved)
+                    {
+                        LogExecution(executionId, baseCommand, "Confirmation-Denied", stopwatch);
+                        var cancellationMessage = !string.IsNullOrEmpty(eventArgs.CancellationResponse)
+                            ? eventArgs.CancellationResponse
+                            : CancelledSentinel;
+                        return CreateCancelledResponse(cancellationMessage);
+                    }
+                }
+
+                // 3. For built-in tools, invoke the handler.
+                //    For custom tools, the host event must have already set a Result.
+                object? handlerResult = null;
+                
+                if (!isCustomTool)
+                {
+                    // Built-in tool: invoke its handler
+                    handlerResult = await InvokeBuiltInHandler(baseCommand, args!).ConfigureAwait(true);
+                }
+                else
+                {
+                    // Custom tool: verify that the host event set a Result
+                    if (eventArgs.Result == null)
+                    {
+                        throw new WebMcpException(
+                            WebMcpErrorCode.ExecutionFailed,
+                            baseCommand,
+                            $"Custom WebMCP tool '{baseCommand}' requires the GridEvents.OnWebMcpExecute handler to set Result.");
+                    }
+                }
+
+                // 4. Host Result override takes precedence after handler execution.
                 if (eventArgs.Result != null)
                 {
                     LogExecution(executionId, baseCommand, "Success", stopwatch);
                     return CreateSuccessResponse(eventArgs.Result);
                 }
 
-                if (isCustomTool)
-                {
-                    throw new WebMcpException(
-                        WebMcpErrorCode.ExecutionFailed,
-                        baseCommand,
-                        $"The GridEvents.OnWebMcpExecute handler did not set Result for custom tool '{baseCommand}'.");
-                }
+                // 5. Return the handler result.
+                LogExecution(executionId, baseCommand, "Success", stopwatch);
+                return CreateSuccessResponse(handlerResult ?? string.Empty);
+            }
+            catch (WebMcpException wmEx)
+            {
+                LogExecution(executionId, command, $"WebMCP-Error:{wmEx.ErrorCode}", stopwatch);
+                return CreateStructuredErrorResponse(wmEx.ErrorCode, wmEx.ToolName, wmEx.Message);
+            }
+        }
 
-                // 3. Route to the verified built-in handler.
-                object result = baseCommand switch
+        /// <summary>
+        /// Invokes the built-in handler for the given command name.
+        /// </summary>
+        private async Task<object> InvokeBuiltInHandler(string baseCommand, Dictionary<string, object> args)
+        {
+            return baseCommand switch
                 {
                     "getSelectedRecords" => await HandleGetSelectedRecords(args!).ConfigureAwait(true),
                     "getSelectedRowIndexes" => await HandleGetSelectedRowIndexes(args!).ConfigureAwait(true),
@@ -317,15 +369,77 @@ namespace Syncfusion.Blazor.Grids.Actions
                         WebMcpErrorCode.UnknownTool,
                         baseCommand,
                         $"Unknown tool: {baseCommand}")
-                };
+            };
+        }
 
-                LogExecution(executionId, baseCommand, "Success", stopwatch);
-                return CreateSuccessResponse(result);
-            }
-            catch (WebMcpException wmEx)
+        /// <summary>
+        /// Resolves the ReadOnlyHint from the effective tool definition.
+        /// Returns false (writable) if the tool or its hint annotation is not found.
+        /// </summary>
+        private static bool ResolveReadOnlyHint(string baseCommand, GridWebMcpSettings? settings)
+        {
+            var effectiveTools = ResolveEffectiveTools(settings);
+            var toolBase = effectiveTools.FirstOrDefault(t => t.Name == baseCommand);
+            
+            if (toolBase == null)
             {
-                LogExecution(executionId, command, $"WebMCP-Error:{wmEx.ErrorCode}", stopwatch);
-                return CreateStructuredErrorResponse(wmEx.ErrorCode, wmEx.ToolName, wmEx.Message);
+                return false;
+            }
+
+            // Cast to concrete type to access Annotations
+            if (toolBase is not WebMcpTool tool || tool.Annotations == null)
+            {
+                return false;
+            }
+
+            // Try to extract ReadOnlyHint from annotations
+            if (tool.Annotations is System.Collections.IDictionary dict)
+            {
+                foreach (System.Collections.DictionaryEntry kv in dict)
+                {
+                    if (string.Equals(kv.Key?.ToString(), "ReadOnlyHint", StringComparison.Ordinal))
+                    {
+                        if (bool.TryParse(kv.Value?.ToString(), out var isReadOnly))
+                        {
+                            return isReadOnly;
+                        }
+                    }
+                }
+            }
+            else
+            {
+                var prop = tool.Annotations.GetType().GetProperty("ReadOnlyHint");
+                if (prop != null && prop.GetValue(tool.Annotations) is bool isReadOnly)
+                {
+                    return isReadOnly;
+                }
+            }
+
+            return false;
+        }
+
+        /// <summary>
+        /// Requests confirmation for tool execution via the Grid's confirmation dialog.
+        /// Returns true if approved, false if denied or unavailable.
+        /// </summary>
+        private async Task<bool> RequestConfirmationAsync(string toolName)
+        {
+            if (_parent?.WebMcpConfirmDialog == null)
+            {
+                return false;
+            }
+
+            try
+            {
+                return await _parent.WebMcpConfirmDialog.RequestConfirmationAsync(toolName).ConfigureAwait(true);
+            }
+            catch (OperationCanceledException)
+            {
+                return false;
+            }
+            catch (AggregateException)
+            {
+                return false;
             }
         }
 

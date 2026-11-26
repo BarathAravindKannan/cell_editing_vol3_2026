@@ -40,7 +40,17 @@ namespace Syncfusion.Blazor.Grids.Internal
 
             builder.AddAttribute(sequence++, "class", classNames);
 
+            // The toggle cell is the element that owns focus (tabindex), the
+            // click handler and the key handler, so it must also be the element
+            // that carries the action semantics. Screen readers build their
+            // action model from the accessibility tree; when role="button" sits
+            // on the inner glyph instead, the focused row has no primary action
+            // and Enter does not invoke the toggle.
+            var ariaLabel = cell.DetailRowExpand ? "Row Expand" : "Row Collapse";
+
             // Add attributes
+            builder.AddAttribute(sequence++, "role", "button");
+            builder.AddAttribute(sequence++, "aria-label", ariaLabel);
             builder.AddAttribute(sequence++, "aria-expanded", cell.DetailRowExpand ? "true" : "false");
             builder.AddAttribute(sequence++, "tabindex", (0).ToString(CultureInfo.InvariantCulture));
             builder.AddAttribute(sequence++, "data-uid", cell.Uid);
@@ -66,15 +76,16 @@ namespace Syncfusion.Blazor.Grids.Internal
                 async (e) => await (Parent?.FocusModule?.ProcessKeyDown(e, row, cell)!).ConfigureAwait(true)));
             builder.AddEventPreventDefaultAttribute(sequence++, "onkeydown", true);
 
-            // Render expand/collapse icon
-            var ariaLabel = cell.DetailRowExpand ? "Row Expand" : "Row Collapse";
+            // Render expand/collapse icon. The glyph is decoration: the toggle
+            // cell already carries the name and the expanded state, so the glyph
+            // is hidden from assistive technology instead of being announced as
+            // a second, independent control.
             var iconClass = cell.DetailRowExpand
                 ? "e-icons e-dtdiagonaldown e-icon-gdownarrow"
                 : "e-icons e-dtdiagonalright e-icon-grightarrow";
 
             builder.OpenElement(sequence++, "a");
-            builder.AddAttribute(sequence++, "role", "button");
-            builder.AddAttribute(sequence++, "aria-label", ariaLabel);
+            builder.AddAttribute(sequence++, "aria-hidden", "true");
             builder.AddAttribute(sequence++, "class", iconClass);
             builder.CloseElement(); // </a>
 

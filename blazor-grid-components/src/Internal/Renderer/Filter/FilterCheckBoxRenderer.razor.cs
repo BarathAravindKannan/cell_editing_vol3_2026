@@ -9,6 +9,7 @@ using System.Collections.Generic;
 using System.Globalization;
 using System.Linq;
 using System.Runtime.CompilerServices;
+using System.Threading;
 using System.Threading.Tasks;
 
 [assembly: InternalsVisibleTo("Syncfusion.Blazor.Tests, PublicKey=00240000048000009400000006020000002400005253413100040000010001002382fcb1069523ce72d849497a557a445c151eaf4007aa79adef551a8204ca7f728e5378607d85695b16f129ec35bf4af15dcf6d3581deb8bb0debb239c33e7f1271a37c7f60f1044ae417730f5082abee5f9ec568a8a4cef04074394755706376e982dc6f9d15430faaad385ae8f00a77ef1c97517f1a1517004ce78028b9ce")]
@@ -81,10 +82,13 @@ namespace Syncfusion.Blazor.Grids.Internal
         private ISyncfusionStringLocalizer? Localizer;
 
         private Dictionary<string, object> CheckedData { get; set; } = new Dictionary<string, object>();
+        private List<KeyValuePair<string, object>> _checkboxVirtualizationData { get; set; } = new List<KeyValuePair<string, object>>();
 
         private IEnumerable<object>? CheckboxListData { get; set; }
 
         private Dictionary<string, object> InitialBindedData { get; set; } = new Dictionary<string, object>();
+
+        private HashSet<object?>? AdvancedFilteredValues { get; set; }
 
         private bool FilterDialogInitialRendering { get; set; }
 
@@ -118,6 +122,51 @@ namespace Syncfusion.Blazor.Grids.Internal
         /// Used to implement toggle behavior: first click opens, second click closes.
         /// </summary>
         private bool _isDialogToggledClosed { get; set; }
+
+        // ----- On-demand loading (BLZ-FILT-007..019) -----
+        // Private state for chunked loading of the checkbox value list inside
+        // FilterType.Excel / FilterType.CheckBox dialogs. These fields are
+        // owned by the renderer (per-dialog lifetime) and reset on each
+        // OpenFilterDialog via CancelChunkRequestAsync → fresh _chunkCts.
+        private int _loadedDistinctCount { get; set; }
+        private int _nextSourceOffset { get; set; }
+        private int _initialDistinctCount { get; set; }
+        private int _chunkSize { get; set; } = 50;
+        private int _virtualWindowStart { get; set; }
+        private int _virtualWindowEnd { get; set; }
+        private int _virtualRowHeight { get; set; } = 32;
+        private int _virtualFirstVisibleIndex { get; set; }
+        private int _virtualVisibleCount { get; set; } = 10;
+        private bool _isLoadingNextChunk { get; set; }
+        private CancellationTokenSource? _chunkCts { get; set; }
+        private int _chunkGeneration { get; set; }
+        private bool _scrollListenerBound { get; set; }
+        private List<object>? _customCheckboxDataSource { get; set; }
+        private List<object>? _customSearchCheckboxDataSource { get; set; }
+        private int _legacyFilterChoiceCount { get; set; }
+        private bool _lastChunkedLoadingActive { get; set; }
+        private bool _bindChunkListenerAfterRender { get; set; }
+        private int _announceToken { get; set; }
+        // Client-side dedup window across server-paged chunks: a column value
+        // that appears in chunk 0 and chunk 1 (e.g. "US") would otherwise
+        // show twice. We keep the first occurrence and drop later ones
+        // (Option B from the design discussion). Per-dialog lifetime; reset
+        // on each OpenFilterDialog via ResolveChunkSizeForDialog.
+        private HashSet<string> _seenDistinctKeys { get; set; } = new HashSet<string>(StringComparer.Ordinal);
+        // True while the server still has more rows to page through. With
+        // server paging, CheckboxListData only holds the current page so the
+        // chunk-end guard (_loadedDistinctCount >= CheckboxListData.Count())
+        // no longer reflects end-of-data — we set this from the page size
+        // and (when available) the DataResult.Count total.
+        private bool _hasMoreChunks { get; set; } = true;
+
+        // NEW: Throttle scroll events to prevent infinite triggering during momentum scroll
+        // Track the last index that triggered a load to prevent re-triggering for the same position
+        private int _lastTriggeredChunkIndex { get; set; } = -1;
+
+        private const int DefaultFilterDialogChunkSize = 50;
+        private const int DefaultFilterDialogVirtualWindowSize = 20;
+        private const int VirtualWindowOverscanCount = 5;
 
 
         //AdaptiveDialog Section Started
@@ -210,8 +259,66 @@ namespace Syncfusion.Blazor.Grids.Internal
         {
             Localizer = Parent!.Localizer;
             CheckedData?.Clear();
+            _lastChunkedLoadingActive = IsChunkedLoadingActive();
             Parent.EventAggregator.Add("CloseAdaptiveCheckBoxDialog", CloseCheckboxDialog);
             Parent.EventAggregator.Add("OpenAdaptiveCheckBoxDialog", OpenCheckboxDialog);
+        }
+
+        /// <inheritdoc />
+        protected override async Task OnParametersSetAsync()
+        {
+            await base.OnParametersSetAsync().ConfigureAwait(true);
+
+            var chunkedLoadingActive = IsChunkedLoadingActive();
+            if (chunkedLoadingActive == _lastChunkedLoadingActive)
+            {
+                return;
+            }
+
+            _lastChunkedLoadingActive = chunkedLoadingActive;
+            if (Parent?.FilterModule == null || Column == null ||
+                !Parent.FilterModule.IsFilterDialogOpen(Column.Uid))
+            {
+                return;
+            }
+
+            if (!chunkedLoadingActive)
+            {
+                var legacyCustomData = _customCheckboxDataSource;
+                await CancelChunkRequestAsync().ConfigureAwait(true);
+                FilterChoiceCount = _legacyFilterChoiceCount;
+                await UpdateDataSource(false, legacyCustomData).ConfigureAwait(true);
+                await InvokeAsync(StateHasChanged).ConfigureAwait(true);
+                return;
+            }
+
+            _legacyFilterChoiceCount = FilterChoiceCount;
+            _customCheckboxDataSource = CheckboxListData?.ToList();
+            _chunkCts = new CancellationTokenSource();
+            ResolveChunkSizeForDialog();
+            FilterChoiceCount = _chunkSize;
+            CheckedData.Clear();
+            FilteredData.Clear();
+            CheckboxListData = null;
+            await UpdateDataSource(false, _customCheckboxDataSource, _chunkSize).ConfigureAwait(true);
+            await LoadInitialChunkAsync(_chunkCts.Token).ConfigureAwait(true);
+            _bindChunkListenerAfterRender = true;
+        }
+
+        /// <inheritdoc />
+        protected override async Task OnAfterRenderAsync(bool firstRender)
+        {
+            await base.OnAfterRenderAsync(firstRender).ConfigureAwait(true);
+            if (!_bindChunkListenerAfterRender)
+            {
+                return;
+            }
+
+            _bindChunkListenerAfterRender = false;
+            if (IsChunkedLoadingActive() && _chunkCts != null)
+            {
+                await BindScrollListenerIfNeeded(_chunkCts.Token).ConfigureAwait(true);
+            }
         }
 
         private static Operator GetOperator(string value)
@@ -664,11 +771,15 @@ namespace Syncfusion.Blazor.Grids.Internal
             }
         }
         
-        internal void Closed()
+        internal async Task Closed()
         {
             // CRITICAL: Reset toggle state on ANY dialog close
             Parent!.FilterModule!.ResetColumnDialogState(Column!.Uid);
             _isDialogToggledClosed = false;
+
+            // Mirror OncloseDialog — cancel any in-flight chunk request
+            // when the dialog fully closes (BLZ-FILT-011).
+            await CancelChunkRequestAsync().ConfigureAwait(true);
 
             if (Parent.FilterModule != null && Parent.FocusModule != null && !Parent.FilterModule.IsSubMenuClick)
             {
@@ -678,7 +789,7 @@ namespace Syncfusion.Blazor.Grids.Internal
             }
         }
 
-        internal void OncloseDialog(BeforeCloseEventArgs args)
+        internal async Task OncloseDialog(BeforeCloseEventArgs args)
         {
             // Reset toggle state when dialog closes
             Parent!.FilterModule!.ResetColumnDialogState(Column!.Uid);
@@ -688,6 +799,11 @@ namespace Syncfusion.Blazor.Grids.Internal
             {
                 ExcelBaseRef?.Dispose();
             }
+
+            // Cancel any in-flight chunk request when the dialog is closing.
+            // BLZ-FILT-011 / BLZ-FILT-018: cancellation is the expected path
+            // here, never an error.
+            await CancelChunkRequestAsync().ConfigureAwait(true);
         }
 
         /// <summary>
@@ -755,15 +871,39 @@ namespace Syncfusion.Blazor.Grids.Internal
                 Yvalue = YPosition;
             }
 
-            await UpdateDataSource(false, actionArgs.CheckboxListData ?? dialogOpeningArgs.CheckboxListData, dialogOpeningArgs.FilterChoiceCount).ConfigureAwait(true);
-            if (CheckBoxAdaptiveDialog != null && Parent.EnableAdaptiveUI && ((Parent.AdaptiveUIMode.Equals(AdaptiveMode.Both)) || (Parent.SyncfusionService.IsDeviceMode && Parent.AdaptiveUIMode.Equals(AdaptiveMode.Mobile)) || (Parent.AdaptiveUIMode.Equals(AdaptiveMode.Desktop) && Parent.SyncfusionService?.IsDeviceMode != true) )) 
+            if (IsChunkedLoadingActive())
+            {
+                await CancelChunkRequestAsync().ConfigureAwait(true);
+                _legacyFilterChoiceCount = actionArgs.FilterChoiceCount > 0
+                    ? actionArgs.FilterChoiceCount
+                    : dialogOpeningArgs.FilterChoiceCount;
+                _chunkCts = new CancellationTokenSource();
+                ResolveChunkSizeForDialog(dialogOpeningArgs.FilterChoiceCount);
+                FilterChoiceCount = _chunkSize;
+                CheckboxListData = null;
+                FilteredData.Clear();
+            }
+            if (CheckBoxAdaptiveDialog != null && Parent.EnableAdaptiveUI && ((Parent.AdaptiveUIMode.Equals(AdaptiveMode.Both)) || (Parent.SyncfusionService.IsDeviceMode && Parent.AdaptiveUIMode.Equals(AdaptiveMode.Mobile)) || (Parent.AdaptiveUIMode.Equals(AdaptiveMode.Desktop) && Parent.SyncfusionService?.IsDeviceMode != true) ))
             {
                 await CheckBoxAdaptiveDialog.ShowAsync().ConfigureAwait(true);
             }
-            else {
+            else
+            {
                 StateHasChanged();
                 if (ExcelDialog != null)
-                await ExcelDialog.ShowAsync().ConfigureAwait(true);              
+                {
+                    await ExcelDialog.ShowAsync().ConfigureAwait(true);
+                }
+            }
+            await UpdateDataSource(false, actionArgs.CheckboxListData ?? dialogOpeningArgs.CheckboxListData, IsChunkedLoadingActive() ? _chunkSize : dialogOpeningArgs.FilterChoiceCount).ConfigureAwait(true);
+            if (IsChunkedLoadingActive())
+            {
+                await LoadInitialChunkAsync(_chunkCts!.Token).ConfigureAwait(true);
+            }
+            StateHasChanged();
+            if (IsChunkedLoadingActive() && _chunkCts != null)
+            {
+                await BindScrollListenerIfNeeded(_chunkCts.Token).ConfigureAwait(true);
             }
             
             if (Parent.FilterModule != null && Column != null && Parent.FilterModule.GetFilterType(Column) == "Excel")
@@ -969,16 +1109,21 @@ namespace Syncfusion.Blazor.Grids.Internal
             return result.OfType<TPayload>().Cast<object>().ToList();
         }
 
-        private async Task UpdateDataSource(bool isInputSearch = false, IEnumerable<object>? customFilterData = null, int filterChoiceCount = 0)
+        private async Task UpdateDataSource(bool isInputSearch = false, IEnumerable<object>? customFilterData = null, int filterChoiceCount = 0, bool appendChunk = false, CancellationToken cancellationToken = default)
         {
+            ThrowIfChunkRequestCanceled(cancellationToken);
             isSearch = isInputSearch;
             isCurrentSelecitonFilter = true;
+            AdvancedFilteredValues = null;
             IEnumerable<object>? CheckboxData = null;
             bool isForeignDataEmpty = false;
+            bool isChunkedPageRequest = false;
+            int sourcePageCount = 0;
+            bool hasMoreChunkPages = false;
             var actionArgs = new ActionEventArgs<TContent>() { RequestType = Grids.Action.FilterChoiceRequest, ColumnName = Column!.Field, Parent = Parent };
             var filterSearchingArgs = new CheckboxFilterSearchingEventArgs() { SearchText = SearchValue, ColumnName = Column.Field, Parent = Parent, CheckboxListData = null! };
 
-            if (!isInputSearch)
+            if (!isInputSearch && !appendChunk)
             {
 
                 isCurrentSelecitonFilter = false;
@@ -992,8 +1137,29 @@ namespace Syncfusion.Blazor.Grids.Internal
                 }
                 FilterChoiceCount = (int)actionArgs.FilterChoiceCount > 0 ? (int)actionArgs.FilterChoiceCount : filterChoiceCount;
                 customFilterData = actionArgs.CheckboxListData ?? customFilterData;
+                if (IsChunkedLoadingActive() && actionArgs.FilterChoiceCount > 0)
+                {
+                    _legacyFilterChoiceCount = actionArgs.FilterChoiceCount;
+                }
+                if (IsChunkedLoadingActive() && FilterChoiceCount > 0)
+                {
+                    _chunkSize = FilterChoiceCount;
+                }
 
             }
+
+            if (IsChunkedLoadingActive() && !isInputSearch && !appendChunk)
+            {
+                _customCheckboxDataSource = customFilterData?.ToList();
+                _nextSourceOffset = 0;
+            }
+            else if (IsChunkedLoadingActive() && isInputSearch &&
+                string.IsNullOrEmpty(SearchValue) && customFilterData != null)
+            {
+                _customCheckboxDataSource = customFilterData.ToList();
+            }
+
+            var customData = customFilterData?.ToList();
 
             if (!(InputValue != null && !string.IsNullOrEmpty(InputValue.ToString()))) 
             {
@@ -1001,18 +1167,24 @@ namespace Syncfusion.Blazor.Grids.Internal
                 isCurrentSelecitonFilter = false;
             }
 
-            if (customFilterData == null)
+            if (customData == null)
             {
                 Query Foreignquery = new Query();
                 object? FColDataSource = null;
                 if (Column?.IsForeignColumn() == true)
                 {
                     FColDataSource = await (Column?.GetData(Foreignquery.Queries)!).ConfigureAwait(true);
+                    ThrowIfChunkRequestCanceled(cancellationToken);
                     isForeignDataEmpty = !((IEnumerable<object>)Column.ColumnData!).Any();
                 }
 
                 Query DataManagerQuery = await GenerateWherePredicate(isForeignDataEmpty).ConfigureAwait(true);
-                Query GridQuery = Column?.IsForeignColumn() == true && isForeignDataEmpty ? new Query() : Parent!.DataModule!.GenerateQuery().RequiresCount();
+                ThrowIfChunkRequestCanceled(cancellationToken);
+                isChunkedPageRequest = IsChunkedLoadingActive();
+                var hasAdvancedFilter = Parent!.AllowAdvancedFiltering && Parent.AdvancedFilterWhereFilter?.Count > 0;
+                Query GridQuery = Column?.IsForeignColumn() == true && isForeignDataEmpty
+                    ? new Query()
+                    : Parent!.DataModule!.GenerateQuery(hasAdvancedFilter).RequiresCount();
                 var SortField = Column?.IsForeignColumn() == true ? Column?.IsForeignKeyField() == true ? Column?.Field : Column?.ForeignKeyField : Column?.Field;
                 DataManagerQuery.Sort(SortField!, "ascending");
 
@@ -1042,24 +1214,53 @@ namespace Syncfusion.Blazor.Grids.Internal
                 DataManagerQuery.Queries.Expand = GridQuery?.Queries?.Expand;
                 GridQuery!.Queries.Select = DataManagerQuery.Queries.Select = new List<string>() { SortField! };
                 GridQuery.Queries.RequiresCounts = true;
+                // Server-side paging for the filter-dialog distinct query (BLZ-FILT-007 / GRID-DATA-005):
+                // when chunked loading is active, request only one page worth of rows from the
+                // underlying DataManager. ODataV4Adaptor translates this to $skip/$top; WebApiAdaptor
+                // translates to skip/take; BlazorAdaptor applies LINQ Skip/Take client-side anyway.
+                // UrlAdaptor behavior depends on the consumer's URL template.
+                if (isChunkedPageRequest)
+                {
+                    GridQuery!.Skip(_nextSourceOffset);
+                    GridQuery!.Take(_chunkSize);
+                    DataManagerQuery.Skip(_nextSourceOffset);
+                    DataManagerQuery.Take(_chunkSize);
+                }
                 // Event-driven data source: invoke OnLoadData when subscribed for the full sample,
                 // otherwise fall back to executing the DataManager query directly.
                 IEnumerable<object>? tmpFullData = null;
                 if (Parent.GridEvents?.OnDataLoad.HasDelegate == true)
                 {
                     var fullEventArgs = await EventDrivenDataHandler<TContent>.InvokeDataRequestAsync(DataManagerQuery).ConfigureAwait(true);
+                    ThrowIfChunkRequestCanceled(cancellationToken);
                     await InvokeAsync( () => Parent.GridEvents.OnDataLoad.InvokeAsync(fullEventArgs)).ConfigureAwait(true);
+                    ThrowIfChunkRequestCanceled(cancellationToken);
                     tmpFullData = CastCheckboxResult<TContent>(fullEventArgs?.Result);
                 }
                 else
                 {
                     IEnumerable tmpFullDataRaw = ((DataResult)await (Parent?.DataManager?.ExecuteQuery<TContent>(DataManagerQuery)!).ConfigureAwait(true))?.Result!;
+                    ThrowIfChunkRequestCanceled(cancellationToken);
                     tmpFullData = tmpFullDataRaw?.OfType<TContent>().Cast<object>().ToList()!;
                 }
                 var fullData = (IEnumerable<object>)tmpFullData! ?? (IEnumerable<object>)new List<TContent>();
+                if (isChunkedPageRequest)
+                {
+                    sourcePageCount = fullData.Count();
+                    if (sourcePageCount > _chunkSize)
+                    {
+                        sourcePageCount = _chunkSize;
+                    }
+                    hasMoreChunkPages = sourcePageCount >= _chunkSize;
+                }
                 if (DataManagerQuery.Queries.Distinct != null)
                 {
                     CheckboxData = fullData;
+                    if (isChunkedPageRequest)
+                    {
+                        CheckboxListData = CheckboxData.ToList();
+                        CheckboxData = CheckboxListData.Take(_chunkSize).ToList();
+                    }
                 }
                 else
                 {
@@ -1075,9 +1276,19 @@ namespace Syncfusion.Blazor.Grids.Internal
                     {
                         result = await Parent.DataManager.ExecuteQuery<TContent>(GridQuery).ConfigureAwait(true);
                     }
+                    ThrowIfChunkRequestCanceled(cancellationToken);
 
                     IEnumerable<object>? Data = result is DataResult ? (IEnumerable<object>)((DataResult)result).Result! : (IEnumerable<object>)result;
                     Data = ForeignKey<TContent>.GetForeignKeyDataSource(Column!, Data) as IEnumerable<object>;
+                    if (hasAdvancedFilter && Data != null)
+                    {
+                        var filterField = Column?.IsForeignColumn() == true ? Column.ForeignKeyValue : Column?.Field;
+                        if (!string.IsNullOrEmpty(filterField))
+                        {
+                            AdvancedFilteredValues = new HashSet<object?>(
+                                Data.Select(item => PropertyHelper.GetObject(filterField, item)));
+                        }
+                    }
 
                     IEnumerable<object>? FullData = FullDataEmpty ? new List<IEnumerable<object>>() : fullData;
                     FullData = ForeignKey<TContent>.GetForeignKeyDataSource(Column!, FullData) as IEnumerable<object>;
@@ -1085,19 +1296,77 @@ namespace Syncfusion.Blazor.Grids.Internal
                     var propertyName = Column?.IsForeignColumn() == true ? Column?.ForeignKeyValue : Column?.Field;
                     var DistinctData = (Data != null && propertyName != null) ? DataUtil.GetDistinct(Data, propertyName) : Enumerable.Empty<object>();
                     var DistinctFullData = FullData != null && propertyName != null && ((FullData.Count() >= DistinctData?.Cast<object>().Count()) || isSearch) ? DataUtil.GetDistinct(FullData, propertyName) : DistinctData;
-                    DistinctFullData = DistinctFullData?.Take(FilterChoiceCount == 0 ? 1000 : FilterChoiceCount);
-                    CheckboxData = DistinctFullData;
-                    if(CheckboxListData == null)
+                    if (isChunkedPageRequest)
                     {
-                        CheckboxListData = CheckboxData;
+                        // Server-paged chunked mode: DistinctData / DistinctFullData reflect only
+                        // the current page (Data had Skip/Take applied upstream). Apply the
+                        // cross-chunk dedup window (Option B) so a column value that appears in
+                        // chunk 0 and chunk 1 (e.g. "US") is shown only once. End-of-data is
+                        // derived from the page size: a short page means no more rows.
+                        var pageDistinct = DistinctFullData?.Cast<object>().ToList() ?? new List<object>();
+                        var deduped = FilterPageBySeenDistinctKeys(pageDistinct, propertyName, Column?.IsForeignColumn() == true ? Column?.ForeignKeyValue : Column?.Field);
+                        CheckboxListData = deduped;
+                        CheckboxData = deduped;
+                    }
+                    else
+                    {
+                        DistinctFullData = DistinctFullData?.Take(FilterChoiceCount == 0 ? 1000 : FilterChoiceCount);
+                        CheckboxData = DistinctFullData;
+                        if (CheckboxListData == null)
+                        {
+                            CheckboxListData = CheckboxData;
+                        }
                     }
                 }
             }
             else
             {
-                if(isInputSearch && Column?.FilterItemTemplate == null)
+                if (appendChunk)
                 {
-                    CheckboxData = customFilterData
+                    // Server-paged chunked append: the consumer (parent)
+                    // handed us a fresh page via customFilterData; dedup
+                    // against the cross-chunk window and update the
+                    // end-of-data flag.
+                    var raw = customData.ToList();
+                    var propName = Column?.IsForeignColumn() == true ? Column?.ForeignKeyValue : Column?.Field;
+                    CheckboxData = FilterPageBySeenDistinctKeys(raw, propName, propName);
+                    sourcePageCount = raw.Count;
+                    hasMoreChunkPages = raw.Count >= _chunkSize;
+                    isChunkedPageRequest = true;
+                }
+                else if (IsChunkedLoadingActive() && isInputSearch && !string.IsNullOrEmpty(SearchValue))
+                {
+                    IEnumerable<object> searchData = customData;
+                    if (Column?.FilterItemTemplate == null)
+                    {
+                        var searchText = SearchValue.ToLower(CultureInfo.CurrentCulture);
+                        searchData = customData.Where(val =>
+                        {
+                            var value = Parent!.PropHelper?.GetValue(val, Column?.Field!)?.ToString()?.ToLower(CultureInfo.CurrentCulture);
+                            return value != null && value.Contains(searchText, StringComparison.Ordinal);
+                        });
+                    }
+
+                    _customSearchCheckboxDataSource = searchData.ToList();
+                    var searchPage = _customSearchCheckboxDataSource
+                        .Skip(_nextSourceOffset)
+                        .Take(_chunkSize)
+                        .ToList();
+                    var searchField = Column?.IsForeignColumn() == true ? Column.ForeignKeyValue : Column?.Field;
+                    var distinctSearchPage = FilterPageBySeenDistinctKeys(searchPage, searchField, searchField);
+                    CheckboxData = distinctSearchPage;
+                    CheckboxListData = distinctSearchPage;
+                    sourcePageCount = searchPage.Count;
+                    hasMoreChunkPages = _customSearchCheckboxDataSource.Count > _nextSourceOffset + sourcePageCount;
+                    isChunkedPageRequest = true;
+                }
+                else if (isInputSearch && !string.IsNullOrEmpty(SearchValue) && Column?.FilterItemTemplate == null)
+                {
+                    // Starting a new search resets the dedup window so
+                    // the user sees the full search hit-set fresh.
+                    _seenDistinctKeys.Clear();
+                    _hasMoreChunks = false;
+                    CheckboxData = customData
                     .Where(val =>
                     {
                         var value = Parent!.PropHelper?.GetValue(val, Column?.Field!)?.ToString()?.ToLower(System.Globalization.CultureInfo.CurrentCulture);
@@ -1107,8 +1376,23 @@ namespace Syncfusion.Blazor.Grids.Internal
                     ?.ToList();
                     CheckboxListData = CheckboxData;
                 }
+                else if (IsChunkedLoadingActive() && (!isInputSearch || string.IsNullOrEmpty(SearchValue)))
+                {
+                    var propName = Column?.IsForeignColumn() == true ? Column?.ForeignKeyValue : Column?.Field;
+                    var rawPage = appendChunk
+                        ? customData
+                        : customData.Take(_chunkSize).ToList();
+                    var deduped = FilterPageBySeenDistinctKeys(rawPage, propName, propName);
+                    CheckboxListData = deduped;
+                    CheckboxData = deduped;
+                    sourcePageCount = rawPage.Count;
+                    hasMoreChunkPages = appendChunk
+                        ? customData.Count >= _chunkSize
+                        : customData.Count > rawPage.Count;
+                    isChunkedPageRequest = true;
+                }
                 else{
-                    CheckboxData = customFilterData.Take(FilterChoiceCount == 0 ? 1000 : FilterChoiceCount); // bind the custom datasource from searchbegin event
+                    CheckboxData = customData.Take(FilterChoiceCount == 0 ? 1000 : FilterChoiceCount); // bind the custom datasource from searchbegin event
                 }
                 if (CheckboxListData == null)
                 {
@@ -1137,7 +1421,14 @@ namespace Syncfusion.Blazor.Grids.Internal
                 }
             }
 
-            CheckedData?.Clear();
+            if (!appendChunk)
+            {
+                CheckedData?.Clear();
+                FilteredData.Clear();
+                _checkboxVirtualizationData.Clear();
+                _virtualWindowStart = 0;
+                _virtualWindowEnd = DefaultFilterDialogVirtualWindowSize;
+            }
 
             if (CheckboxData != null && !CheckboxData.Any() && Column?.Format != null && (!Column.Format.Contains('C', StringComparison.Ordinal) || !Column.Format.Contains('N', StringComparison.Ordinal)))
             {
@@ -1159,7 +1450,7 @@ namespace Syncfusion.Blazor.Grids.Internal
                         FUid = Column?.Uid!
                     };
                     FilteredData?.Add(checkBoxModelData);
-                    CheckedData?.AddOrUpdateItem(uniqueId, checkBoxModelData);
+                    AddCheckboxDataItem(uniqueId, checkBoxModelData);
                 }
             }
             else
@@ -1167,8 +1458,23 @@ namespace Syncfusion.Blazor.Grids.Internal
                 UpdateCheckBoxDataItems(CheckboxData!, isForeignDataEmpty, isInputSearch);
             }
             SelectAllHandler(CheckboxData);
-            await SfBaseUtils.InvokeEvent<ActionEventArgs<TContent>>(Parent!.GridEvents?.OnActionComplete!, actionArgs).ConfigureAwait(true);
-            await Parent.EventAggregator.NotifyAsync("ActionComplete", actionArgs).ConfigureAwait(true);
+            if (!appendChunk)
+            {
+                await SfBaseUtils.InvokeEvent<ActionEventArgs<TContent>>(Parent!.GridEvents?.OnActionComplete!, actionArgs).ConfigureAwait(true);
+                ThrowIfChunkRequestCanceled(cancellationToken);
+                await Parent!.EventAggregator.NotifyAsync("ActionComplete", actionArgs).ConfigureAwait(true);
+                ThrowIfChunkRequestCanceled(cancellationToken);
+            }
+            if (isChunkedPageRequest)
+            {
+                _nextSourceOffset += sourcePageCount;
+                _hasMoreChunks = hasMoreChunkPages;
+            }
+            if (IsChunkedLoadingActive() && !appendChunk)
+            {
+                _loadedDistinctCount = FilteredData?.Count ?? 0;
+                _initialDistinctCount = _loadedDistinctCount;
+            }
         }
 
         private void UpdateCheckBoxDataItems(IEnumerable<object> CheckboxData, bool isForeignDataEmpty, bool isInputSearch = false)
@@ -1256,7 +1562,7 @@ namespace Syncfusion.Blazor.Grids.Internal
                     {
                         InitialBindedData?.AddOrUpdateItem(uniqueId, data);
                     }
-                    CheckedData?.AddOrUpdateItem(uniqueId, data);
+                    AddCheckboxDataItem(uniqueId, data);
                 }
                 else if (CheckBoxValue != null &&
                     (Column?.FilterItemTemplate != null || ((currentCulture == "en-US" || currentCulture == "zh" || currentCulture == "ar") && (checkBoxVal?.Replace(",", "", StringComparison.Ordinal)?.Contains(SearchValue!, StringComparison.Ordinal) == true))
@@ -1265,13 +1571,18 @@ namespace Syncfusion.Blazor.Grids.Internal
                     || (currentCulture != "en-US" && (checkBoxVal?.Contains(SearchValue!, StringComparison.Ordinal) == true))
                     ) || CheckBoxValue == null)
                 {
-                    CheckedData?.AddOrUpdateItem(uniqueId, data);
+                    AddCheckboxDataItem(uniqueId, data);
                 }
             }
         }
 
         internal bool UpdateResult(object fValue, bool isInputSearch = false)
         {
+            if (AdvancedFilteredValues != null && !AdvancedFilteredValues.Contains(fValue))
+            {
+                return false;
+            }
+
             bool isTrue = true;
             bool isFiltered = false;
             if (Parent!.FilterSettings!.Columns != null)
@@ -1627,6 +1938,13 @@ namespace Syncfusion.Blazor.Grids.Internal
         private async Task InputArgs(Microsoft.AspNetCore.Components.ChangeEventArgs args)
         {
             SearchValue = args?.Value?.ToString()!;
+            var requestToken = CancellationToken.None;
+            if (IsChunkedLoadingActive())
+            {
+                RestartChunkRequestForSearch();
+                requestToken = _chunkCts!.Token;
+            }
+            var searchGeneration = _chunkGeneration;
             VisibleProperty = true;
             var actionArgs = new ActionEventArgs<TContent>() { RequestType = Grids.Action.FilterSearchBegin, SearchString = SearchValue, ColumnName = Column?.Field!, Parent = Parent, CheckboxListData = null! };
             await SfBaseUtils.InvokeEvent<ActionEventArgs<TContent>>(Parent!.GridEvents?.OnActionBegin!, actionArgs).ConfigureAwait(true);
@@ -1660,6 +1978,15 @@ namespace Syncfusion.Blazor.Grids.Internal
             if (string.IsNullOrEmpty(SearchValue))
             {
                 CancelIcon = string.Empty;
+                // Clearing the search returns the user to the full
+                // distinct set; reset the cross-chunk dedup window,
+                // end-of-data flag, AND _loadedDistinctCount so the next
+                // page-fetch starts from offset 0 rather than skipping
+                // past items already shown (GRID-DATA-005).
+                _seenDistinctKeys.Clear();
+                _hasMoreChunks = true;
+                _loadedDistinctCount = 0;
+                _nextSourceOffset = 0;
                 SelectAllHandler();
             }
             else if (Parent.DataManager!.DataAdaptor!.IsRemote())
@@ -1674,9 +2001,15 @@ namespace Syncfusion.Blazor.Grids.Internal
 
             if (InputValue == null || InputValue.ToString() != "grd-search-notvalid" || (actionArgs.CheckboxListData != null && actionArgs.CheckboxListData.Any()) || (filterSearchingArgs.CheckboxListData != null && filterSearchingArgs.CheckboxListData.Any()) )
             {
-                await UpdateDataSource(true, actionArgs.CheckboxListData ?? filterSearchingArgs.CheckboxListData).ConfigureAwait(true);
+                await UpdateDataSource(
+                    true,
+                    actionArgs.CheckboxListData ?? filterSearchingArgs.CheckboxListData,
+                    cancellationToken: requestToken).ConfigureAwait(true);
             }
-            VisibleProperty = false;
+            if (!IsChunkedLoadingActive() || searchGeneration == _chunkGeneration)
+            {
+                VisibleProperty = false;
+            }
         }
 
         private string GetClassName()
@@ -1713,6 +2046,7 @@ namespace Syncfusion.Blazor.Grids.Internal
             var eventArgs = e;
             CancelIcon = string.Empty;
             InputValue = null!;
+            SearchValue = string.Empty;
             VisibleProperty = true;
             await UpdateDataSource().ConfigureAwait(true);
             await Parent!.InvokeMethod("sfBlazor.Grid.searchClear", new object[] { Parent.DataId, $"{Parent.ID}_SearchBox" }).ConfigureAwait(true);
@@ -1733,6 +2067,545 @@ namespace Syncfusion.Blazor.Grids.Internal
             public string? guid { get; set; }
 
             public string? FUid { get; set; }
+        }
+
+        // ----- On-demand loading methods (BLZ-FILT-007..019) -----
+
+        /// <summary>
+        /// Resolves the effective chunk size for this dialog session and
+        /// resets all per-dialog on-demand loading state. Idempotent; safe
+        /// to call before <see cref="OpenFilterDialog"/> returns.
+        /// </summary>
+        private void ResolveChunkSizeForDialog(int filterChoiceCount = 0)
+        {
+            // BLZ-FILT-012a / -AC16: FilterChoiceCount > 0 wins for the whole session.
+            int resolved = filterChoiceCount > 0
+                ? filterChoiceCount
+                : (Parent?.FilterSettings?.FilterDialogItemsCount ?? 0);
+            if (resolved < 1)
+            {
+                resolved = DefaultFilterDialogChunkSize;
+            }
+            _chunkSize = resolved;
+            _loadedDistinctCount = 0;
+            _nextSourceOffset = 0;
+            _initialDistinctCount = 0;
+            _virtualWindowStart = 0;
+            _virtualWindowEnd = DefaultFilterDialogVirtualWindowSize;
+            _virtualRowHeight = 32;
+            _virtualFirstVisibleIndex = 0;
+            _virtualVisibleCount = 10;
+            _checkboxVirtualizationData.Clear();
+            _customSearchCheckboxDataSource = null;
+            _isLoadingNextChunk = false;
+            _announceToken = 0;
+            FilterDialogAnnounceText = string.Empty;
+            // Server paging + cross-chunk dedup window: reset for the new
+            // dialog session so a column value already shown in the previous
+            // dialog is treated as "new" again.
+            _seenDistinctKeys.Clear();
+            _hasMoreChunks = true;
+            // Reset scroll throttle for new dialog session
+            _lastTriggeredChunkIndex = -1;
+        }
+
+        private void RestartChunkRequestForSearch()
+        {
+            _chunkGeneration++;
+            var previousCts = _chunkCts;
+            _chunkCts = new CancellationTokenSource();
+            if (previousCts != null)
+            {
+                previousCts.Cancel();
+                previousCts.Dispose();
+            }
+            _isLoadingNextChunk = false;
+            _loadedDistinctCount = 0;
+            _nextSourceOffset = 0;
+            _seenDistinctKeys.Clear();
+            _customSearchCheckboxDataSource = null;
+            _hasMoreChunks = true;
+            _initialDistinctCount = 0;
+            _lastTriggeredChunkIndex = -1;
+        }
+
+        private void ThrowIfChunkRequestCanceled(CancellationToken cancellationToken)
+        {
+            if (cancellationToken.IsCancellationRequested ||
+                (cancellationToken.CanBeCanceled && !IsChunkedLoadingActive()))
+            {
+                throw new OperationCanceledException(cancellationToken);
+            }
+        }
+
+        /// <summary>
+        /// Records the first chunk of the checkbox distinct list. Called
+        /// once from <see cref="OpenFilterDialog"/> when
+        /// <c>GridFilterSettings.EnableFilterDialogInfiniteScrolling</c> is
+        /// true and the current <see cref="FilterType"/> is <c>Excel</c> or
+        /// <c>CheckBox</c>.
+        /// </summary>
+        internal Task LoadInitialChunkAsync(CancellationToken ct)
+        {
+            if (ct.IsCancellationRequested || !IsChunkedLoadingActive()) { return Task.CompletedTask; }
+
+            _loadedDistinctCount = FilteredData.Count;
+            _initialDistinctCount = _loadedDistinctCount;
+            return Task.CompletedTask;
+        }
+
+        /// <summary>
+        /// Attaches a single passive scroll listener via the existing
+        /// <c>scripts/sf-grid.ts</c> module. Called from
+        /// <see cref="OpenFilterDialog"/> after the dialog has rendered.
+        /// </summary>
+        private async Task BindScrollListenerIfNeeded(CancellationToken ct)
+        {
+            if (ct.IsCancellationRequested || Parent == null || Column == null) { return; }
+            if (!IsChunkedLoadingActive()) { return; }
+            if (_chunkCts == null || _chunkCts.IsCancellationRequested) { return; }
+
+            var dotnetRef = Microsoft.JSInterop.DotNetObjectReference.Create(this);
+            try
+            {
+                await Parent.InvokeMethod(
+                    "sfBlazor.Grid.bindFilterDialogScroll",
+                    new object[] { Parent.DataId, Column.Uid, dotnetRef }).ConfigureAwait(true);
+                _chunkDotNetRef = dotnetRef;
+                _scrollListenerBound = true;
+                if (ct.IsCancellationRequested || !IsChunkedLoadingActive())
+                {
+                    await CancelChunkRequestAsync().ConfigureAwait(true);
+                    return;
+                }
+            }
+            catch (Microsoft.JSInterop.JSException)
+            {
+                // JS not yet available (e.g. prerender); the listener will
+                // be attached on the next DialogCreated after render.
+                dotnetRef.Dispose();
+            }
+            catch (System.OperationCanceledException)
+            {
+                dotnetRef.Dispose();
+                throw;
+            }
+        }
+
+        // Tracks the DotNetObjectReference handed to JS so DisposeAsync
+        // can release it. Set in BindScrollListenerIfNeeded, cleared in
+        // CancelChunkRequestAsync.
+        private Microsoft.JSInterop.DotNetObjectReference<FilterCheckBoxRenderer<TContent>>? _chunkDotNetRef;
+
+        /// <summary>
+        /// Invoked by the JS scroll listener with the first visible
+        /// checkbox's logical data index. Requests the next chunk when the
+        /// viewport approaches the end of the loaded list.
+        /// </summary>
+        /// <remarks>
+        /// The <see cref="CancellationToken"/> is sourced from the renderer's
+        /// per-dialog <see cref="_chunkCts"/> — <c>[JSInvokable]</c> callbacks
+        /// do not receive a token over JS interop; the C# lifecycle owns it
+        /// (see <see cref="CancelChunkRequestAsync"/>). The token is observed at
+        /// every async yield so a dialog close cancels an in-flight chunk.
+        /// </remarks>
+        [Microsoft.JSInterop.JSInvokable]
+        public async Task OnCheckboxListScrollAsync(int firstVisibleDataIndex, int visibleCount, int rowHeight)
+        {
+            if (!IsChunkedLoadingActive()) { return; }
+            if (_chunkCts == null || _chunkCts.IsCancellationRequested) { return; }
+            if (firstVisibleDataIndex < 0 || visibleCount <= 0) { return; }
+            _virtualFirstVisibleIndex = firstVisibleDataIndex;
+            _virtualVisibleCount = visibleCount;
+            if (rowHeight > 0)
+            {
+                _virtualRowHeight = rowHeight;
+            }
+
+            var windowChanged = UpdateVirtualWindow(firstVisibleDataIndex, visibleCount);
+
+            if (windowChanged && !_isLoadingNextChunk)
+            {
+                await InvokeAsync(StateHasChanged).ConfigureAwait(true);
+            }
+
+            if (CheckedData == null || _loadedDistinctCount <= 0) { return; }
+            // Server-paged chunked mode: the previous client-side guard
+            // (_loadedDistinctCount >= CheckboxListData.Count()) no longer
+            // reflects end-of-data because CheckboxListData now holds only
+            // the current page. Use _hasMoreChunks, which is updated after
+            // every page fetch based on the returned page size.
+            if (!_hasMoreChunks) { return; }
+
+            // NEW: Throttle scroll events by tracking which "chunk boundary" triggered the load.
+            // Calculate which chunk the user is currently in (0, 1, 2, ...).
+            // Only trigger load when crossing into a NEW chunk to prevent repeated triggers
+            // during momentum scrolling (BLZ-FILT-INFINITE-SCROLL fix).
+            int currentChunkIndex = (firstVisibleDataIndex + visibleCount) / _chunkSize;
+            
+            // Trigger when we're getting close to the end of loaded data.
+            // Specifically: when bottom of visible window is within one chunk of loaded end.
+            // This ensures we load the NEXT chunk BEFORE user runs out of items to scroll.
+            var prefetchThreshold = Math.Min(
+                _chunkSize,
+                visibleCount + VirtualWindowOverscanCount);
+            if (firstVisibleDataIndex + visibleCount < _loadedDistinctCount - prefetchThreshold) { return; }
+            
+            // Throttle: only trigger if we've crossed into a NEW chunk boundary (not seen before)
+            if (currentChunkIndex <= _lastTriggeredChunkIndex) { return; }
+            
+            _lastTriggeredChunkIndex = currentChunkIndex;
+            await LoadNextChunkAsync(_chunkCts.Token).ConfigureAwait(true);
+        }
+
+        /// <summary>
+        /// Appends the next slice of the cached distinct-value source to the
+        /// already-rendered checkbox list.
+        /// </summary>
+        private async Task LoadNextChunkAsync(CancellationToken ct)
+        {
+            if (!IsChunkedLoadingActive()) { return; }
+            if (ct.IsCancellationRequested || _isLoadingNextChunk) { return; }
+            if (Parent == null || Column == null) { return; }
+
+            var generation = _chunkGeneration;
+            _isLoadingNextChunk = true;
+            VisibleProperty = true;
+            try
+            {
+                var previousLoadedCount = _loadedDistinctCount;
+                // Pass null customFilterData so UpdateDataSource takes the
+                // server path (customFilterData == null) and applies
+                // .Skip(_nextSourceOffset).Take(_chunkSize) to the
+                // DataManagerQuery / GridQuery. Passing CheckboxListData
+                // would route to the local-slicing else branch which
+                // would Take() from the previously-returned page and
+                // yield zero rows (GRID-DATA-005 / BLZ-FILT-018).
+                var customSource = string.IsNullOrEmpty(SearchValue)
+                    ? _customCheckboxDataSource
+                    : _customSearchCheckboxDataSource;
+                var nextCustomPage = customSource?
+                    .Skip(_nextSourceOffset)
+                    .Take(_chunkSize)
+                    .ToList();
+                await UpdateDataSource(
+                    false,
+                    nextCustomPage,
+                    _chunkSize,
+                    appendChunk: true,
+                    cancellationToken: ct).ConfigureAwait(true);
+                ThrowIfChunkRequestCanceled(ct);
+                if (generation != _chunkGeneration || !IsChunkedLoadingActive()) { return; }
+                _loadedDistinctCount = FilteredData.Count;
+                UpdateVirtualWindow(
+                    _virtualFirstVisibleIndex,
+                    _virtualVisibleCount);
+                VisibleProperty = false;
+                if (_loadedDistinctCount > previousLoadedCount && _loadedDistinctCount > _initialDistinctCount)
+                {
+                    AnnounceLoadedCountOnce(_loadedDistinctCount);
+                }
+                await InvokeAsync(StateHasChanged).ConfigureAwait(true);
+            }
+            catch (System.OperationCanceledException)
+            {
+                // Closing or restarting the opt-in session cancels pending work.
+                if (generation == _chunkGeneration)
+                {
+                    VisibleProperty = false;
+                }
+            }
+            catch (Exception)
+            {
+                // Non-cancellation: surface by toggling spinner off and
+                // re-throw — the harness's outer gates catch this; we do
+                // not silently swallow real errors (BLZ-FILT-018).
+                if (generation == _chunkGeneration)
+                {
+                    VisibleProperty = false;
+                    await InvokeAsync(StateHasChanged).ConfigureAwait(true);
+                }
+                throw;
+            }
+            finally
+            {
+                if (generation == _chunkGeneration)
+                {
+                    _isLoadingNextChunk = false;
+                }
+            }
+        }
+
+        /// <summary>
+        /// Cancels any in-flight chunk request and disposes the per-dialog
+        /// <see cref="CancellationTokenSource"/> and
+        /// <see cref="Microsoft.JSInterop.DotNetObjectReference{T}"/>.
+        /// Idempotent. Called from <see cref="OncloseDialog"/>,
+        /// <see cref="Closed"/>, and the renderer dispose path.
+        /// </summary>
+        internal async Task CancelChunkRequestAsync()
+        {
+            _chunkGeneration++;
+            var chunkCts = _chunkCts;
+            _chunkCts = null;
+            var hadChunkSession = chunkCts != null || _scrollListenerBound || _chunkDotNetRef != null;
+            try
+            {
+                if (chunkCts != null)
+                {
+                    await chunkCts.CancelAsync().ConfigureAwait(true);
+                }
+            }
+            catch (ObjectDisposedException)
+            {
+                // Already disposed — nothing to do.
+            }
+            finally
+            {
+                chunkCts?.Dispose();
+            }
+            if (hadChunkSession)
+            {
+                _isLoadingNextChunk = false;
+                _loadedDistinctCount = 0;
+                _nextSourceOffset = 0;
+                VisibleProperty = false;
+                _customCheckboxDataSource = null;
+                _customSearchCheckboxDataSource = null;
+            }
+            if (_scrollListenerBound && Parent != null && Column != null)
+            {
+                _scrollListenerBound = false;
+                try
+                {
+                    await Parent.InvokeMethod(
+                        "sfBlazor.Grid.unbindFilterDialogScroll",
+                        new object[] { Parent.DataId, Column.Uid }).ConfigureAwait(true);
+                }
+                catch (Microsoft.JSInterop.JSDisconnectedException)
+                {
+                    // A disconnected Blazor circuit cannot run DOM cleanup.
+                }
+                catch (Microsoft.JSInterop.JSException)
+                {
+                    // The dialog may already be detached from the browser DOM.
+                }
+                catch (OperationCanceledException)
+                {
+                    // Disposal may race with an interop cancellation.
+                }
+            }
+
+            _chunkDotNetRef?.Dispose();
+            _chunkDotNetRef = null;
+        }
+
+        /// <summary>
+        /// Writes the new total loaded count to the polite live region
+        /// <strong>once per dialog session</strong>, on the first growth
+        /// past the initial chunk (BLZ-FILT-A11Y-005).
+        /// </summary>
+        internal void AnnounceLoadedCountOnce(int totalLoaded)
+        {
+            if (_announceToken != 0) { return; } // already announced
+            if (totalLoaded <= 0) { return; }
+            _announceToken = 1; // mark announced
+            // Literal English fallback. A localized "N items loaded" key is
+            // intentionally NOT added to GridLocaleKeys here because that
+            // would require synchronized updates to the Syncfusion.Blazor
+            // satellite resources (owned by a separate package). The polite
+            // live region fires at most once per dialog session
+            // (BLZ-FILT-A11Y-005), so the user-visible impact is minimal.
+            FilterDialogAnnounceText = string.Format(
+                System.Globalization.CultureInfo.CurrentCulture,
+                "{0} items loaded",
+                totalLoaded);
+        }
+
+        /// <summary>
+        /// Text content rendered into the polite live region. Set by
+        /// <see cref="AnnounceLoadedCountOnce"/>; read by the
+        /// <c>.razor</c> markup. Empty by default (live region renders no
+        /// text on dialog open until the first chunk appends).
+        /// </summary>
+        internal string FilterDialogAnnounceText { get; set; } = string.Empty;
+
+        /// <summary>
+        /// True when the on-demand loading state machine should be active
+        /// for the current dialog: both filter dialog types that support a
+        /// checkbox list AND the opt-in flag is set.
+        /// </summary>
+        internal bool IsChunkedLoadingActive()
+        {
+            if (Parent == null || Column == null) { return false; }
+            if (Parent.FilterSettings == null) { return false; }
+            if (!Parent.FilterSettings.EnableFilterDialogInfiniteScrolling) { return false; }
+            var filterType = Parent.FilterModule?.GetFilterType(Column);
+            return filterType == "Excel" || filterType == "CheckBox";
+        }
+
+        internal bool IsCheckboxListVirtualized()
+            => IsChunkedLoadingActive();
+
+        internal IEnumerable<(KeyValuePair<string, object> Data, int Index)> GetCheckboxDataForRender()
+        {
+            if (!IsCheckboxListVirtualized())
+            {
+                return CheckedData.Select((item, index) => (item, index));
+            }
+
+            if (_checkboxVirtualizationData.Count != CheckedData.Count)
+            {
+                _checkboxVirtualizationData = CheckedData.ToList();
+            }
+
+            var start = Math.Clamp(_virtualWindowStart, 0, _checkboxVirtualizationData.Count);
+            var count = Math.Clamp(
+                _virtualWindowEnd - start,
+                0,
+                _checkboxVirtualizationData.Count - start);
+            return _checkboxVirtualizationData
+                .GetRange(start, count)
+                .Select((item, index) => (item, start + index));
+        }
+
+        private void AddCheckboxDataItem(string key, CheckBoxModel value)
+        {
+            CheckedData?.AddOrUpdateItem(key, value);
+            if (IsChunkedLoadingActive())
+            {
+                _checkboxVirtualizationData.Add(new KeyValuePair<string, object>(key, value));
+            }
+        }
+
+        internal IReadOnlyDictionary<string, object> GetCheckboxListVirtualizationAttributes()
+        {
+            if (!IsCheckboxListVirtualized())
+            {
+                return new Dictionary<string, object>();
+            }
+
+            return new Dictionary<string, object>
+            {
+                ["style"] = "overflow-anchor:none;",
+                ["data-virtual-start"] = _virtualWindowStart,
+                ["data-virtual-end"] = Math.Min(_virtualWindowEnd, CheckedData.Count),
+                ["data-total-count"] = CheckedData.Count,
+                ["data-leading-count"] = GetCheckboxListLeadingRowCount(),
+                ["data-has-more"] = _hasMoreChunks && string.IsNullOrEmpty(SearchValue) ? "true" : "false"
+            };
+        }
+
+        internal int GetVirtualTopSpacerHeight()
+            => IsCheckboxListVirtualized() ? _virtualWindowStart * _virtualRowHeight : 0;
+
+        internal int GetVirtualBottomSpacerHeight()
+            => IsCheckboxListVirtualized()
+                ? Math.Max(0, CheckedData.Count - _virtualWindowEnd) * _virtualRowHeight
+                : 0;
+
+        internal static bool IsVirtualBlankValue(CheckBoxModel value, bool requireValue = false)
+        {
+            var displayValue = value.FormattedValue ?? value.Value;
+            var displayText = displayValue?.ToString();
+            return (requireValue && (value.Value == null || string.IsNullOrEmpty(value.Value.ToString()) || value.Value.ToString() == "null"))
+                || displayValue == null
+                || string.IsNullOrEmpty(displayText)
+                || displayText == "null";
+        }
+
+        private int GetCheckboxListLeadingRowCount()
+        {
+            if (CheckedData.Count == 0) { return 0; }
+            return 1 + (isCurrentSelecitonFilter ? 1 : 0);
+        }
+
+        private bool UpdateVirtualWindow(int firstVisibleDataIndex, int visibleCount)
+        {
+            var start = Math.Min(
+                CheckedData.Count,
+                Math.Max(0, firstVisibleDataIndex - VirtualWindowOverscanCount));
+            var end = Math.Min(
+                CheckedData.Count,
+                Math.Max(start, firstVisibleDataIndex + visibleCount + VirtualWindowOverscanCount));
+            if (start == _virtualWindowStart && end == _virtualWindowEnd) { return false; }
+            _virtualWindowStart = start;
+            _virtualWindowEnd = end;
+            return true;
+        }
+
+        /// <summary>
+        /// Cross-chunk dedup window (Option B). Filters the current page of
+        /// distinct rows so that any column value already shown in a
+        /// previous page is dropped, and records the keys we are about to
+        /// render so subsequent chunks can dedup against us.
+        /// </summary>
+        /// <param name="page">Rows returned for the current page (already
+        /// distinct within the page, but possibly duplicated across pages
+        /// when the server does not know about the prior filter).</param>
+        /// <param name="keyPropertyName">Column field whose value identifies
+        /// the distinct row.</param>
+        /// <param name="displayPropertyName">For foreign columns, the
+        /// underlying display value (e.g. "ShipCountryName") that the
+        /// checkbox label uses. Falls back to <paramref name="keyPropertyName"/>
+        /// when null.</param>
+        private List<object> FilterPageBySeenDistinctKeys(
+            List<object> page,
+            string? keyPropertyName,
+            string? displayPropertyName)
+        {
+            if (page == null || page.Count == 0) { return page ?? new List<object>(); }
+            var column = Column;
+            var parent = Parent;
+            if (column == null || parent == null) { return page; }
+            var display = displayPropertyName ?? keyPropertyName ?? column.Field;
+            if (string.IsNullOrEmpty(display)) { return page; }
+
+            var result = new List<object>(page.Count);
+            foreach (var row in page)
+            {
+                // Resolve the value that the user actually sees in the
+                // checkbox label. For non-foreign columns this is the
+                // column field value; for foreign columns it is the
+                // foreign key display value (same as the rest of the
+                // rendering pipeline uses).
+                object? displayValue = column.IsForeignColumn() == true
+                    ? (parent.PropHelper?.GetValue(row, display!) ?? DataUtil.GetObject(display!, row!))
+                    : (parent.PropHelper?.GetValue(row, display!) ?? row);
+                string key = displayValue?.ToString() ?? "null";
+                if (_seenDistinctKeys.Add(key))
+                {
+                    result.Add(row);
+                }
+            }
+            return result;
+        }
+
+        /// <summary>
+        /// Returns the id of the sentinel element rendered after the
+        /// checkbox list. JS uses it to locate the list for scroll events.
+        /// </summary>
+        internal string GetScrollSentinelId()
+            => $"{Parent?.DataId}{Column?.Uid}_chkScrollSentinel";
+
+        /// <summary>
+        /// Returns the id of the polite live region element rendered inside
+        /// the dialog. Reads the element's <c>textContent</c> to announce
+        /// the new loaded total once per dialog session
+        /// (BLZ-FILT-A11Y-005).
+        /// </summary>
+        internal string GetAnnounceRegionId()
+            => $"{Parent?.ID}{Column?.Uid}_chkAnnounce";
+
+        /// <summary>
+        /// Disposes the renderer's per-dialog state. Mirrors the
+        /// disposal-required pattern mandated by BLZ-030 / BLZ-031 / BLZ-018
+        /// and the <c>javascript-interop</c> skill.
+        /// </summary>
+        public async ValueTask DisposeAsync()
+        {
+            await CancelChunkRequestAsync().ConfigureAwait(true);
+            GC.SuppressFinalize(this);
         }
     }
 }

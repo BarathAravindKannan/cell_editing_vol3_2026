@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using Microsoft.AspNetCore.Components.Web;
 using Syncfusion.Blazor.Data;
@@ -105,6 +106,9 @@ namespace Syncfusion.Blazor.Grids.Internal
 
         public bool enableUndoRedo { get; set; }
 
+        /// <summary>Custom key bindings pushed to the JS gate (Phase 0.5).</summary>
+        public object? customKeyBindings { get; set; }
+
         public bool allowEditing { get; set; }
 
         public string? selectionMode { get; set; }
@@ -157,6 +161,10 @@ namespace Syncfusion.Blazor.Grids.Internal
 
         public int infiniteInitialBlock { get; set; }
 
+        public bool enableUnboundedScrolling {get; set;}
+
+        public bool hasMoreData { get; set; }
+
         public bool isFreezeLineMoved { get; set; }
 
         public int actualFrozenColumns { get; set; }
@@ -184,6 +192,8 @@ namespace Syncfusion.Blazor.Grids.Internal
         public bool showColumnChooser { get; set; }
 
         public bool autoFit { get; set; }
+
+        public int resizeMode { get; set; }
 
         public bool isFixedColumnPresent { get; set; }
 
@@ -481,6 +491,8 @@ namespace Syncfusion.Blazor.Grids.Internal
 
         public static string InvalidFilterMessage => GridLocaleKeys.Prefix + nameof(GridLocaleKeys.InvalidFilterMessage);
 
+        public static string InvalidDateFilter => GridLocaleKeys.Prefix + nameof(GridLocaleKeys.InvalidDateFilter);
+
         public static string GroupDropArea => GridLocaleKeys.Prefix + nameof(GridLocaleKeys.GroupDropArea);
 
         public static string UnGroup => GridLocaleKeys.Prefix + nameof(GridLocaleKeys.UnGroup);
@@ -514,6 +526,8 @@ namespace Syncfusion.Blazor.Grids.Internal
         public static string Csvexport => GridLocaleKeys.Prefix + nameof(GridLocaleKeys.Csvexport);
 
         public static string Search => GridLocaleKeys.Prefix + nameof(GridLocaleKeys.Search);
+
+        public static string ClearSearch => GridLocaleKeys.Prefix + nameof(GridLocaleKeys.ClearSearch);
 
         public static string Columnchooser => GridLocaleKeys.Prefix + nameof(GridLocaleKeys.Columnchooser);
 
@@ -897,7 +911,26 @@ namespace Syncfusion.Blazor.Grids.Internal
         /// Gets or sets a value indicating whether this item represents a group footer (summary) row.
         /// </summary>
         internal bool IsFooterRow { get; set; }
+
+        /// <summary>
+        /// Gets or sets the group state key (same format as <c>Grouping.GetUniqueGroupKey</c>) of the caption, or of the parent caption for data and footer rows.
+        /// </summary>
+        internal string? Key { get; set; }
+
+        /// <summary>
+        /// Gets or sets the index of the footer aggregate rendered by this footer row.
+        /// </summary>
+        internal int AggregateIndex { get; set; }
     }
+
+    /// <summary>
+    /// How <c>Grouping.FlattenGroup</c> flattens grouped data.
+    /// </summary>
+    /// <param name="VisibleOnly">True for DOM virtualization: only visible rows are produced, every row carries its data ordinal in <see cref="GroupedDataItem.Index"/>.</param>
+    /// <param name="FooterCount">Footer rows produced per group that has aggregates.</param>
+    /// <param name="IsExpanded">Expand state of a caption by its group key.</param>
+    /// <param name="UidOf">Uid of a row: the argument is the group key for captions and null for data and footer rows.</param>
+    internal readonly record struct GroupFlattenMode(bool VisibleOnly, int FooterCount, Func<string, bool> IsExpanded, Func<string?, string?> UidOf);
 
     /// <summary>
     /// Provides extension methods for the AutoSpanMode enumeration.

@@ -1,4 +1,4 @@
-﻿using Microsoft.AspNetCore.Components;
+using Microsoft.AspNetCore.Components;
 using System;
 using System.Collections.Generic;
 using System.Threading.Tasks;
@@ -55,25 +55,43 @@ namespace Syncfusion.Blazor.Grids.Internal
             }
 
             GridColumn? _col = evt?.Cell?.Column;
-            switch (keyCom)
+
+            // Resolve the keystroke to a GridKeyboardAction. The resolver handles BOTH
+            // user-bound custom chords (KeyboardShortcuts) AND built-in defaults
+            // (GridKeyboardActionDefaults), so a single action switch covers both the
+            // default-key path and every user-defined custom binding. Previously this
+            // method switched on the legacy key string only, so any custom key bound
+            // to a header action (SortColumn / GroupColumn / ReorderColumnLeft/Right /
+            // ToggleHeaderCheckbox) was silently dropped on the C# side.
+            GridKeyboardAction? action = null;
+            if (Parent != null && Parent.CompiledKeyboardShortcuts != null)
             {
-                case "Enter":
-                case "CtrlEnter":
-                case "ShiftEnter":
+                var resolved = GridKeyResolver.ResolveForKeystroke(
+                    Parent.CompiledKeyboardShortcuts,
+                    evt!.KeyArgs != null ? evt.KeyArgs.GetNormalizedKey(Parent.IsMacDevice ?? false) : default,
+                    keyCom,
+                    GridKeyboardZone.Header);
+                action = resolved.Action;
+                evt!.IsCustomBinding = resolved.Consumed && resolved.PreventDefault && action != null;
+            }
+
+            switch (action)
+            {
+                case GridKeyboardAction.SortColumn:
                     await Parent!.FocusModule!.ShiftEnterHandler(_col!, evt!).ConfigureAwait(true);
                     break;
-                case "Space":
+                case GridKeyboardAction.ToggleHeaderCheckbox:
                     if (_col != null && _col.Type.Equals(ColumnType.CheckBox))
                     {
                         evt!.Cancel = true;
                         if (Parent != null && Parent.SelectionModule != null)
                         {
-                            await Parent.SelectionModule.HeaderClickHandler(null!, Parent.CheckBoxState).ConfigureAwait(true);
+                            await Parent.SelectAllCheckBoxFromHeaderAsync().ConfigureAwait(true);
                         }
                     }
 
                     break;
-                case "CtrlRight":
+                case GridKeyboardAction.ReorderColumnRight:
                     if (!Parent!.AllowReordering || (_col != null && !_col!.AllowReordering))
                     {
                         break;
@@ -95,7 +113,7 @@ namespace Syncfusion.Blazor.Grids.Internal
                     await Parent.FocusModule!.ToIndexHasValue(toIndex, fromIndx, evt!).ConfigureAwait(true);
                     break;
 
-                case "CtrlLeft":
+                case GridKeyboardAction.ReorderColumnLeft:
                     if (!Parent!.AllowReordering || (_col != null && !_col!.AllowReordering))
                     {
                         break;
@@ -117,11 +135,23 @@ namespace Syncfusion.Blazor.Grids.Internal
                     await Parent.FocusModule!.ToIndexHasValue(tIndex, frIndx, evt!).ConfigureAwait(true);
                     break;
 
-                case "CtrlSpace":
+                case GridKeyboardAction.GroupColumn:
                     await Parent!.FocusModule!.CtrlSpaceHandler(evt!, _col!).ConfigureAwait(true);
                     break;
-                case "AltDown":
-                    // Open menu, checkbox, excel and column menu
+                case GridKeyboardAction.NavigateLeft:
+                case GridKeyboardAction.NavigateRight:
+                    // Header-zone navigation (default Tab / ShiftTab). The Blazor
+                    // cell-focus pipeline already moves focus for these; nothing to do
+                    // here. Listed for completeness so a user-bound custom chord to
+                    // NavigateLeft/NavigateRight in the Header scope is consumed and
+                    // not silently swallowed.
+                    break;
+                case null:
+                default:
+                    // Header chords that do not resolve to a GridKeyboardAction (e.g.
+                    // the AltDown sentinel used by the JS side to open menus, or an
+                    // unbound custom key) are a deliberate no-op here, matching the
+                    // pre-Custom-Key behaviour.
                     break;
             }
         }

@@ -32,6 +32,8 @@ namespace Syncfusion.Blazor.Grids.Internal
 
         public bool HasBatchChanges;
 
+        internal bool IsBatchSaveInProgress;
+
         internal bool EditNextCell;
 
         internal bool ForceValidate;
@@ -240,7 +242,7 @@ namespace Syncfusion.Blazor.Grids.Internal
                     }
                     if (Parent.EditSettings.NewRowPosition == NewRowPosition.Top)
                     {
-                        if (Parent.EnableVirtualization && index == null && rowIndex == null)
+                        if (!IsDomVirtual && Parent.EnableVirtualization && index == null && rowIndex == null)
                         {
                             await Parent.InvokeMethod("sfBlazor.Grid.scrollIntoView", new object[] { Parent.DataId, -1, 0, -1, false, true }).ConfigureAwait(true);
                         }
@@ -286,7 +288,7 @@ namespace Syncfusion.Blazor.Grids.Internal
                     }
                     else
                     {
-                        if (Parent.EnableVirtualization && (index == null || rowIndex == null))
+                        if (!IsDomVirtual && Parent.EnableVirtualization && (index == null || rowIndex == null))
                         {
                             if (Parent.AllowGrouping && Parent.GroupSettings?.Columns?.Length > 0)
                             {
@@ -302,10 +304,10 @@ namespace Syncfusion.Blazor.Grids.Internal
                             Row.IsAddedBottom = true;
                             ind = Parent.Rows.Count;
                             Parent.Rows.Add(Row);
-                            EditedRow.Index = Parent.AllowPaging ? (Parent.PageSettings?.PageSize > ind ? ind : ind - 1) : ind;
+                            EditedRow.Index = IsDomVirtual ? Parent.DomVirtualModule!.TotalRowCount : Parent.AllowPaging ? (Parent.PageSettings?.PageSize > ind ? ind : ind - 1) : ind;
                         }
                     }
-                    if (!Parent.EnableVirtualization)
+                    if (!Parent.EnableVirtualization || IsDomVirtual)
                     {
                         Parent.Rows[ind].IsEdit = true;
                     }
@@ -329,7 +331,7 @@ namespace Syncfusion.Blazor.Grids.Internal
                     {
                         Parent.EventAggregator.Trigger("HeaderStateChanged", null!);
                     }
-                    else if ((Parent.EnableVirtualization || Parent.EnableColumnVirtualization) && Parent.VirtualScrollModule != null)
+                    else if (!IsDomVirtual && (Parent.EnableVirtualization || Parent.EnableColumnVirtualization) && Parent.VirtualScrollModule != null)
                     {
                         Parent.VirtualScrollModule.HasAddOrCancelAction = Parent.VirtualScrollModule.IsBottomAddForm(Parent.VirtualScrollModule.RowEndIndex);
                         Parent.EventAggregator.Trigger("VirtualComponentUpdate", null!);
@@ -338,6 +340,10 @@ namespace Syncfusion.Blazor.Grids.Internal
                     {
                         Parent.FocusModule!.ClearCurrent();
                         Parent.EventAggregator.Trigger("ContentStateChanged", null!);
+                        if (IsDomVirtual)
+                        {
+                            await Parent.DomVirtualModule!.RevealAddedRowAsync(Row).ConfigureAwait(true);
+                        }
                     }
                 }
                 if (Parent.SelectionModule != null)
@@ -509,10 +515,19 @@ namespace Syncfusion.Blazor.Grids.Internal
                 return;
             }
 
+            if (!await CommitDomVirtualInputValuesAsync().ConfigureAwait(true))
+            {
+                return;
+            }
+
             if ((IsAdd || OriginalCell.IsEdit) && !ForceSave && !isDelete)
             {
                 ForceValidate = true;
+#if NET11_0_OR_GREATER
+                if (EditContext != null && !(await EditContext.ValidateAsync().ConfigureAwait(true)) && OriginalCell.IsEdit)
+#else
                 if (EditContext != null && !EditContext.Validate() && OriginalCell.IsEdit)
+#endif
                 {
                     ForceValidate = false;
                     var Result = ErrorResult.Find(_ => _.FieldName == OriginalCell!.Column?.Field);
@@ -892,67 +907,88 @@ namespace Syncfusion.Blazor.Grids.Internal
             {
                 Parent.EventAggregator.Trigger("ContentStateChanged", null!);
             }
+            if (IsDomVirtual)
+            {
+                await Parent.DomVirtualModule!.RevealAddedRowAsync(Row).ConfigureAwait(true);
+            }
             await Parent.SelectRowAsync(Parent.IsRenderedFromTreeGrid ? args.Index : addedRowIndex).ConfigureAwait(true);
         }
 
         internal async Task BatchSave()
         {
-            await SaveCell().ConfigureAwait(true);
-            var PrimaryFields = await Parent.GetPrimaryKeyFieldNamesAsync().ConfigureAwait(true);
-            BatchChanges<T>? BatchChanges = GetBatchChanges();
-
-            if (Parent.GridEvents?.OnBatchSave.HasDelegate == true || Parent.IsRenderedFromTreeGrid)
-            {
-                var args = new BeforeBatchSaveArgs<T>()
-                {
-                    BatchChanges = BatchChanges,
-                    Cancel = false,
-                    Parent = Parent
-                };
-
-                if(Parent.IsRenderedFromTreeGrid)
-                    await Parent.EventAggregator.NotifyAsync("BatchSave", args).ConfigureAwait(true);
-                else
-                    await Parent.GridEvents!.OnBatchSave.InvokeAsync(args).ConfigureAwait(true);
-                if (args.Cancel)
-                    return;
-            }
-            var primaryKeys = PrimaryFields.Count != 0 ? PrimaryFields : null;
-            var ChangesUpdated = await Parent.DataModule!.InvokeSaveChanges(BatchChanges, primaryKeys!.ToArray()).ConfigureAwait(true);
-            if (!ChangesUpdated)
+            if (!await CommitDomVirtualInputValuesAsync().ConfigureAwait(true))
             {
                 return;
             }
-            // Clear() is safe to call regardless of IsEnabled (no-ops when disabled), so no IsEnabled check is needed.
-            Parent.UndoRedoManager?.Clear();
 
-            HasBatchChanges = false;
-            Parent.Rows?.ForEach(row =>
+            IsBatchSaveInProgress = true;
+            try
             {
-                row.IsDirty = false;
-                row.IsAddedTop = false;
-                row.IsAddedBottom = false;
-                row.Cells?.ForEach(_ =>
+                await SaveCell().ConfigureAwait(true);
+                var PrimaryFields = await Parent.GetPrimaryKeyFieldNamesAsync().ConfigureAwait(true);
+                BatchChanges<T>? BatchChanges = GetBatchChanges();
+
+                if (Parent.GridEvents?.OnBatchSave.HasDelegate == true || Parent.IsRenderedFromTreeGrid)
                 {
-                    _.IsDirty = false;
-                    _.EditDisabled = false;
-                });
-            });
+                    var args = new BeforeBatchSaveArgs<T>()
+                    {
+                        BatchChanges = BatchChanges,
+                        Cancel = false,
+                        Parent = Parent
+                    };
 
-            Parent.PreventRender(false);
-            await Parent.DataProcess(actionArgs: new ActionEventArgs<T>() { RequestType = Action.BatchSave }).ConfigureAwait(true);
-            if(Parent.SelectionModule != null)
-            {
-                Parent.SelectionModule.AutofillChanges();
+                    if(Parent.IsRenderedFromTreeGrid)
+                        await Parent.EventAggregator.NotifyAsync("BatchSave", args).ConfigureAwait(true);
+                    else
+                        await Parent.GridEvents!.OnBatchSave.InvokeAsync(args).ConfigureAwait(true);
+                    if (args.Cancel)
+                        return;
+                }
+                var primaryKeys = PrimaryFields.Count != 0 ? PrimaryFields : null;
+                var ChangesUpdated = await Parent.DataModule!.InvokeSaveChanges(BatchChanges, primaryKeys!.ToArray()).ConfigureAwait(true);
+                if (!ChangesUpdated)
+                {
+                    return;
+                }
+                // Clear() is safe to call regardless of IsEnabled (no-ops when disabled), so no IsEnabled check is needed.
+                Parent.UndoRedoManager?.Clear();
+
+                HasBatchChanges = false;
+                EditRows.ToList().ForEach(row =>
+                {
+                    row.IsDirty = false;
+                    row.IsAddedTop = false;
+                    row.IsAddedBottom = false;
+                    row.Cells?.ForEach(_ =>
+                    {
+                        _.IsDirty = false;
+                        _.EditDisabled = false;
+                    });
+                });
+
+                if (IsDomVirtual)
+                {
+                    Parent.DomVirtualModule!.ResetEditState();
+                }
+                Parent.PreventRender(false);
+                await Parent.DataProcess(actionArgs: new ActionEventArgs<T>() { RequestType = Action.BatchSave }).ConfigureAwait(true);
+                if(Parent.SelectionModule != null)
+                {
+                    Parent.SelectionModule.AutofillChanges();
+                }
+                IsCheckBoxColumn();
+                if (Parent.Aggregates?.Count > 0 && Parent.ReactiveAggregateModule != null)
+                {
+                    Parent.ReactiveAggregateModule.OriginalCells.Clear();
+                }
+                if (Parent.IsFindToolbarEnabled() && Parent.FindHightLightModule != null && !string.IsNullOrEmpty(Parent.FindHightLightModule.SearchHighlightKey))
+                {
+                    Parent.EventAggregator.Trigger("ClearSearchHighlight", null!);
+                }
             }
-            IsCheckBoxColumn();
-            if (Parent.Aggregates?.Count > 0 && Parent.ReactiveAggregateModule != null)
+            finally
             {
-                Parent.ReactiveAggregateModule.OriginalCells.Clear();
-            }
-            if (Parent.IsFindToolbarEnabled() && Parent.FindHightLightModule != null && !string.IsNullOrEmpty(Parent.FindHightLightModule.SearchHighlightKey))
-            {
-                Parent.EventAggregator.Trigger("ClearSearchHighlight", null!);
+                IsBatchSaveInProgress = false;
             }
         }
         
@@ -960,7 +996,27 @@ namespace Syncfusion.Blazor.Grids.Internal
         {
             row.Cells?.ForEach(_ => _.IsDirty = true);
             var addedRowIndex = 0;
-            if (Parent.EditSettings != null && Parent.EditSettings.NewRowPosition == NewRowPosition.Top)
+            if (IsDomVirtual)
+            {
+                // The window list is rebuilt from the data on every scroll, so the added row is registered separately and
+                // gets a position outside the data indexes instead of shifting them.
+                bool atTop = Parent.EditSettings != null && Parent.EditSettings.NewRowPosition == NewRowPosition.Top;
+                row.IsAddedTop = atTop;
+                row.IsAddedBottom = !atTop;
+                row.Index = atTop ? -1 : Parent.DomVirtualModule!.TotalRowCount;
+                if (atTop)
+                {
+                    Parent.DomVirtualModule.AddedRows.Insert(0, row);
+                    Parent.Rows.Insert(0, row);
+                }
+                else
+                {
+                    Parent.DomVirtualModule.AddedRows.Add(row);
+                    Parent.Rows.Add(row);
+                }
+                addedRowIndex = row.Index.Value;
+            }
+            else if (Parent.EditSettings != null && Parent.EditSettings.NewRowPosition == NewRowPosition.Top)
             {
                 row.IsAddedTop = true;
                 Parent.Rows?.Insert(index, row);
@@ -1099,9 +1155,13 @@ namespace Syncfusion.Blazor.Grids.Internal
             }
         }
         
+        private bool IsDomVirtual => Parent.EnableDomVirtualization && Parent.DomVirtualModule != null;
+
+        private IEnumerable<Row<object>> EditRows => IsDomVirtual ? Parent.DomVirtualModule!.GetEditRows() : Parent.Rows ?? Enumerable.Empty<Row<object>>();
+
         internal bool IsDirty()
         {
-            foreach (var row in Parent.Rows)
+            foreach (var row in EditRows)
             {
                 if (row.IsDirty)
                 {
@@ -1113,7 +1173,11 @@ namespace Syncfusion.Blazor.Grids.Internal
 
         internal async Task BulkDelete(IReadOnlyList<string>? compositeKeys, object data, bool isDelete = false)
         {
+#if NET11_0_OR_GREATER
+            if (!isDelete && EditContext != null && !(await EditContext.ValidateAsync().ConfigureAwait(true)))
+#else
             if (!isDelete && EditContext != null && !EditContext.Validate())
+#endif
             {
                 await SaveCell(true, isDelete).ConfigureAwait(true);
             }
@@ -1241,7 +1305,7 @@ namespace Syncfusion.Blazor.Grids.Internal
                 {
                     Parent._shouldRender = true;
                 }
-                foreach (var row in Parent.Rows)
+                foreach (var row in EditRows.ToList())
                 {
                     row.EditedData = null!;
                     row.IsDirty = false;
@@ -1266,7 +1330,12 @@ namespace Syncfusion.Blazor.Grids.Internal
             OriginalCell = null!;
             OriginalRow = null!;
             Parent.SoftRefresh = true;
-            HasBatchChanges = Parent.Rows?.Any(_ => _.IsDirty) ?? false;
+            if (IsDomVirtual && !escapeKey)
+            {
+                Parent.DomVirtualModule!.ResetEditState();
+                await Parent.DomVirtualModule.RefreshWindowAsync().ConfigureAwait(true);
+            }
+            HasBatchChanges = EditRows.Any(_ => _.IsDirty);
             if (Parent.FrozenRows != 0)
             {
                 Parent.ForceUpdate = true;
@@ -1306,7 +1375,7 @@ namespace Syncfusion.Blazor.Grids.Internal
         internal BatchChanges<T> GetBatchChanges()
         {
             var BatchChanges = new BatchChanges<T>();
-            Parent.Rows?.ForEach(Row =>
+            EditRows.ToList().ForEach(Row =>
             {
                 if (Row.IsDirty && !Row.IsDetailRow)
                 {
@@ -1343,14 +1412,22 @@ namespace Syncfusion.Blazor.Grids.Internal
 
         internal async Task PerformBatchActions(ActionEventArgs<T> args = null!, ActionArgs? additionalArguments = null)
         {
-            await BatchClose().ConfigureAwait(true);
-            args = args ?? BatchActionArgs!;
-            await Parent.ModelChanged(args, additionalArgs: additionalArguments).ConfigureAwait(true);
-            if (args != null && args.RequestType == Action.Reorder && Parent.EditSettings != null && Parent.EditSettings.ShowConfirmDialog)
+            IsBatchSaveInProgress = true;
+            try
             {
-                await Parent.InvokeMethod("sfBlazor.Grid.updateOptions", new object[] { Parent.DataId, Parent.GetClientOption() }).ConfigureAwait(true);
+                await BatchClose().ConfigureAwait(true);
+                args = args ?? BatchActionArgs!;
+                await Parent.ModelChanged(args, additionalArgs: additionalArguments).ConfigureAwait(true);
+                if (args != null && args.RequestType == Action.Reorder && Parent.EditSettings != null && Parent.EditSettings.ShowConfirmDialog)
+                {
+                    await Parent.InvokeMethod("sfBlazor.Grid.updateOptions", new object[] { Parent.DataId, Parent.GetClientOption() }).ConfigureAwait(true);
+                }
+                BatchAdditionalArgs = null;
             }
-            BatchAdditionalArgs = null;
+            finally
+            {
+                IsBatchSaveInProgress = false;
+            }
         }
         internal async Task ShowAlertDialog(ActionEventArgs<T> args, ActionArgs? additionalArgs = null)
         {
@@ -1554,7 +1631,11 @@ namespace Syncfusion.Blazor.Grids.Internal
             if (IsAdd && !Parent.IsEdit)
             {
                 ForceValidate = true;
+#if NET11_0_OR_GREATER
+                if (EditContext != null && !(await EditContext.ValidateAsync().ConfigureAwait(true)))
+#else
                 if (EditContext != null && !EditContext.Validate())
+#endif
                 {
                     ForceValidate = false;
                     if (ErrorResult?.Count > 0)
@@ -1842,7 +1923,21 @@ namespace Syncfusion.Blazor.Grids.Internal
             if (focus?.Cell?.IsEdit != true && focus?.Cell?.EditDisabled != true)
             {
                 EditNextCell = false;
-                if (Key != null && Key.Equals("F2", StringComparison.Ordinal) && focus != null && focus.KeyArgs != null && !focus.KeyArgs.CtrlKey && !focus.KeyArgs.ShiftKey && !focus.KeyArgs.AltKey && Parent.EditSettings.AllowEditing)
+                // Custom-binding branch: when the user has bound a non-default chord to
+                // StartEdit (e.g. Alt+K) and the resolver consumed it, honor the binding
+                // regardless of modifiers. The existing F2 guard below is unchanged for
+                // the default-chord case.
+                if (focus?.IsCustomBinding == true
+                    && focus.Action == nameof(GridKeyboardAction.StartEdit)
+                    && Parent.EditSettings.AllowEditing)
+                {
+                    await Parent.FocusModule!.ClearFocus(focus.Row, focus.Cell).ConfigureAwait(true);
+                    await EditCell(focus.Row!, focus.Cell!).ConfigureAwait(true);
+                }
+                else if (focus?.Action == nameof(GridKeyboardAction.StartEdit)
+                    && Key != null && Key.Equals("F2", StringComparison.Ordinal)
+                    && focus.KeyArgs != null && !focus.KeyArgs.CtrlKey && !focus.KeyArgs.ShiftKey
+                    && !focus.KeyArgs.AltKey && Parent.EditSettings.AllowEditing)
                 {
                     await Parent.FocusModule!.ClearFocus(focus.Row, focus.Cell).ConfigureAwait(true);
                     await EditCell(focus.Row!, focus.Cell!).ConfigureAwait(true);
@@ -1867,7 +1962,11 @@ namespace Syncfusion.Blazor.Grids.Internal
                 return;
             }
 
+#if NET11_0_OR_GREATER
+            if (EditContext != null && !(await EditContext.ValidateAsync().ConfigureAwait(true)))
+#else
             if (EditContext != null && !EditContext.Validate())
+#endif
             {
                 ForceValidate = false;
                 var result = ErrorResult?.Find(_ => _.FieldName == focus.Cell?.Column?.Field);
@@ -2084,6 +2183,11 @@ namespace Syncfusion.Blazor.Grids.Internal
 
         internal async Task<bool> HandleBatchChangesWithConfirmDialog(ActionEventArgs<T>? args, object? additionalArgument, string? requestType)
         {
+            if (IsBatchSaveInProgress)
+            {
+                return false;
+            }
+
             if (Parent.EditSettings != null && Parent.EditSettings.ShowConfirmDialog)
             {
                 if (args != null && requestType == "Reorder")
@@ -2368,6 +2472,10 @@ namespace Syncfusion.Blazor.Grids.Internal
         private int GetRowIndex()
         {
             bool isBottomAdd = IsAdd && Parent.EditSettings!.NewRowPosition.Equals(NewRowPosition.Bottom);
+            if (IsAdd && IsDomVirtual && !IsCellEditMode())
+            {
+                return isBottomAdd ? GetDomVirtualBottomInsertIndex() : GetDomVirtualTopInsertIndex();
+            }
             if (isBottomAdd && Parent.Rows?.Count != 0 && !Parent.EnableVirtualization)
             {
                 int dataRowsCount = Parent.Rows!.Count(x => x.IsDataRow && !x.IsDetailRow);
@@ -2381,8 +2489,41 @@ namespace Syncfusion.Blazor.Grids.Internal
             return isBottomAdd && Parent.EnableVirtualization ? 0 : (int)EditedRow!.Index!;
         }
 
+        /// <summary>
+        /// Source index for a record added at the bottom while DOM virtualization is on. <c>Parent.Rows</c> is only the rendered
+        /// window there, so its count cannot be used. Without paging the record is the last one; with paging it takes the last slot
+        /// of the current page (a partially filled last page appends), so it is visible on the page it was added on.
+        /// </summary>
+        private int GetDomVirtualBottomInsertIndex()
+        {
+            int total = Parent.TotalItemCount;
+            if (!Parent.AllowPaging || Parent.PageSettings == null || Parent.PageSettings.PageSize <= 0)
+            {
+                return total;
+            }
+            int pageSize = Parent.PageSettings.PageSize;
+            int rowsOnPage = total - ((Parent.PageSettings.CurrentPage - 1) * pageSize);
+            return rowsOnPage < pageSize ? total : (Parent.PageSettings.CurrentPage * pageSize) - 1;
+        }
+
+        /// <summary>
+        /// Source index for a record added at the top while DOM virtualization is on: the first slot of the current page.
+        /// </summary>
+        private int GetDomVirtualTopInsertIndex()
+        {
+            if (!Parent.AllowPaging || Parent.PageSettings == null || Parent.PageSettings.PageSize <= 0)
+            {
+                return 0;
+            }
+            return (Parent.PageSettings.CurrentPage - 1) * Parent.PageSettings.PageSize;
+        }
+
         internal void RefreshRowIndex()
         {
+            if (IsDomVirtual)
+            {
+                return;
+            }
             var Index = 0;
             Parent.Rows?.ForEach(Row =>
             {
@@ -2538,6 +2679,11 @@ namespace Syncfusion.Blazor.Grids.Internal
 
         internal async Task EndEdit(Cell<object>? cell = null, bool ignoreFocus = false, string keyCombination = null!)
         {
+            if (!await CommitDomVirtualInputValuesAsync().ConfigureAwait(true))
+            {
+                return;
+            }
+
             if (IsAdd && Parent.SelectedRecords.Count > 0 && Parent.SelectionSettings != null && !Parent.SelectionSettings.PersistSelection && Parent.EditSettings != null && !Parent.EditSettings.Mode.Equals(EditMode.Dialog))
             {
                 await Parent.ClearSelectionAsync().ConfigureAwait(true);
@@ -2614,7 +2760,11 @@ namespace Syncfusion.Blazor.Grids.Internal
                 }
                 ForceValidate = true;
                 bool isTabKey = keyCombination != null && keyCombination.Equals("Tab", StringComparison.Ordinal);
+#if NET11_0_OR_GREATER
+                if (!(await EditContext.ValidateAsync().ConfigureAwait(true)) && (!IsCellEditMode() || (IsCellEditMode() && IsAdd)))
+#else
                 if (!EditContext.Validate() && (!IsCellEditMode() || (IsCellEditMode() && IsAdd)))
+#endif
                 {
                     ForceValidate = false;
                     if (ErrorResult.Count > 0) // Handled for identity and cols hidden
@@ -2650,6 +2800,11 @@ namespace Syncfusion.Blazor.Grids.Internal
                                     var editedRowIndex = Parent.Rows.FindIndex(x => x.Index == EditedRow!.Index);
                                     await Parent.InvokeMethod("sfBlazor.Grid.scrollIntoView", new object[] { Parent.DataId, -1, editedRowIndex, -1 }).ConfigureAwait(true);
                                 }
+                            }
+                            else if (IsDomVirtual && EditedRow?.Index != null && Parent.Rows.Find(_ => _.Index == EditedRow.Index) == null)
+                            {
+                                await Parent.DomVirtualModule!.EnsureRowRenderedAsync(EditedRow.Index.Value, EditedRow.Index.Value + 1).ConfigureAwait(true);
+                                await InvokeValidation(ValidateFields).ConfigureAwait(true);
                             }
                             else if ((Parent.EnableVirtualization && Parent.VirtualScrollModule != null && Parent.Rows.Find(_ => _.Index == (double)EditedRow!.Index!) == null) && !(Parent.EditSettings != null && Parent.EditSettings.ShowAddNewRow && Parent.GroupSettings?.Columns?.Length > 0))
                             {
@@ -2708,7 +2863,7 @@ namespace Syncfusion.Blazor.Grids.Internal
                 bool isBottomNewRowPosition = Parent.EditSettings!.NewRowPosition.Equals(NewRowPosition.Bottom);
                 if(!IsCellEditMode())
                 {
-                    args.Index = saveEventArgs.Index = (IsAdd && isBottomNewRowPosition) ? args.RowIndex : args.Index;
+                    args.Index = saveEventArgs.Index = (IsAdd && (isBottomNewRowPosition || IsDomVirtual)) ? args.RowIndex : args.Index;
                 }
                 if (IsAdd)
                 {
@@ -2735,6 +2890,11 @@ namespace Syncfusion.Blazor.Grids.Internal
                     return;
                 }
 
+                if (IsDomVirtual)
+                {
+                    Parent.DomVirtualModule!.EndEditSession();
+                    Parent.DomVirtualModule.AddedRows.Remove(EditedRow!);
+                }
                 int? rowIndex = null;
                 bool isShiftTabKey = keyCombination != null && keyCombination.Equals("ShiftTab", StringComparison.Ordinal);
                 bool isFirstCellFocused = !IsAdd && EditedRow!.Cells.Where(e => e.Visible && e.CellType != CellType.RowDrag).FirstOrDefault()!.IsFocused;
@@ -2901,8 +3061,8 @@ namespace Syncfusion.Blazor.Grids.Internal
                 {
                     return;
                 }
-                var row = Parent.Rows?.Find(_ => _.IsEdit);
-                if (row != null && row.IsAddedBottom)
+                var row = IsDomVirtual ? Parent.DomVirtualModule!.FindEditRow(_ => _.IsEdit) : Parent.Rows?.Find(_ => _.IsEdit);
+                if (row != null && row.IsAddedBottom && !IsDomVirtual)
                 {
                     row.Index = Parent.Rows!.IndexOf(row) - 1;
                 }
@@ -2957,6 +3117,12 @@ namespace Syncfusion.Blazor.Grids.Internal
                 IsAdd = false;
                 Parent.IsEdit = false;
                 Parent.Rows?.ForEach(Row => Row.IsEdit = false);
+                if (IsDomVirtual)
+                {
+                    Parent.DomVirtualModule!.EndEditSession();
+                    Parent.DomVirtualModule.AddedRows.Remove(row!);
+                    await Parent.DomVirtualModule.RefreshWindowAsync().ConfigureAwait(true);
+                }
                 args.Type = "ActionComplete";
                 if (Parent.EditSettings != null && Parent.EditSettings.Mode.Equals(EditMode.Dialog))
                 {
@@ -2993,6 +3159,10 @@ namespace Syncfusion.Blazor.Grids.Internal
                 await Parent.EventAggregator.NotifyAsync("ActionComplete", args).ConfigureAwait(true);
                 await SfBaseUtils.InvokeEvent<EditCanceledEventArgs<T>>(Parent.GridEvents?.EditCanceled!, cancelEventArgs).ConfigureAwait(true);
                 await Parent.EventAggregator.NotifyAsync("Cancelled", cancelEventArgs).ConfigureAwait(true);
+                if (Parent.FocusModule != null)
+                {
+                    Parent.FocusModule.IsChildFocused = false;
+                }
                 bool isFocused = await Parent.InvokeMethod<bool>("sfBlazor.Grid.focusNextFrame", false, new object[] { Parent.DataId }).ConfigureAwait(true);
                 var cellIndex = Parent.FocusModule?.SelectedCellIndex;
                 if (!preventFocus && cellIndex != null && selectedRowIndex != null && !isFromAddForm)
@@ -3300,8 +3470,15 @@ namespace Syncfusion.Blazor.Grids.Internal
             {
                 var TargetRow = Parent.Rows?.Find(_ => _.Index == rowIndex);
                 var preFillValue = TargetRow != null ? Parent.PropHelper?.GetObject(fieldName, TargetRow.Data!) : null;
+                
                 object? convertedValue = await GetCellPasteValueAsync(fieldName, value).ConfigureAwait(true);
+                if (convertedValue == null && dataField.IsForeignColumn())
+                {
+                    Parent.EventAggregator.Trigger("ToolbarStateChanged", null!);
+                    return;
+                }
                 await UpdateCell(rowIndex, fieldName, convertedValue!).ConfigureAwait(true);
+                
                 if (Parent.UndoRedoManager != null && Parent.EditSettings != null && Parent.EditSettings.EnableUndoRedo == true && Parent.EditSettings?.Mode == EditMode.Batch && convertedValue != null)
                 {
                     var columnIndex = TargetRow?.Cells
@@ -3449,7 +3626,7 @@ namespace Syncfusion.Blazor.Grids.Internal
                     {
                         Row.EditedData = null!;
                     }
-                    HasBatchChanges = Parent.Rows?.Any(r => r.IsDirty) ?? false;
+                    HasBatchChanges = EditRows.Any(r => r.IsDirty);
                 }
                 else
                 {
@@ -3557,7 +3734,7 @@ namespace Syncfusion.Blazor.Grids.Internal
                             {
                                 if (isComposite)
                                 {
-                                    //result = await Parent.DataManager!.Update<T>(primaryKeyFields, rowData, Parent.Query?.FromTable!, Parent.Query!).ConfigureAwait(true);
+                                    result = await Parent.DataManager!.Update<T>(primaryKeyFields, rowData, Parent.Query?.FromTable!, Parent.Query!).ConfigureAwait(true);
                                 }
                                 else
                                 {
@@ -3933,6 +4110,82 @@ namespace Syncfusion.Blazor.Grids.Internal
             }
         }
 
+        /// <summary>
+        /// Commits input text retained by DOM virtualization to the active edit model before a save.
+        /// </summary>
+        /// <returns><see langword="true"/> when the current edit can continue to save.</returns>
+        internal async Task<bool> CommitDomVirtualInputValuesAsync()
+        {
+            DomVirtualHandler<T>? domVirtual = Parent.DomVirtualModule;
+            if (!IsDomVirtual || !Parent.IsEdit || domVirtual == null || EditedRow == null)
+            {
+                return true;
+            }
+
+            Dictionary<string, string>? pending = domVirtual.PendingInputValues;
+            if (pending == null || pending.Count == 0)
+            {
+                return true;
+            }
+
+            if (CloneData == null)
+            {
+                return false;
+            }
+
+            List<(GridColumn Column, object? Value)> updates = new();
+            foreach (GridColumn column in GridUtils.GetColumns(Parent))
+            {
+                if (string.IsNullOrEmpty(column.Field)
+                    || !pending.TryGetValue(GetComplexName(column.Field), out string? text))
+                {
+                    continue;
+                }
+
+                object? value = await GetCellPasteValueAsync(column.Field, text).ConfigureAwait(true);
+                bool canAssignNull = string.IsNullOrEmpty(text)
+                    && (column.ValueType == null
+                        || !column.ValueType.IsValueType
+                        || Nullable.GetUnderlyingType(column.ValueType) != null);
+                if (value == null && !canAssignNull)
+                {
+                    continue;
+                }
+
+                updates.Add((column, value));
+            }
+
+            foreach ((GridColumn column, object? value) in updates)
+            {
+                SetValue(value, column.Field);
+            }
+
+            if (Parent.EditSettings?.Mode == EditMode.Batch)
+            {
+                foreach ((GridColumn column, object? value) in updates)
+                {
+                    Cell<object>? cell = EditedRow.Cells.FirstOrDefault(item => item.Column?.Field == column.Field);
+                    if (cell != null)
+                    {
+                        object? originalValue = Parent.PropHelper?.GetObject(column.Field, EditedRow.Data!);
+                        cell.IsDirty = !GridUtils.CompareValues(originalValue, value);
+                        cell.Changes = cell.IsDirty;
+                    }
+                }
+
+                EditedRow.IsDirty = EditedRow.Cells.Any(cell => cell.IsDirty);
+                EditedRow.EditedData = EditedRow.IsDirty ? CloneData : null;
+                HasBatchChanges = domVirtual.GetEditRows().Any(row => row.IsDirty);
+            }
+            else
+            {
+                EditedRow.EditedData = CloneData;
+            }
+
+            domVirtual.PendingInputValues = null;
+            return true;
+        }
+
         private void CloneRowData(object Data, bool PreventDataClone = false)
         {
             if (Data is ExpandoObject expando)
@@ -4000,6 +4253,21 @@ namespace Syncfusion.Blazor.Grids.Internal
         internal async Task<object?> GetCellPasteValueAsync(string fieldName, string value)
         {
             GridColumn? column = await Parent.GetColumnByFieldAsync(fieldName).ConfigureAwait(true);
+            if (column != null && column.IsForeignColumn())
+            {
+                // A foreign column's ValueType is the type of ForeignKeyValue (display text), not of the key stored in Field.
+                // Resolve the pasted text (or key) to the key of the matching foreign record; null when unresolved.
+                var foreignRecords = (column.GetForeignData() ?? column.ColumnData) as IEnumerable<object>;
+                var pasted = value?.Trim();
+                if (foreignRecords == null || string.IsNullOrEmpty(pasted))
+                {
+                    return null;
+                }
+                var keyField = column.ForeignKeyField ?? column.Field;
+                var match = foreignRecords.FirstOrDefault(r => string.Equals(DataUtil.GetObject(column.ForeignKeyValue!, r)?.ToString(), pasted, StringComparison.OrdinalIgnoreCase))
+                    ?? foreignRecords.FirstOrDefault(r => string.Equals(DataUtil.GetObject(keyField, r)?.ToString(), pasted, StringComparison.OrdinalIgnoreCase));
+                return match != null ? DataUtil.GetObject(keyField, match) : null;
+            }
             if (column?.ValueType == null)
             {
                 return value;

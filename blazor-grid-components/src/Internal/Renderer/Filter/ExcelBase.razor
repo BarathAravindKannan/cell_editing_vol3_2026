@@ -1,5 +1,6 @@
 @using Syncfusion.Blazor.Data
 @using System.Globalization;
+@using Microsoft.AspNetCore.Components;
 @using Microsoft.AspNetCore.Components.Web;
 @using Syncfusion.Blazor.Navigations
 @using Syncfusion.Blazor.Popups
@@ -186,33 +187,37 @@
                                                 <SfNumericTextBox aria-label="@(Localizer.GetText(GridLocaleKeys.FilterValue))" @ref="FirstNumericValueasDouble" Enabled="@GetNumberClass(NumberIndex, NumberDropDown!)" Format="@Column.Format" Placeholder="@(Localizer.GetText(GridLocaleKeys.EnterValue))" ID="@(($"numberui-{Column.Uid}"))" Value="@((double?)ConvertedValue)" TValue="double?" Step="@(step != null ? (double?)Convert.ToDouble(step) : 1)" Min="minValue != null ? (double?)Convert.ToDouble(minValue) : double.MinValue" Max="maxValue != null ? (double?)Convert.ToDouble(maxValue) : double.MaxValue" @attributes=numericTextBoxAttributes> </SfNumericTextBox>
                                             }
                                         }
-                                        @if (Column.Type == ColumnType.Date)
-                                        {
-                                            @if (FirstValue != null && FirstValue is DateTimeOffset)
+                                            @if (Column.Type == ColumnType.Date)
                                             {
-                                                isDateTimeOffsetType = true;
-                                                <SfDatePicker aria-label="@(Localizer.GetText(GridLocaleKeys.FilterValue))" @ref="FirstDatePickerOffsetType" Enabled="@GetNumberClass(NumberIndex, NumberDropDown!)" ID="@(($"{Column.Field}-xlfl-frstvalue"))" Format="@Column.Format" Placeholder="@(Localizer.GetText(GridLocaleKeys.CustomFilterDatePlaceHolder))" TValue="DateTimeOffset?" Value=(DateTimeOffset?)FirstValue @attributes=datePickerAttributes></SfDatePicker>
-                                                //TODO Ensured Globalization
+                                                @if (FirstValue != null && FirstValue is DateTimeOffset)
+                                                {
+                                                    isDateTimeOffsetType = true;
+                                                    <SfDatePicker aria-label="@(Localizer.GetText(GridLocaleKeys.FilterValue))" @ref="FirstDatePickerOffsetType" Enabled="@GetNumberClass(NumberIndex, NumberDropDown!)" ID="@(($"{Column.Field}-xlfl-frstvalue"))" Format="@Column.Format" Placeholder="@(Localizer.GetText(GridLocaleKeys.CustomFilterDatePlaceHolder))" TValue="DateTimeOffset?" Value=(DateTimeOffset?)FirstValue ValueChanged="@OnFirstDatePickerValueChanged" @attributes=datePickerAttributes @oninput="OnFirstDateValueInput" @onchange="OnFirstDateValueChanged"></SfDatePicker>
+                                                    //TODO Ensured Globalization
+                                                }
+                                                else
+                                                {
+                                                    isDateTimeOffsetType = false;
+                                                    <SfDatePicker aria-label="@(Localizer.GetText(GridLocaleKeys.FilterValue))" @ref="FirstDatePicker" Enabled="@GetNumberClass(NumberIndex, NumberDropDown!)" ID="@(($"{Column.Field}-xlfl-frstvalue"))" Format="@Column.Format" Placeholder="@(Localizer.GetText(GridLocaleKeys.CustomFilterDatePlaceHolder))" TValue="DateTime?" Value=(DateTime?)FirstValue ValueChanged="@OnFirstDatePickerValueChanged" @attributes=datePickerAttributes @oninput="OnFirstDateValueInput" @onchange="OnFirstDateValueChanged"></SfDatePicker>
+                                                    // TODO Ensured Globalization
+                                                }
                                             }
-                                            else
+                                            @if (Column.Type == ColumnType.DateOnly)
                                             {
-                                                isDateTimeOffsetType = false;
-                                                <SfDatePicker aria-label="@(Localizer.GetText(GridLocaleKeys.FilterValue))" @ref="FirstDatePicker" Enabled="@GetNumberClass(NumberIndex, NumberDropDown!)" ID="@(($"{Column.Field}-xlfl-frstvalue"))" Format="@Column.Format" Placeholder="@(Localizer.GetText(GridLocaleKeys.CustomFilterDatePlaceHolder))" TValue="DateTime?" Value=(DateTime?)FirstValue @attributes=datePickerAttributes></SfDatePicker>
-                                                // TODO Ensured Globalization
+                                                <SfDatePicker aria-label="@(Localizer.GetText(GridLocaleKeys.FilterValue))" @ref="FirstDateOnlyPicker" Enabled="@GetNumberClass(NumberIndex, NumberDropDown!)" ID="@(($"{Column.Field}-xlfl-frstvalue"))" Format="@Column.Format" Placeholder="@(Localizer.GetText(GridLocaleKeys.CustomFilterDatePlaceHolder))" TValue="DateOnly?" Value=(DateOnly?)FirstValue ValueChanged="@OnFirstDatePickerValueChanged" @attributes=datePickerAttributes @oninput="OnFirstDateValueInput" @onchange="OnFirstDateValueChanged"></SfDatePicker>
                                             }
-                                        }
-                                        @if (Column.Type == ColumnType.DateOnly)
-                                        {
-                                            <SfDatePicker aria-label="@(Localizer.GetText(GridLocaleKeys.FilterValue))" @ref="FirstDateOnlyPicker" Enabled="@GetNumberClass(NumberIndex, NumberDropDown!)" ID="@(($"{Column.Field}-xlfl-frstvalue"))" Format="@Column.Format" Placeholder="@(Localizer.GetText(GridLocaleKeys.CustomFilterDatePlaceHolder))" TValue="DateOnly?" Value=(DateOnly?)FirstValue @attributes=datePickerAttributes></SfDatePicker>
-                                        }
-                                        @if (Column.Type == ColumnType.TimeOnly)
-                                        {
-                                            <SfTimePicker aria-label="@(Localizer.GetText(GridLocaleKeys.FilterValue))" @ref="FirstTimeOnlyPicker" Enabled="@GetNumberClass(NumberIndex, NumberDropDown!)" ID="@(($"{Column.Field}-xlfl-frstvalue"))" Format="@Column.Format" Placeholder="@(Localizer.GetText(GridLocaleKeys.ChooseTime))" TValue="TimeOnly?" Value=(TimeOnly?)FirstValue @attributes=timePickerAttributes></SfTimePicker>
-                                        }
-                                        @if (Column.Type == ColumnType.DateTime)
-                                        {
-                                            <SfDateTimePicker aria-label="@(Localizer.GetText(GridLocaleKeys.FilterValue))" ID="@(($"{Column.Field}-xlfl-frstvalue"))" @ref="FirstDateTimePicker" Enabled="@GetNumberClass(NumberIndex, NumberDropDown!)" Format="@Column.Format" @key="Column.Uid" Placeholder="@(Localizer.GetText(GridLocaleKeys.CustomFilterDatePlaceHolder))" TValue="DateTime?" Value=(DateTime?)FirstValue @attributes=dateTimePickerAttributes></SfDateTimePicker>
-                                        }
+                                            @if (Column.Type == ColumnType.TimeOnly)
+                                            {
+                                                <SfTimePicker aria-label="@(Localizer.GetText(GridLocaleKeys.FilterValue))" @ref="FirstTimeOnlyPicker" Enabled="@GetNumberClass(NumberIndex, NumberDropDown!)" ID="@(($"{Column.Field}-xlfl-frstvalue"))" Format="@Column.Format" Placeholder="@(Localizer.GetText(GridLocaleKeys.ChooseTime))" TValue="TimeOnly?" Value=(TimeOnly?)FirstValue ValueChanged="@OnFirstDatePickerValueChanged" @attributes=timePickerAttributes @oninput="OnFirstDateValueInput" @onchange="OnFirstDateValueChanged"></SfTimePicker>
+                                            }
+                                            @if (Column.Type == ColumnType.DateTime)
+                                            {
+                                                <SfDateTimePicker aria-label="@(Localizer.GetText(GridLocaleKeys.FilterValue))" ID="@(($"{Column.Field}-xlfl-frstvalue"))" @ref="FirstDateTimePicker" Enabled="@GetNumberClass(NumberIndex, NumberDropDown!)" Format="@Column.Format" @key="Column.Uid" Placeholder="@(Localizer.GetText(GridLocaleKeys.CustomFilterDatePlaceHolder))" TValue="DateTime?" Value=(DateTime?)FirstValue ValueChanged="@OnFirstDatePickerValueChanged" @attributes=dateTimePickerAttributes @oninput="OnFirstDateValueInput" @onchange="OnFirstDateValueChanged"></SfDateTimePicker>
+                                            }
+                                            @if (IsFirstDateFilterInvalid)
+                                            {
+                                                <div class="validation-message">@ValidationMessage</div>
+                                            }
 
                                         @if (Column.Type == ColumnType.String)
                                         {
@@ -346,33 +351,37 @@
                                             }
                                         }
 
-                                        @if (Column.Type == ColumnType.Date)
-                                        {
+                                            @if (Column.Type == ColumnType.Date)
+                                            {
                                             if (SecondValue != null && SecondValue is DateTimeOffset)
-                                            {
-                                                isDateTimeOffsetType = true;
-                                                <SfDatePicker aria-label="@(Localizer.GetText(GridLocaleKeys.FilterValue))" @ref="SecondDatePickerOffsetType" ID="@(($"{Column.Field}-xlfl-secondvalue"))" Enabled="@GetNumberClass(SecondNumIndex, NumberDropDown!)" Format="@Column.Format" Placeholder="@(Localizer.GetText(GridLocaleKeys.CustomFilterDatePlaceHolder))" TValue="DateTimeOffset?" Value=(DateTimeOffset?)SecondValue @attributes=datePickerAttributes></SfDatePicker>
-                                                //TODO Ensured Globalization
+                                                {
+                                                    isDateTimeOffsetType = true;
+                                                    <SfDatePicker aria-label="@(Localizer.GetText(GridLocaleKeys.FilterValue))" @ref="SecondDatePickerOffsetType" ID="@(($"{Column.Field}-xlfl-secondvalue"))" Enabled="@GetNumberClass(SecondNumIndex, NumberDropDown!)" Format="@Column.Format" Placeholder="@(Localizer.GetText(GridLocaleKeys.CustomFilterDatePlaceHolder))" TValue="DateTimeOffset?" Value=(DateTimeOffset?)SecondValue ValueChanged="@OnSecondDatePickerValueChanged" @attributes=datePickerAttributes @oninput="OnSecondDateValueInput" @onchange="OnSecondDateValueChanged"></SfDatePicker>
+                                                    //TODO Ensured Globalization
+                                                }
+                                                else
+                                                {
+                                                    isDateTimeOffsetType = false;
+                                                    <SfDatePicker aria-label="@(Localizer.GetText(GridLocaleKeys.FilterValue))" @ref="SecondDatePicker" ID="@(($"{Column.Field}-xlfl-secondvalue"))" Enabled="@GetNumberClass(SecondNumIndex, NumberDropDown!)" Format="@Column.Format" Placeholder="@(Localizer.GetText(GridLocaleKeys.CustomFilterDatePlaceHolder))" TValue="DateTime?" Value=(DateTime?)SecondValue ValueChanged="@OnSecondDatePickerValueChanged" @attributes=datePickerAttributes @oninput="OnSecondDateValueInput" @onchange="OnSecondDateValueChanged"></SfDatePicker>
+                                                    //TODO Ensured Globalization
+                                                }
                                             }
-                                            else
+                                            @if (Column.Type == ColumnType.DateOnly)
                                             {
-                                                isDateTimeOffsetType = false;
-                                                <SfDatePicker aria-label="@(Localizer.GetText(GridLocaleKeys.FilterValue))" @ref="SecondDatePicker" ID="@(($"{Column.Field}-xlfl-secondvalue"))" Enabled="@GetNumberClass(SecondNumIndex, NumberDropDown!)" Format="@Column.Format" Placeholder="@(Localizer.GetText(GridLocaleKeys.CustomFilterDatePlaceHolder))" TValue="DateTime?" Value=(DateTime?)SecondValue @attributes=datePickerAttributes></SfDatePicker>
-                                                //TODO Ensured Globalization
+                                                <SfDatePicker aria-label="@(Localizer.GetText(GridLocaleKeys.FilterValue))" @ref="SecondDateOnlyPicker" ID="@(($"{Column.Field}-xlfl-secondvalue"))" Enabled="@GetNumberClass(SecondNumIndex, NumberDropDown!)" Format="@Column.Format" Placeholder="@(Localizer.GetText(GridLocaleKeys.CustomFilterDatePlaceHolder))" TValue="DateOnly?" Value=(DateOnly?)SecondValue ValueChanged="@OnSecondDatePickerValueChanged" @attributes=datePickerAttributes @oninput="OnSecondDateValueInput" @onchange="OnSecondDateValueChanged"></SfDatePicker>
                                             }
-                                        }
-                                        @if (Column.Type == ColumnType.DateOnly)
-                                        {
-                                            <SfDatePicker aria-label="@(Localizer.GetText(GridLocaleKeys.FilterValue))" @ref="SecondDateOnlyPicker" ID="@(($"{Column.Field}-xlfl-secondvalue"))" Enabled="@GetNumberClass(SecondNumIndex, NumberDropDown!)" Format="@Column.Format" Placeholder="@(Localizer.GetText(GridLocaleKeys.CustomFilterDatePlaceHolder))" TValue="DateOnly?" Value=(DateOnly?)SecondValue @attributes=datePickerAttributes></SfDatePicker>
-                                        }
-                                        @if (Column.Type == ColumnType.TimeOnly)
-                                        {
-                                            <SfTimePicker aria-label="@(Localizer.GetText(GridLocaleKeys.FilterValue))" @ref="SecondTimeOnlyPicker" ID="@(($"{Column.Field}-xlfl-secondvalue"))" Enabled="@GetNumberClass(SecondNumIndex, NumberDropDown!)" Format="@Column.Format" Placeholder="@(Localizer.GetText(GridLocaleKeys.ChooseTime))" TValue="TimeOnly?" Value=(TimeOnly?)SecondValue @attributes=timePickerAttributes></SfTimePicker>
-                                        }
-                                        @if (Column.Type == ColumnType.DateTime)
-                                        {
-                                            <SfDateTimePicker aria-label="@(Localizer.GetText(GridLocaleKeys.FilterValue))" ID="@(($"{Column.Field}-xlfl-secondvalue"))" @ref="SecondDateTimePicker" Enabled="@GetNumberClass(SecondNumIndex, NumberDropDown!)" Format="@Column.Format" @key="Column.Uid" Placeholder="@(Localizer.GetText(GridLocaleKeys.CustomFilterDatePlaceHolder))" TValue="DateTime?" Value=(DateTime?)SecondValue @attributes=dateTimePickerAttributes></SfDateTimePicker>
-                                        }
+                                            @if (Column.Type == ColumnType.TimeOnly)
+                                            {
+                                                <SfTimePicker aria-label="@(Localizer.GetText(GridLocaleKeys.FilterValue))" @ref="SecondTimeOnlyPicker" ID="@(($"{Column.Field}-xlfl-secondvalue"))" Enabled="@GetNumberClass(SecondNumIndex, NumberDropDown!)" Format="@Column.Format" Placeholder="@(Localizer.GetText(GridLocaleKeys.ChooseTime))" TValue="TimeOnly?" Value=(TimeOnly?)SecondValue ValueChanged="@OnSecondDatePickerValueChanged" @attributes=timePickerAttributes @oninput="OnSecondDateValueInput" @onchange="OnSecondDateValueChanged"></SfTimePicker>
+                                            }
+                                            @if (Column.Type == ColumnType.DateTime)
+                                            {
+                                                <SfDateTimePicker aria-label="@(Localizer.GetText(GridLocaleKeys.FilterValue))" ID="@(($"{Column.Field}-xlfl-secondvalue"))" @ref="SecondDateTimePicker" Enabled="@GetNumberClass(SecondNumIndex, NumberDropDown!)" Format="@Column.Format" @key="Column.Uid" Placeholder="@(Localizer.GetText(GridLocaleKeys.CustomFilterDatePlaceHolder))" TValue="DateTime?" Value=(DateTime?)SecondValue ValueChanged="@OnSecondDatePickerValueChanged" @attributes=dateTimePickerAttributes @oninput="OnSecondDateValueInput" @onchange="OnSecondDateValueChanged"></SfDateTimePicker>
+                                            }
+                                            @if (IsSecondDateFilterInvalid)
+                                            {
+                                                <div class="validation-message">@ValidationMessage</div>
+                                            }
 
                                         @if (Column.Type == ColumnType.String)
                                         {
@@ -427,7 +436,7 @@
             </Content>
         </DialogTemplates>
         <DialogButtons>
-            <DialogButton OnClick="@FilterBtnClick" Content=@(Localizer!.GetText(GridLocaleKeys.OKButton)) IsPrimary="true" CssClass="e-primary e-flat">
+            <DialogButton OnClick="@FilterBtnClick" Content=@(Localizer!.GetText(GridLocaleKeys.OKButton)) IsPrimary="true" CssClass="e-primary e-flat" Disabled="@(IsFirstDateFilterInvalid || IsSecondDateFilterInvalid)">
             </DialogButton>
             <DialogButton OnClick="@ClearBtnClick" Content=@(Localizer.GetText(GridLocaleKeys.CancelButton)) CssClass="e-flat">
             </DialogButton>
@@ -445,7 +454,7 @@ else if (Parent.EnableAdaptiveUI && isSubMenuItemSelected)
                 <div class="e-dlg-header">
                     <div class="e-res-custom-element">
                         <div class="e-dlg-custom-header" id="@(($"{Parent.ID}_excel_custommenu_wrapper"))">Custom Filter</div>
-                        <SfButton CssClass="e-primary e-flat e-res-apply-btn" Content=@(Localizer!.GetText(GridLocaleKeys.OKButton)) @onclick="@FilterBtnClick"></SfButton>
+                        <SfButton CssClass="e-primary e-flat e-res-apply-btn" Content=@(Localizer!.GetText(GridLocaleKeys.OKButton)) @onclick="@FilterBtnClick" Disabled="@(IsFirstDateFilterInvalid || IsSecondDateFilterInvalid)"></SfButton>
                     </div>
                 </div>
             </Header>
@@ -538,32 +547,36 @@ else if (Parent.EnableAdaptiveUI && isSubMenuItemSelected)
                                             @if (FirstValue != null && FirstValue is DateTimeOffset)
                                             {
                                                 isDateTimeOffsetType = true;
-                                                <SfDatePicker aria-label="@(Localizer.GetText(GridLocaleKeys.FilterValue))" @ref="FirstDatePickerOffsetType" Enabled="@GetNumberClass(NumberIndex, NumberDropDown!)" ID="@(($"{Column.Field}-xlfl-frstvalue"))" Format="@Column.Format" Placeholder="@(Localizer.GetText(GridLocaleKeys.CustomFilterDatePlaceHolder))" TValue="DateTimeOffset?" Value=(DateTimeOffset?)FirstValue @attributes=datePickerAttributes></SfDatePicker>
+                                                <SfDatePicker aria-label="@(Localizer.GetText(GridLocaleKeys.FilterValue))" @ref="FirstDatePickerOffsetType" Enabled="@GetNumberClass(NumberIndex, NumberDropDown!)" ID="@(($"{Column.Field}-xlfl-frstvalue"))" Format="@Column.Format" Placeholder="@(Localizer.GetText(GridLocaleKeys.CustomFilterDatePlaceHolder))" TValue="DateTimeOffset?" Value=(DateTimeOffset?)FirstValue ValueChanged="@OnFirstDatePickerValueChanged" @attributes=datePickerAttributes @oninput="OnFirstDateValueInput" @onchange="OnFirstDateValueChanged"></SfDatePicker>
                                                 //TODO Ensured Globalization
                                             }
                                             else
                                             {
                                                 isDateTimeOffsetType = false;
-                                                <SfDatePicker aria-label="@(Localizer.GetText(GridLocaleKeys.FilterValue))" @ref="FirstDatePicker" Enabled="@GetNumberClass(NumberIndex, NumberDropDown!)" ID="@(($"{Column.Field}-xlfl-frstvalue"))" Format="@Column.Format" Placeholder="@(Localizer.GetText(GridLocaleKeys.CustomFilterDatePlaceHolder))" TValue="DateTime?" Value=(DateTime?)FirstValue @attributes=datePickerAttributes></SfDatePicker>
+                                                <SfDatePicker aria-label="@(Localizer.GetText(GridLocaleKeys.FilterValue))" @ref="FirstDatePicker" Enabled="@GetNumberClass(NumberIndex, NumberDropDown!)" ID="@(($"{Column.Field}-xlfl-frstvalue"))" Format="@Column.Format" Placeholder="@(Localizer.GetText(GridLocaleKeys.CustomFilterDatePlaceHolder))" TValue="DateTime?" Value=(DateTime?)FirstValue ValueChanged="@OnFirstDatePickerValueChanged" @attributes=datePickerAttributes @oninput="OnFirstDateValueInput" @onchange="OnFirstDateValueChanged"></SfDatePicker>
                                                 //TODO Ensured Globalization
                                             }
                                         }
                                         @if (Column.Type == ColumnType.DateOnly)
                                         {
-                                            <SfDatePicker aria-label="@(Localizer.GetText(GridLocaleKeys.FilterValue))" @ref="FirstDateOnlyPicker" Enabled="@GetNumberClass(NumberIndex, NumberDropDown!)" ID="@(($"{Column.Field}-xlfl-frstvalue"))" Format="@Column.Format" Placeholder="@(Localizer.GetText(GridLocaleKeys.CustomFilterDatePlaceHolder))" TValue="DateOnly?" Value=(DateOnly?)FirstValue @attributes=datePickerAttributes></SfDatePicker>
+                                            <SfDatePicker aria-label="@(Localizer.GetText(GridLocaleKeys.FilterValue))" @ref="FirstDateOnlyPicker" Enabled="@GetNumberClass(NumberIndex, NumberDropDown!)" ID="@(($"{Column.Field}-xlfl-frstvalue"))" Format="@Column.Format" Placeholder="@(Localizer.GetText(GridLocaleKeys.CustomFilterDatePlaceHolder))" TValue="DateOnly?" Value=(DateOnly?)FirstValue ValueChanged="@OnFirstDatePickerValueChanged" @attributes=datePickerAttributes @oninput="OnFirstDateValueInput" @onchange="OnFirstDateValueChanged"></SfDatePicker>
                                         }
                                         @if (Column.Type == ColumnType.TimeOnly)
                                         {
-                                            <SfTimePicker aria-label="@(Localizer.GetText(GridLocaleKeys.FilterValue))" @ref="FirstTimeOnlyPicker" Enabled="@GetNumberClass(NumberIndex, NumberDropDown!)" ID="@(($"{Column.Field}-xlfl-frstvalue"))" Format="@Column.Format" Placeholder="@(Localizer.GetText(GridLocaleKeys.ChooseTime))" TValue="TimeOnly?" Value=(TimeOnly?)FirstValue @attributes=timePickerAttributes></SfTimePicker>
+                                            <SfTimePicker aria-label="@(Localizer.GetText(GridLocaleKeys.FilterValue))" @ref="FirstTimeOnlyPicker" Enabled="@GetNumberClass(NumberIndex, NumberDropDown!)" ID="@(($"{Column.Field}-xlfl-frstvalue"))" Format="@Column.Format" Placeholder="@(Localizer.GetText(GridLocaleKeys.ChooseTime))" TValue="TimeOnly?" Value=(TimeOnly?)FirstValue ValueChanged="@OnFirstDatePickerValueChanged" @attributes=timePickerAttributes @oninput="OnFirstDateValueInput" @onchange="OnFirstDateValueChanged"></SfTimePicker>
                                         }
                                         @if (Column.Type == ColumnType.DateTime)
                                         {
-                                            <SfDateTimePicker aria-label="@(Localizer.GetText(GridLocaleKeys.FilterValue))" ID="@(($"{Column.Field}-xlfl-frstvalue"))" @ref="FirstDateTimePicker" Enabled="@GetNumberClass(NumberIndex, NumberDropDown!)" Format="@Column.Format" @key="Column.Uid" Placeholder="@(Localizer.GetText(GridLocaleKeys.CustomFilterDatePlaceHolder))" TValue="DateTime?" Value=(DateTime?)FirstValue @attributes=dateTimePickerAttributes></SfDateTimePicker>
+                                            <SfDateTimePicker aria-label="@(Localizer.GetText(GridLocaleKeys.FilterValue))" ID="@(($"{Column.Field}-xlfl-frstvalue"))" @ref="FirstDateTimePicker" Enabled="@GetNumberClass(NumberIndex, NumberDropDown!)" Format="@Column.Format" @key="Column.Uid" Placeholder="@(Localizer.GetText(GridLocaleKeys.CustomFilterDatePlaceHolder))" TValue="DateTime?" Value=(DateTime?)FirstValue ValueChanged="@OnFirstDatePickerValueChanged" @attributes=dateTimePickerAttributes @oninput="OnFirstDateValueInput" @onchange="OnFirstDateValueChanged"></SfDateTimePicker>
+                                        }
+                                        @if (IsFirstDateFilterInvalid)
+                                        {
+                                            <div class="validation-message" role="alert" aria-live="polite">@ValidationMessage</div>
                                         }
 
                                         @if (Column.Type == ColumnType.String)
                                         {
-                                            DataManager filterDataManager = (Column.IsForeignColumn() ? Column.DataManager : Parent.DataManager) ?? new DataManager();
+                                            DataManager filterDataManager = (Column.IsForeignColumn() ? Column.DataManager : Parent!.DataManager) ?? new DataManager();
                                             IEnumerable<object>? Json = filterDataManager?.Json != null ? Column.IsForeignColumn() ? DataUtil.GetDistinct(filterDataManager.Json, Column.ForeignKeyValue ?? "") : (IEnumerable<object>)DataUtil.GetDistinct<TContent>((IEnumerable<TContent>)filterDataManager.Json, Column.Field) : null;
 
                                             if (Column.IsForeignColumn() && Column.IsGridForeignColumn)
@@ -584,7 +597,7 @@ else if (Parent.EnableAdaptiveUI && isSubMenuItemSelected)
                                             else
                                             {
                                                 var StringIndex = firstDropdownChangedIndex != -1 ? firstDropdownChangedIndex : !string.IsNullOrEmpty(FirstFoperator) ? StringDropDown?.FindIndex(e => e.Value == FirstFoperator) : StringDropDown?.FindIndex(e => e.Value == SelectedFoperator);
-                                                <SfAutoComplete aria-label="@(Localizer.GetText(GridLocaleKeys.FilterValue))" @ref="FirstAutoComplete" @key="@(($"{Column.Field}-xlfl-frstvalue"))" Enabled="@GetClass(StringIndex, StringDropDown!)" ID="@(($"{Column.Field}-xlfl-frstvalue"))" Query="@Parent.Query" Autofill=enableAutoFill Placeholder="@(Localizer.GetText(GridLocaleKeys.CustomFilterPlaceHolder))" TItem="TContent" TValue="string" Value=@(FirstValue?.ToString()) @attributes=autoCompleteAttributes>
+                                                <SfAutoComplete aria-label="@(Localizer.GetText(GridLocaleKeys.FilterValue))" @ref="FirstAutoComplete" @key="@(($"{Column.Field}-xlfl-frstvalue"))" Enabled="@GetClass(StringIndex, StringDropDown!)" ID="@(($"{Column.Field}-xlfl-frstvalue"))" Query="@Parent!.Query" Autofill=enableAutoFill Placeholder="@(Localizer.GetText(GridLocaleKeys.CustomFilterPlaceHolder))" TItem="TContent" TValue="string" Value=@(FirstValue?.ToString()) @attributes=autoCompleteAttributes>
                                                     <SfDataManager HttpClientInstance="@filterDataManager!.HttpClientInstance" GraphQLAdaptorOptions="@filterDataManager.GraphQLAdaptorOptions" Headers=@filterDataManager.Headers Url=@filterDataManager.Url Json="@Json" AdaptorInstance="@filterDataManager.AdaptorInstance" Adaptor="@filterDataManager.Adaptor" Offline="@filterDataManager.Offline">
                                                         @filterDataManager.ChildContent
                                                     </SfDataManager>
@@ -663,7 +676,7 @@ else if (Parent.EnableAdaptiveUI && isSubMenuItemSelected)
 
                                         @if (Column.Type == ColumnType.Integer || Column.Type == ColumnType.Double || Column.Type == ColumnType.Long || Column.Type == ColumnType.Decimal)
                                         {
-                                            var ConvertedValue = Filter<TContent>.TryParseNullable(SecondValue?.ToString()!, (Parent.FilterModule != null && Parent.FilterModule.IntConvertedList.ContainsKey(Column.ValueType!)));
+                                            var ConvertedValue = Filter<TContent>.TryParseNullable(SecondValue?.ToString()!, (Parent!.FilterModule != null && Parent.FilterModule.IntConvertedList.ContainsKey(Column.ValueType!)));
                                             @if (_isInteger)
                                             {
                                                 <SfNumericTextBox aria-label="@(Localizer.GetText(GridLocaleKeys.FilterValue))" @ref="SecondNumericValueasInt" Enabled="@GetNumberClass(SecondNumIndex, NumberDropDown!)" Format="@Column.Format" Placeholder="@(Localizer.GetText(GridLocaleKeys.EnterValue))" ID="@(($"numberui-{Column.Uid}"))" Value="@((int?)ConvertedValue)" TValue="int?" Step="@(step != null ? (int?)step : 1)" Min="minValue != null ? (int)minValue : int.MinValue" Max="maxValue != null ? (int)maxValue : int.MaxValue" @attributes=numericTextBoxAttributes> </SfNumericTextBox>
@@ -683,33 +696,37 @@ else if (Parent.EnableAdaptiveUI && isSubMenuItemSelected)
                                             if (SecondValue != null && SecondValue is DateTimeOffset)
                                             {
                                                 isDateTimeOffsetType = true;
-                                                <SfDatePicker aria-label="@(Localizer.GetText(GridLocaleKeys.FilterValue))" @ref="SecondDatePickerOffsetType" Enabled="@GetNumberClass(SecondNumIndex, NumberDropDown!)" ID="@(($"{Column.Field}-xlfl-secondvalue"))" Format="@Column.Format" Placeholder="@(Localizer.GetText(GridLocaleKeys.CustomFilterDatePlaceHolder))" TValue="DateTimeOffset?" Value=(DateTimeOffset?)SecondValue @attributes=datePickerAttributes></SfDatePicker>
+                                                <SfDatePicker aria-label="@(Localizer.GetText(GridLocaleKeys.FilterValue))" @ref="SecondDatePickerOffsetType" Enabled="@GetNumberClass(SecondNumIndex, NumberDropDown!)" ID="@(($"{Column.Field}-xlfl-secondvalue"))" Format="@Column.Format" Placeholder="@(Localizer.GetText(GridLocaleKeys.CustomFilterDatePlaceHolder))" TValue="DateTimeOffset?" Value=(DateTimeOffset?)SecondValue ValueChanged="@OnSecondDatePickerValueChanged" @attributes=datePickerAttributes @oninput="OnSecondDateValueInput" @onchange="OnSecondDateValueChanged"></SfDatePicker>
                                                 //TODO Ensured Globalization
                                             }
                                             else
                                             {
                                                 isDateTimeOffsetType = false;
-                                                <SfDatePicker aria-label="@(Localizer.GetText(GridLocaleKeys.FilterValue))" @ref="SecondDatePicker" Enabled="@GetNumberClass(SecondNumIndex, NumberDropDown!)" ID="@(($"{Column.Field}-xlfl-secondvalue"))" Format="@Column.Format" Placeholder="@(Localizer.GetText(GridLocaleKeys.CustomFilterDatePlaceHolder))" TValue="DateTime?" Value=(DateTime?)SecondValue @attributes=datePickerAttributes></SfDatePicker>
+                                                <SfDatePicker aria-label="@(Localizer.GetText(GridLocaleKeys.FilterValue))" @ref="SecondDatePicker" Enabled="@GetNumberClass(SecondNumIndex, NumberDropDown!)" ID="@(($"{Column.Field}-xlfl-secondvalue"))" Format="@Column.Format" Placeholder="@(Localizer.GetText(GridLocaleKeys.CustomFilterDatePlaceHolder))" TValue="DateTime?" Value=(DateTime?)SecondValue ValueChanged="@OnSecondDatePickerValueChanged" @attributes=datePickerAttributes @oninput="OnSecondDateValueInput" @onchange="OnSecondDateValueChanged"></SfDatePicker>
                                                 //TODO Ensured Globalization
                                             }
                                         }
                                         @if (Column.Type == ColumnType.DateOnly)
                                         {
-                                            <SfDatePicker aria-label="@(Localizer.GetText(GridLocaleKeys.FilterValue))" @ref="SecondDateOnlyPicker" Enabled="@GetNumberClass(SecondNumIndex, NumberDropDown!)" ID="@(($"{Column.Field}-xlfl-secondvalue"))" Format="@Column.Format" Placeholder="@(Localizer.GetText(GridLocaleKeys.CustomFilterDatePlaceHolder))" TValue="DateOnly?" Value=(DateOnly?)SecondValue @attributes=datePickerAttributes></SfDatePicker>
+                                            <SfDatePicker aria-label="@(Localizer.GetText(GridLocaleKeys.FilterValue))" @ref="SecondDateOnlyPicker" Enabled="@GetNumberClass(SecondNumIndex, NumberDropDown!)" ID="@(($"{Column.Field}-xlfl-secondvalue"))" Format="@Column.Format" Placeholder="@(Localizer.GetText(GridLocaleKeys.CustomFilterDatePlaceHolder))" TValue="DateOnly?" Value=(DateOnly?)SecondValue ValueChanged="@OnSecondDatePickerValueChanged" @attributes=datePickerAttributes @oninput="OnSecondDateValueInput" @onchange="OnSecondDateValueChanged"></SfDatePicker>
                                         }
                                         @if (Column.Type == ColumnType.TimeOnly)
                                         {
-                                            <SfTimePicker aria-label="@(Localizer.GetText(GridLocaleKeys.FilterValue))" @ref="SecondTimeOnlyPicker" Enabled="@GetNumberClass(SecondNumIndex, NumberDropDown!)" ID="@(($"{Column.Field}-xlfl-secondvalue"))" Format="@Column.Format" Placeholder="@(Localizer.GetText(GridLocaleKeys.ChooseTime))" TValue="TimeOnly?" Value=(TimeOnly?)SecondValue @attributes=timePickerAttributes></SfTimePicker>
+                                            <SfTimePicker aria-label="@(Localizer.GetText(GridLocaleKeys.FilterValue))" @ref="SecondTimeOnlyPicker" Enabled="@GetNumberClass(SecondNumIndex, NumberDropDown!)" ID="@(($"{Column.Field}-xlfl-secondvalue"))" Format="@Column.Format" Placeholder="@(Localizer.GetText(GridLocaleKeys.ChooseTime))" TValue="TimeOnly?" Value=(TimeOnly?)SecondValue ValueChanged="@OnSecondDatePickerValueChanged" @attributes=timePickerAttributes @oninput="OnSecondDateValueInput" @onchange="OnSecondDateValueChanged"></SfTimePicker>
                                         }
                                         @if (Column.Type == ColumnType.DateTime)
                                         {
-                                            <SfDateTimePicker aria-label="@(Localizer.GetText(GridLocaleKeys.FilterValue))" ID="@(($"{Column.Field}-xlfl-secondvalue"))" @ref="SecondDateTimePicker" Enabled="@GetNumberClass(SecondNumIndex, NumberDropDown!)" Format="@Column.Format" @key="Column.Uid" Placeholder="@(Localizer.GetText(GridLocaleKeys.CustomFilterDatePlaceHolder))" TValue="DateTime?" Value=(DateTime?)SecondValue @attributes=dateTimePickerAttributes></SfDateTimePicker>
+                                            <SfDateTimePicker aria-label="@(Localizer.GetText(GridLocaleKeys.FilterValue))" ID="@(($"{Column.Field}-xlfl-secondvalue"))" @ref="SecondDateTimePicker" Enabled="@GetNumberClass(SecondNumIndex, NumberDropDown!)" Format="@Column.Format" @key="Column.Uid" Placeholder="@(Localizer.GetText(GridLocaleKeys.CustomFilterDatePlaceHolder))" TValue="DateTime?" Value=(DateTime?)SecondValue ValueChanged="@OnSecondDatePickerValueChanged" @attributes=dateTimePickerAttributes @oninput="OnSecondDateValueInput" @onchange="OnSecondDateValueChanged"></SfDateTimePicker>
+                                        }
+                                        @if (IsSecondDateFilterInvalid)
+                                        {
+                                            <div class="validation-message" role="alert" aria-live="polite">@ValidationMessage</div>
                                         }
 
                                         @if (Column.Type == ColumnType.String)
                                         {
 
-                                            DataManager filterDataManager = (Column.IsForeignColumn() ? Column.DataManager : Parent.DataManager) ?? new DataManager();
+                                            DataManager filterDataManager = (Column.IsForeignColumn() ? Column.DataManager : Parent!.DataManager) ?? new DataManager();
                                             IEnumerable<object>? Json = filterDataManager?.Json != null ? Column.IsForeignColumn() ? DataUtil.GetDistinct(filterDataManager.Json, Column.ForeignKeyValue ?? "") : (IEnumerable<object>)DataUtil.GetDistinct<TContent>((IEnumerable<TContent>)filterDataManager.Json, Column.Field) : null!;
 
                                             if (Column.IsForeignColumn() && Column.IsGridForeignColumn)
@@ -730,7 +747,7 @@ else if (Parent.EnableAdaptiveUI && isSubMenuItemSelected)
                                             else
                                             {
                                                 var SecondStringIndex = secondDropdownChangedIndex != -1 ? secondDropdownChangedIndex : !string.IsNullOrEmpty(SecondFoperator) ? (int?)StringDropDown?.FindIndex(e => e.Value == SecondFoperator) : null;
-                                                <SfAutoComplete aria-label="@(Localizer.GetText(GridLocaleKeys.FilterValue))" @ref="SecondAutoComplete" @key="Column.Uid" Enabled="@GetClass(SecondStringIndex, StringDropDown!)" ID="@(($"strui-{Column.Uid}"))" Query="@Parent.Query" Autofill=enableAutoFill Placeholder="@(Localizer.GetText(GridLocaleKeys.CustomFilterPlaceHolder))" TItem="TContent" TValue="string" Value=@(SecondValue?.ToString()) @attributes=autoCompleteAttributes>
+                                                <SfAutoComplete aria-label="@(Localizer.GetText(GridLocaleKeys.FilterValue))" @ref="SecondAutoComplete" @key="Column.Uid" Enabled="@GetClass(SecondStringIndex, StringDropDown!)" ID="@(($"strui-{Column.Uid}"))" Query="@Parent!.Query" Autofill=enableAutoFill Placeholder="@(Localizer.GetText(GridLocaleKeys.CustomFilterPlaceHolder))" TItem="TContent" TValue="string" Value=@(SecondValue?.ToString()) @attributes=autoCompleteAttributes>
                                                     <SfDataManager HttpClientInstance="@filterDataManager!.HttpClientInstance" GraphQLAdaptorOptions="@filterDataManager.GraphQLAdaptorOptions" Headers=@filterDataManager.Headers Url=@filterDataManager.Url Json="@Json" AdaptorInstance="@filterDataManager.AdaptorInstance" Adaptor="@filterDataManager.Adaptor" Offline="@filterDataManager.Offline">
                                                         @filterDataManager.ChildContent
                                                     </SfDataManager>
@@ -788,6 +805,20 @@ else if (Parent.EnableAdaptiveUI && isSubMenuItemSelected)
     private bool isDateTimeOffsetType { get; set; }
     private bool isSubMenuItemSelected = false;
     private bool isDialogClosed = false;
+    private bool _hasFirstDateInput { get; set; }
+    private bool _hasSecondDateInput { get; set; }
+    private bool _isFirstDateInvalid { get; set; } = false;
+    private bool _isSecondDateInvalid { get; set; } = false;
+
+    /// <summary>
+    /// Validation message displayed beneath the date editor when an invalid date is entered.
+    /// Used when <see cref="GridFilterSettings.EnableTemporalValidation"/> is true.
+    /// Resolved through the grid's <see cref="ISyncfusionStringLocalizer"/>; falls back to
+    /// the English text when no localization override is registered.
+    /// </summary>
+    private string ValidationMessage =>
+        Parent?.Localizer?.GetText(GridLocaleKeys.InvalidDateFilter)
+        ?? "Enter a valid date value.";
     #endregion
 
     #region Dialog Component References
@@ -1182,8 +1213,12 @@ else if (Parent.EnableAdaptiveUI && isSubMenuItemSelected)
                 if (splits.Contains("DataItem"))
                 {
                     var propInfo = item?.GetType().GetProperty(treeComplexColumn != "" ? treeComplexColumn : complexColumn);
-                    data = ReflectionExtension.TryCreateInstance(propInfo?.PropertyType!);
-                    treeComplexData = CloneUtils.Clone(data, propInfo!.GetType());
+                    if(propInfo == null)
+                    {
+                        return;
+                    };
+                    data = ReflectionExtension.TryCreateInstance(propInfo.PropertyType);
+                    treeComplexData = CloneUtils.Clone(data, propInfo.GetType());
                 }
                 if (data is DynamicObject)
                 {
@@ -1237,7 +1272,11 @@ else if (Parent.EnableAdaptiveUI && isSubMenuItemSelected)
                         var propInfo = item?.GetType().GetProperty(treeComplexColumn);
                         var tempObj = ReflectionExtension.TryCreateInstance(propInfo?.PropertyType!);
                         var prop = tempObj?.GetType().GetProperty(complexColumn);
-                        treeComplexData = ReflectionExtension.TryCreateInstance(prop?.PropertyType!);
+                        if(prop == null)
+                        {
+                            return;
+                        }
+                        treeComplexData = ReflectionExtension.TryCreateInstance(prop.PropertyType);
                         ReflectionExtension.SetValue(treeComplexData, column, filterValue);
                         ReflectionExtension.SetValue(tempObj, complexColumn, treeComplexData);
                         ReflectionExtension.SetValue(complexData, treeComplexColumn, tempObj);
@@ -1245,7 +1284,11 @@ else if (Parent.EnableAdaptiveUI && isSubMenuItemSelected)
                     else
                     {
                         var propInfo = item?.GetType().GetProperty(splits[splits.Length - 2]);
-                        var tempObj = ReflectionExtension.TryCreateInstance(propInfo!.PropertyType);
+                        if(propInfo == null)
+                        {
+                            return;
+                        }
+                        var tempObj = ReflectionExtension.TryCreateInstance(propInfo.PropertyType);
                         tempObj.GetType().GetProperty(column)?.SetValue(tempObj, filterValue);
                         ReflectionExtension.SetValue(complexData, complexColumn, tempObj);
                     }
@@ -1610,6 +1653,206 @@ else if (Parent.EnableAdaptiveUI && isSubMenuItemSelected)
 
     #endregion
 
+    #region Date Validation Methods
+
+    private bool IsFirstDateFilterInvalid =>
+        Parent?.FilterSettings?.EnableTemporalValidation == true &&
+        _isFirstDateInvalid &&
+        RequiresDateValue(GetFirstColumnFilterOperator());
+
+    private bool IsSecondDateFilterInvalid =>
+        Parent?.FilterSettings?.EnableTemporalValidation == true &&
+        _isSecondDateInvalid &&
+        IsSecondDateConditionActive &&
+        RequiresDateValue(GetSecondColumnFilterOperator());
+
+    private bool IsSecondDateConditionActive =>
+        _hasSecondDateInput ||
+        !string.IsNullOrEmpty(SecondFoperator) ||
+        SelectedFoperator == "customfilter" ||
+        SelectedFoperator == "between";
+
+    private static bool RequiresDateValue(string? filterOperator) =>
+        !string.Equals(filterOperator, "isnull", StringComparison.OrdinalIgnoreCase) &&
+        !string.Equals(filterOperator, "isnotnull", StringComparison.OrdinalIgnoreCase);
+
+    /// <summary>
+    /// Determines whether a provided first date value in the Excel filter dialog is invalid.
+    /// </summary>
+    private bool IsFirstDateValueInvalid()
+    {
+        // Only check for validity if EnableTemporalValidation is true
+        if (Parent?.FilterSettings?.EnableTemporalValidation != true)
+        {
+            return false;
+        }
+
+        // Only validate date-type columns
+        if (Column?.Type != ColumnType.Date && Column?.Type != ColumnType.DateOnly && 
+            Column?.Type != ColumnType.TimeOnly && Column?.Type != ColumnType.DateTime)
+        {
+            return false;
+        }
+
+        if (!RequiresDateValue(GetFirstColumnFilterOperator()))
+        {
+            return false;
+        }
+
+        return _hasFirstDateInput && GetFirstColumnFilterValue() == null;
+    }
+
+    /// <summary>
+    /// Determines whether a provided second date value in the Excel filter dialog is invalid.
+    /// Used for "Between" operator which requires two date values.
+    /// </summary>
+    private bool IsSecondDateValueInvalid()
+    {
+        // Only check for validity if EnableTemporalValidation is true
+        if (Parent?.FilterSettings?.EnableTemporalValidation != true)
+        {
+            return false;
+        }
+
+        // Only validate date-type columns
+        if (Column?.Type != ColumnType.Date && Column?.Type != ColumnType.DateOnly && 
+            Column?.Type != ColumnType.TimeOnly && Column?.Type != ColumnType.DateTime)
+        {
+            return false;
+        }
+
+        // Only check second value if using "Between" operator (custom filter with two values)
+        if (!IsSecondDateConditionActive)
+        {
+            return false;
+        }
+
+        if (!RequiresDateValue(GetSecondColumnFilterOperator()))
+        {
+            return false;
+        }
+
+        return _hasSecondDateInput && GetSecondColumnFilterValue() == null;
+    }
+
+    /// <summary>
+    /// Tracks first-date text as it is entered so invalid text is not lost when the picker normalizes it.
+    /// </summary>
+    private async Task OnFirstDateValueInput(Microsoft.AspNetCore.Components.ChangeEventArgs args)
+    {
+        _hasFirstDateInput = !string.IsNullOrWhiteSpace(args?.Value?.ToString());
+        if (!_hasFirstDateInput && _isFirstDateInvalid)
+        {
+            _isFirstDateInvalid = false;
+            await InvokeAsync(StateHasChanged);
+        }
+    }
+
+    private async Task OnFirstDateValueChanged(Microsoft.AspNetCore.Components.ChangeEventArgs _)
+    {
+        bool wasInvalid = _isFirstDateInvalid;
+        _isFirstDateInvalid = IsFirstDateValueInvalid();
+
+        if (wasInvalid != _isFirstDateInvalid)
+        {
+            await InvokeAsync(StateHasChanged);
+        }
+    }
+
+    /// <summary>
+    /// Tracks second-date text as it is entered so invalid text is not lost when the picker normalizes it.
+    /// </summary>
+    private async Task OnSecondDateValueInput(Microsoft.AspNetCore.Components.ChangeEventArgs args)
+    {
+        _hasSecondDateInput = !string.IsNullOrWhiteSpace(args?.Value?.ToString());
+        if (!_hasSecondDateInput && _isSecondDateInvalid)
+        {
+            _isSecondDateInvalid = false;
+            await InvokeAsync(StateHasChanged);
+        }
+    }
+
+    private async Task OnSecondDateValueChanged(Microsoft.AspNetCore.Components.ChangeEventArgs _)
+    {
+        bool wasInvalid = _isSecondDateInvalid;
+        _isSecondDateInvalid = IsSecondDateValueInvalid();
+
+        if (wasInvalid != _isSecondDateInvalid)
+        {
+            await InvokeAsync(StateHasChanged);
+        }
+    }
+
+    /// <summary>
+    /// Fires when SfDatePicker (first-value) successfully parses a new value through its
+    /// two-way binding. Clears the invalid state so the OK button re-enables once the user
+    /// enters a valid value, regardless of whether the DOM change handler has already run.
+    /// </summary>
+    private async Task OnFirstDatePickerValueChanged(DateTime? value) => await ClearFirstInvalidIfValuePresent(value);
+    private async Task OnFirstDatePickerValueChanged(DateOnly? value) => await ClearFirstInvalidIfValuePresent(value);
+    private async Task OnFirstDatePickerValueChanged(DateTimeOffset? value) => await ClearFirstInvalidIfValuePresent(value);
+    private async Task OnFirstDatePickerValueChanged(TimeOnly? value) => await ClearFirstInvalidIfValuePresent(value);
+
+    /// <summary>
+    /// Fires when SfDateTimePicker (first-value) successfully parses a new value.
+    /// </summary>
+    private async Task OnFirstDateTimePickerValueChanged(DateTime? value) => await ClearFirstInvalidIfValuePresent(value);
+
+    /// <summary>
+    /// Fires when SfTimePicker (first-value) successfully parses a new value.
+    /// </summary>
+    private async Task OnFirstTimePickerValueChanged(TimeOnly? value) => await ClearFirstInvalidIfValuePresent(value);
+
+    /// <summary>
+    /// Fires when the SfDatePicker (second-value / Between) successfully parses a new value.
+    /// </summary>
+    private async Task OnSecondDatePickerValueChanged(DateTime? value) => await ClearSecondInvalidIfValuePresent(value);
+    private async Task OnSecondDatePickerValueChanged(DateOnly? value) => await ClearSecondInvalidIfValuePresent(value);
+    private async Task OnSecondDatePickerValueChanged(DateTimeOffset? value) => await ClearSecondInvalidIfValuePresent(value);
+    private async Task OnSecondDatePickerValueChanged(TimeOnly? value) => await ClearSecondInvalidIfValuePresent(value);
+
+    /// <summary>
+    /// Fires when SfDateTimePicker (second-value) successfully parses a new value.
+    /// </summary>
+    private async Task OnSecondDateTimePickerValueChanged(DateTime? value) => await ClearSecondInvalidIfValuePresent(value);
+
+    /// <summary>
+    /// Fires when SfTimePicker (second-value) successfully parses a new value.
+    /// </summary>
+    private async Task OnSecondTimePickerValueChanged(TimeOnly? value) => await ClearSecondInvalidIfValuePresent(value);
+
+    /// <summary>
+    /// Clears the first-value invalid flag when the picker yields a parsed value, with re-render.
+    /// The picker fires this callback only after a successful parse, so any non-null value is
+    /// by definition valid; a null value means the user cleared the field, which is also valid.
+    /// </summary>
+    private async Task ClearFirstInvalidIfValuePresent(object? value)
+    {
+        bool wasInvalid = _isFirstDateInvalid;
+        _isFirstDateInvalid = value == null && IsFirstDateValueInvalid();
+
+        if (wasInvalid != _isFirstDateInvalid)
+        {
+            await InvokeAsync(StateHasChanged);
+        }
+    }
+
+    /// <summary>
+    /// Clears the second-value invalid flag when the picker yields a parsed value, with re-render.
+    /// </summary>
+    private async Task ClearSecondInvalidIfValuePresent(object? value)
+    {
+        bool wasInvalid = _isSecondDateInvalid;
+        _isSecondDateInvalid = value == null && IsSecondDateValueInvalid();
+
+        if (wasInvalid != _isSecondDateInvalid)
+        {
+            await InvokeAsync(StateHasChanged);
+        }
+    }
+
+    #endregion
+
     #region Filter Processing
 
     /// <summary>
@@ -1634,6 +1877,15 @@ else if (Parent.EnableAdaptiveUI && isSubMenuItemSelected)
     /// </remarks>
     internal async Task FilterBtnClick()
     {
+        // Prevent filter application if date values are invalid and validation is enabled
+        if (IsFirstDateValueInvalid() || IsSecondDateValueInvalid())
+        {
+            _isFirstDateInvalid = IsFirstDateValueInvalid();
+            _isSecondDateInvalid = IsSecondDateValueInvalid();
+            await InvokeAsync(StateHasChanged);
+            return;
+        }
+
         object value1 = "";
         object value2 = "";
         var filterOperator1 = "";
@@ -1675,7 +1927,7 @@ else if (Parent.EnableAdaptiveUI && isSubMenuItemSelected)
             Parent.EventAggregator?.Trigger("CloseAdaptiveDialog", null!);
             Parent.EventAggregator?.Trigger("CloseColumnMenuAdaptiveDialog", null!);
             await Parent.FilterModule.FilterDialogInstance?.HideAsync()!;
-            await Parent.FilterSettings.UpdateProperties("Columns", Parent.FilterSettings.Columns);
+            await Parent.FilterSettings.UpdateProperties("Columns", Parent.FilterSettings.Columns!);
             await Parent.FilterModule.FilterByColumn(this.Column?.Field!, Filter<TContent>.GetOperator(filterOperator!), value!, null, MatchCaseCheckBox?.Checked, Parent.FilterSettings.IgnoreAccent, null, null, Column?.Uid);
         }
         else
@@ -1731,14 +1983,14 @@ else if (Parent.EnableAdaptiveUI && isSubMenuItemSelected)
             await Parent.ModelChanged(new ActionEventArgs<TContent>() { Columns = predicateModels, CurrentFilteringColumn = this.Column?.Field!, RequestType = Grids.Action.Filtering }, eventArgs: filteringArgs, requestType: "Filtering");
             isDialogClosed = true;
             Parent.FilterModule.ExcelDialog = false;
-        }
+		}
         Parent.EventAggregator?.Trigger("CloseAdaptiveDialog", null!);
         Parent.EventAggregator?.Trigger("CloseColumnMenuAdaptiveDialog", null!);
         await Parent.FilterModule.FilterDialogInstance?.HideAsync()!;
         Parent.FilterModule.FilterIconIsClicked = false;
         Parent.EventAggregator?.Trigger("FilterComponentUpdate", null!);
         Parent.FilterModule.ExcelDialog = false;
-    }
+	}
 
     #endregion
 
@@ -1829,21 +2081,21 @@ else if (Parent.EnableAdaptiveUI && isSubMenuItemSelected)
         {
             if (!isDialogClosed && Parent?.FilterModule != null && Column?.Uid != null)
             {
-                args.Cancel = true;
-                isDialogClosed = true;
+            args.Cancel = true;
+            isDialogClosed = true;
                 // CRITICAL: Reset toggle state when dialog closes
                 Parent.FilterModule.ResetColumnDialogState(Column.Uid);
                 Parent.FilterModule.FilterIconIsClicked = false;
-                FirstStringOperatorDropDown?.Dispose();
-                SecondStringOperatorDropDown?.Dispose();
-                FirstNumberOperatorDropDown?.Dispose();
-                SecondNumberOperatorDropDown?.Dispose();
-                FirstBoolDropDown?.Dispose();
-                SecondBoolDropDown?.Dispose();
+            FirstStringOperatorDropDown?.Dispose();
+            SecondStringOperatorDropDown?.Dispose();
+            FirstNumberOperatorDropDown?.Dispose();
+            SecondNumberOperatorDropDown?.Dispose();
+            FirstBoolDropDown?.Dispose();
+            SecondBoolDropDown?.Dispose();
                 Parent.EventAggregator?.Trigger("FilterComponentUpdate", null!);
-                Parent.FilterModule.ExcelDialog = false;
-            }
+            Parent.FilterModule.ExcelDialog = false;
         }
+    }
         catch (Exception ex)
         {
             // Log exception to prevent race conditions with component disposal

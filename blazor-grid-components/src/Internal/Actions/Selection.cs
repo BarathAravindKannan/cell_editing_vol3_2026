@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
@@ -278,7 +278,7 @@ namespace Syncfusion.Blazor.Grids.Internal
 
         internal async Task SelectByRow(Row<object> rowToSelect, MouseAndKeyArgs evt = null!, bool isSelectionMethodInvoked = false, bool isScrollIntoView = false, int focusColumnIndex = -1)
         {
-            if (rowToSelect != null && !rowToSelect.IsSelected && !rowToSelect.RowType.Equals("DetailRow", StringComparison.Ordinal))
+            if (rowToSelect != null && !rowToSelect.IsSelected && !rowToSelect.RowType.Equals("DetailRow", StringComparison.Ordinal) && rowToSelect.IsSelectable)
             {
                 if (Parent.VirtualScrollModule!.CurrentGroupedData != null && Parent.VirtualScrollModule!.CurrentGroupedData.Count > 0)
                 {
@@ -347,6 +347,7 @@ namespace Syncfusion.Blazor.Grids.Internal
                 {
                     rowToSelect.Cells.ForEach(cell => cell.IsSelected = true);
                 }
+                Parent.DomVirtualModule?.CaptureSelectionState(rowToSelect);
 
                 Parent.SelectedRowIndexes.Add(rowIndex);
                 if (IsCheckBoxPersistSelection())
@@ -900,13 +901,17 @@ namespace Syncfusion.Blazor.Grids.Internal
                     IsHeaderCheckboxChecked = state == CheckState.UnCheck;
                 }
             }
-            List<Row<object>>? _dataRows = Parent.Rows?.Where(_ => _.IsDataRow && !_.RowType.Equals("DetailRow", StringComparison.Ordinal)).ToList();
+            List<Row<object>>? _dataRows = Parent.Rows?.Where(_ => _.IsDataRow && !_.RowType.Equals("DetailRow", StringComparison.Ordinal) && _.IsSelectable).ToList();
             if (_dataRows != null && _dataRows.Count == 0)
             {
                 return;
             }
 
             List<T> RowDatas = await Parent.GetCurrentViewRecordsAsync().ConfigureAwait(true);
+            if (Parent.SelectionSettings?.IsRowSelectable != null)
+            {
+                RowDatas = _dataRows!.Select(r => (T)r.Data!).ToList();
+            }
             List<int>? RowIndexs = _dataRows?.Select(_ => (int)_.Index!).ToList();
             Row<object>? _row = _dataRows?[0];
             Row<object>? _lastrow = _dataRows?[_dataRows.Count - 1];
@@ -1036,6 +1041,17 @@ namespace Syncfusion.Blazor.Grids.Internal
 
             SetPersistData(state: Parent.CheckBoxState, filterValue: Parent.CurrentFilteredRecords?.Count() ?? 0);
             UpdateCBoxSelection(Parent.CheckBoxState);
+            if (Parent.EnableDomVirtualization && Parent.DomVirtualModule != null && !hasFilter && !hasSearch)
+            {
+                if (Parent.CheckBoxState == CheckState.Check)
+                {
+                    Parent.DomVirtualModule.SetAllRowsSelected();
+                }
+                else if (Parent.CheckBoxState == CheckState.UnCheck)
+                {
+                    Parent.DomVirtualModule.ClearRetainedSelectionState();
+                }
+            }
             Parent.SoftRefresh = true;
             Parent._shouldRender = IsCheckBoxPersistSelection() && Parent.IsEdit ? true : Parent._shouldRender;
             if (Parent.EnableVirtualization)
@@ -1312,6 +1328,11 @@ namespace Syncfusion.Blazor.Grids.Internal
                         await (Parent.GridEvents?.RowDeselected.InvokeAsync(selectedArgs))!.ConfigureAwait(true)!;
                 }
             }
+            if (Parent.EnableDomVirtualization)
+            {
+                Parent.DomVirtualModule?.ClearRetainedRowSelectionState(except?.Index, !IsBothMode());
+                Parent.SelectedRowIndexes.RemoveAll(index => index != except?.Index);
+            }
             _lastSelectedRow = null!;
         }
 
@@ -1374,6 +1395,10 @@ namespace Syncfusion.Blazor.Grids.Internal
             }
             _row.IsSelected = false;
             if (!IsBothMode()) { _row.Cells?.ForEach(_ => _.IsSelected = false); }
+            if (Parent.EnableDomVirtualization && _row.Index.HasValue)
+            {
+                Parent.DomVirtualModule?.ClearRetainedRowSelection((int)_row.Index, !IsBothMode());
+            }
             Parent.SelectedRowIndexes?.Remove((int)_row.Index!);
             if (IsCheckBoxPersistSelection())
             {
@@ -1445,8 +1470,42 @@ namespace Syncfusion.Blazor.Grids.Internal
                 SetPersistData(targetRow: row, state: checkState, requestType: currentRequestType);
             }
 
+            // In unbounded mode, if we haven't loaded all data yet, always show intermediate state
+            if (Parent.EnableInfiniteScrolling && Parent.InfiniteScrollSettings != null && 
+                Parent.InfiniteScrollSettings.EnableUnboundedScrolling && Parent.InfiniteScrollModule != null)
+            {
+                // Check if infinite scroll module indicates more data is available
+                bool hasMoreData = Parent.InfiniteScrollModule.HasMoreData;
+                
+                // In unbounded mode with more data available, always show intermediate if any selection exists
+                // This is because we can't determine if all items are selected when we don't know the total count
+                if (hasMoreData && Parent.SelectedRecords.Count > 0)
+                {
+                    Parent.CheckBoxState = CheckState.Intermediate;
+                    return;
+                }
+                // If no more data (hasMoreData = false), proceed with normal tri-state logic
+                // since we now know the total and can calculate properly
+            }
+
             int selectedCount = Parent.SelectedRecords.Count;
+            if (Parent.SelectionSettings?.IsRowSelectable != null && IsRemoteDataPersistSelection() && DeSelectedPersistData.Count == 0 && _persistedData.Count > selectedCount)
+            {
+                // Records of other pages are not in memory; the persisted collection is the source of truth for the count.
+                selectedCount = _persistedData.Count;
+            }
+
             int totalCount = GetTotalCount();
+            if (Parent.SelectionSettings?.IsRowSelectable != null && totalCount == 0 && !(Parent.EditSettings != null && Parent.EditSettings.Mode == EditMode.Batch))
+            {
+                // No selectable record in the current data set, so the header cannot be checked.
+                Parent.CheckBoxState = CheckState.UnCheck;
+                if (!IsRemoteDataPersistSelection())
+                {
+                    IsHeaderCheckboxChecked = false;
+                }
+                return;
+            }
             List<T>? filteredRecords = Parent.CurrentFilteredRecords?.ToList();
             int filterSelectedCount = 0;
             if (filteredRecords != null)
@@ -1526,7 +1585,11 @@ namespace Syncfusion.Blazor.Grids.Internal
                  IsRemoteDataPersistSelection() && ((selectedCount == 0 && deselectedPersistDataCount == gridTotalItemCount) || (selectedCount == 0 && !IsHeaderCheckboxChecked)))
             {
                 Parent.CheckBoxState = CheckState.UnCheck;
-                _persistedData?.Clear();
+                if (!(IsRemoteDataPersistSelection() && Parent.SelectionSettings?.IsRowSelectable != null
+                    && _persistedData.Count > 0 && deselectedPersistDataCount == 0))
+                {
+                    _persistedData?.Clear();
+                }
             }
             else if ((filteredRecords != null && filterSelectedCount == 0 && !IsHeaderCheckboxChecked)
                 || (filteredDataList != null && filteredDataList.Count > 0
@@ -1569,12 +1632,20 @@ namespace Syncfusion.Blazor.Grids.Internal
             {
                 if ((state.Equals(CheckState.Check) && IsHeaderCheckboxChecked) || ((!_isInteracted || _isHeaderClicked) && (IsHeaderCheckboxChecked) && Parent.DataSource == null && Parent.CheckBoxState == CheckState.Intermediate))
                 {
-                    var _list = GetCurrentViewData();
+                    // Local data: Select All covers every selectable record of the processed (filtered/searched) dataset.
+                    IEnumerable<T>? _list = Parent.SelectionSettings?.IsRowSelectable != null && Parent.DataSource != null
+                        ? SelectableRows.Values.ToList()
+                        : GetCurrentViewData();
                     if (_list != null)
                     {
                         foreach (var item in _list)
                         {
                             object? key = GetPrimaryKeyFromData(item!);
+
+                            if (!IsRowSelectable(item))
+                            {
+                                continue;
+                            }
 
                             if (IsRemoteDataPersistSelection() && IsDataInDeselectedCollection(item!) && Parent.CheckBoxState == CheckState.Check)
                             {
@@ -1606,8 +1677,19 @@ namespace Syncfusion.Blazor.Grids.Internal
                 bool shouldClearForRemotePersist = IsCheckBoxPersistSelection() && Parent.TotalItemCount == 0 && Parent.SelectedRecords.Count > 0 &&
                                                    _persistedData?.Count > 0;
 
-                if ((isUncheckStateWithNoFilters && isNoFilteredRecords && isValidDataSource) || (shouldClearForRemotePersist && !hasFilter && !hasSearch)
-                    || (Parent.PropertyChanges.Count > 0 && Parent.PropertyChanges.ContainsKey(nameof(Parent.DataSource)) && Parent.SelectionSettings != null && Parent.SelectionSettings.PersistSelection))
+                // UnCheck can be a side effect of a filter/search view with no selectable rows, not a user action.
+                // requestType is not passed on every path, so decide from grid state rather than the request.
+                bool isViewWithoutSelectableRows = IsRemoteDataPersistSelection()
+                    && Parent.SelectionSettings?.IsRowSelectable != null
+                    && _persistedData?.Count > 0
+                    && DeSelectedPersistData.Count == 0;
+
+                bool hasPropertyChanges = Parent.PropertyChanges != null && Parent.PropertyChanges.Count > 0 && Parent.PropertyChanges.ContainsKey(nameof(Parent.DataSource));
+                bool shouldClearOnPropertyChange = hasPropertyChanges && Parent.SelectionSettings != null && Parent.SelectionSettings.PersistSelection;
+                
+                if ((isUncheckStateWithNoFilters && isNoFilteredRecords && isValidDataSource && !isViewWithoutSelectableRows)
+                    || (shouldClearForRemotePersist && !hasFilter && !hasSearch && !clearFiltering)
+                    || shouldClearOnPropertyChange)
                 {
                     _persistedData?.Clear();
                 }
@@ -1810,6 +1892,7 @@ namespace Syncfusion.Blazor.Grids.Internal
                 }
             });
             _lastSelectedRow = rowToSelect;
+            Parent.DomVirtualModule?.CaptureSelectionState(rowToSelect);
             Parent.SoftRefresh = true;
             Parent.EventAggregator.Trigger("RowStateChanged", rowToSelect);
             await Task.CompletedTask.ConfigureAwait(true);
@@ -1872,6 +1955,7 @@ namespace Syncfusion.Blazor.Grids.Internal
                 _lastSelectedRow = rowToSelect!;
             }
             Parent.SoftRefresh = true;
+            Parent.DomVirtualModule?.CaptureSelectionState(rowToSelect);
 
             if (!Parent.IsEdit && isSelectionMethodInvoked && Parent.FocusModule != null && !InvokedFromClient)
             {
@@ -2337,11 +2421,17 @@ namespace Syncfusion.Blazor.Grids.Internal
 
                 Parent.SoftRefresh = true;
                 Parent.EventAggregator.Trigger("RowStateChanged", _row!);
+                Parent.DomVirtualModule?.CaptureSelectionState(_row!);
             }
 
             if (Parent.EditSettings != null && Parent.EditSettings.Mode == EditMode.Batch && !autofillSelect)
             {
                 AutofillChanges();
+            }
+            if (Parent.EnableDomVirtualization && !_isCellDeselectionCanceled)
+            {
+                Parent.DomVirtualModule?.ClearRetainedCellSelection(expect?.Index, expectCellIndex, IsClearRowSelectionNeeded);
+                RefreshDomSelectedRowIndexes();
             }
             if (IsBothMode() && _dataRows?.Count == 0 && expect != null && evt != null && evt.Type == "click")
             {
@@ -2436,6 +2526,7 @@ namespace Syncfusion.Blazor.Grids.Internal
                     _row.Cells?.ForEach(x => x.IsSelected = false);
                 }
             }
+            Parent.DomVirtualModule?.CaptureSelectionState(_row);
 
             Parent.SoftRefresh = true;
 
@@ -2831,9 +2922,256 @@ namespace Syncfusion.Blazor.Grids.Internal
 
         #region Selection Count and State Helper Methods
 
+        /// <summary>
+        /// Records that satisfy <see cref="GridSelectionSettings.IsRowSelectable"/>, keyed by primary key (composite keys supported).
+        /// </summary>
+        internal Dictionary<object, T> SelectableRows { get; } = new Dictionary<object, T>();
+
+        /// <summary>
+        /// Records that do not satisfy <see cref="GridSelectionSettings.IsRowSelectable"/>, keyed by primary key (composite keys supported).
+        /// </summary>
+        internal Dictionary<object, T> NonSelectableRows { get; } = new Dictionary<object, T>();
+
+        private object? _selectableSourceRef;
+        private Func<object, bool>? _selectablePredicateRef;
+        private bool _selectableCacheBuilt;
+
+        // Remote data only: keys of non-selectable records seen in any response so far. Used to estimate the selectable
+        // total (TotalItemCount - known non-selectable) because only the current response is ever evaluated.
+        private readonly HashSet<object> _remoteNonSelectableKeys = new HashSet<object>();
+
+        /// <summary>
+        /// Maintains <see cref="SelectableRows"/> / <see cref="NonSelectableRows"/>.
+        /// Called from data processing with <paramref name="fromDataProcess"/> = true, and lazily (false) from selection code.
+        /// Local data: the predicate runs for the processed records only (filtered/searched set when active, otherwise the
+        /// whole source) and is re-run only for Filtering, Searching and CRUD/refresh requests. Paging, sorting, grouping and
+        /// selection reuse the cache. Remote data: rebuilt from the current server response on every data process.
+        /// </summary>
+        internal void EnsureSelectableCache(string? requestType = null, bool fromDataProcess = false)
+        {
+            Func<object, bool>? predicate = Parent.SelectionSettings?.IsRowSelectable;
+            IEnumerable<T>? source = Parent.DataSource;
+            bool isRemote = source == null;
+            if (predicate == null || (isRemote && Parent.DataManager == null && Parent.CurrentViewData == null))
+            {
+                SelectableRows.Clear();
+                NonSelectableRows.Clear();
+                _selectableSourceRef = null;
+                _selectablePredicateRef = null;
+                _selectableCacheBuilt = false;
+                _remoteNonSelectableKeys.Clear();
+                return;
+            }
+
+            bool reevaluate = requestType == "Filtering" || requestType == "ClearFiltering" || requestType == "Searching"
+                || requestType == "Save" || requestType == "Delete" || requestType == "Refresh" || requestType == "BatchSave"
+                || requestType == "Add" || requestType == "Reorder" || requestType == "RowDragAndDrop";
+            bool stale = !_selectableCacheBuilt || !ReferenceEquals(_selectableSourceRef, source)
+                || !predicate.Equals(_selectablePredicateRef);
+            if (isRemote ? !(fromDataProcess || stale) : !(reevaluate || stale))
+            {
+                return;
+            }
+
+            IEnumerable<T>? processed = isRemote
+                ? Parent.CurrentViewData?.OfType<T>()
+                : (Parent.CurrentFilteredRecords ?? source);
+            SelectableRows.Clear();
+            NonSelectableRows.Clear();
+            if (processed != null)
+            {
+                foreach (T record in processed)
+                {
+                    if (record != null)
+                    {
+                        CacheSelectability(record, predicate);
+                    }
+                }
+            }
+
+            if (isRemote)
+            {
+                if (requestType == "Refresh" || requestType == "Filtering" || requestType == "ClearFiltering" || requestType == "Searching")
+                {
+                    _remoteNonSelectableKeys.Clear();
+                }
+
+                foreach (object key in NonSelectableRows.Keys)
+                {
+                    _remoteNonSelectableKeys.Add(key);
+                }
+            }
+
+            _selectableSourceRef = source;
+            _selectablePredicateRef = predicate;
+            _selectableCacheBuilt = true;
+        }
+
+        /// <summary>
+        /// Forces the next <see cref="EnsureSelectableCache"/> call to re-evaluate the predicate.
+        /// </summary>
+        internal void InvalidateSelectableCache()
+        {
+            _selectableCacheBuilt = false;
+        }
+
+        /// <summary>
+        /// Re-applies the cached selectability to existing rows and selection. Records that became non-selectable
+        /// (for example after an edit) are deselected, and the header checkbox state is recomputed.
+        /// </summary>
+        internal void SyncSelectionWithSelectability()
+        {
+            if (Parent.SelectionSettings?.IsRowSelectable == null)
+            {
+                return;
+            }
+
+            EnsureSelectableCache();
+            if (Parent.SelectionSettings.PersistSelection)
+            {
+                foreach (object key in NonSelectableRows.Keys)
+                {
+                    _persistedData.Remove(key);
+                }
+            }
+
+            if (Parent.Rows != null)
+            {
+                foreach (Row<object> row in Parent.Rows.Where(r => r.IsDataRow))
+                {
+                    if (row.Data == null)
+                    {
+                        continue;
+                    }
+
+                    // Rows left over from before the data process may no longer be part of the cached data; leave them untouched.
+                    object cacheKey = GetSelectableCacheKey(row.Data);
+                    if (SelectableRows.ContainsKey(cacheKey))
+                    {
+                        row.IsSelectable = true;
+                    }
+                    else if (NonSelectableRows.ContainsKey(cacheKey))
+                    {
+                        row.IsSelectable = false;
+                    }
+                    else
+                    {
+                        continue;
+                    }
+
+                    if (!row.IsSelectable && row.IsSelected)
+                    {
+                        row.IsSelected = false;
+                        row.Cells?.ForEach(c => c.IsSelected = false);
+                        Parent.DomVirtualModule?.CaptureSelectionState(row);
+                        if (row.Index != null)
+                        {
+                            Parent.SelectedRowIndexes?.Remove((int)row.Index);
+                        }
+                    }
+                }
+            }
+
+            SetHeaderCheckState();
+            Parent.EventAggregator.Trigger("HeaderStateChanged", null!);
+        }
+
+        private object GetSelectableCacheKey(object data)
+        {
+            bool hasKey = (PrimaryKeys != null && PrimaryKeys.Count > 1) || !string.IsNullOrEmpty(PrimaryKey);
+            return (hasKey ? GetPrimaryKeyFromData(data) : null) ?? data;
+        }
+
+        private bool CacheSelectability(T record, Func<object, bool> predicate)
+        {
+            if (record == null)
+            {
+                return false;
+            }
+            object key = GetSelectableCacheKey(record);
+            bool result = predicate(record);
+            if (result)
+            {
+                NonSelectableRows.Remove(key);
+                SelectableRows[key] = record;
+            }
+            else
+            {
+                SelectableRows.Remove(key);
+                NonSelectableRows[key] = record;
+            }
+
+            return result;
+        }
+
+        /// <summary>
+        /// Resolves <see cref="GridSelectionSettings.IsRowSelectable"/> for a record from the cached dictionaries,
+        /// evaluating the predicate only for records not yet cached. Returns true when no predicate is configured.
+        /// </summary>
+        internal bool IsRowSelectable(object? data)
+        {
+            Func<object, bool>? predicate = Parent.SelectionSettings?.IsRowSelectable;
+            if (predicate == null || data == null)
+            {
+                return true;
+            }
+
+            EnsureSelectableCache();
+            object key = GetSelectableCacheKey(data);
+            if (SelectableRows.ContainsKey(key))
+            {
+                return true;
+            }
+
+            if (NonSelectableRows.ContainsKey(key))
+            {
+                return false;
+            }
+
+            return data is T record ? CacheSelectability(record, predicate) : predicate(data);
+        }
+
         private int GetTotalCount()
         {
             int count = Parent.TotalItemCount;
+            if (Parent.SelectionSettings?.IsRowSelectable != null && Parent.DataSource == null)
+            {
+                EnsureSelectableCache();
+                if (Parent.SelectionSettings.PersistSelection)
+                {
+                    // Selection spans the whole remote data set; non-selectable records seen so far are excluded.
+                    return Math.Max(0, count - _remoteNonSelectableKeys.Count);
+                }
+
+                // Page-specific selection: only the selectable records of the current response count.
+                return SelectableRows.Count;
+            }
+            if (Parent.SelectionSettings?.IsRowSelectable != null && Parent.DataSource != null && !Parent.EnableVirtualization
+                && !(Parent.EditSettings != null && Parent.EditSettings.Mode == EditMode.Batch))
+            {
+                // Header state is measured against the selectable records only.
+                IEnumerable<T> source = Parent.CurrentFilteredRecords ?? Parent.DataSource;
+
+                EnsureSelectableCache();
+                if (!Parent.SelectionSettings.PersistSelection && Parent.Rows != null)
+                {
+                    // Non-persisted selection is view-specific: only selectable rows of the active page / grouped view count.
+                    return Parent.Rows.Count(r => r.IsDataRow && r.IsSelectable && !r.RowType.Equals("DetailRow", StringComparison.Ordinal));
+                }
+
+                if (Parent.CurrentFilteredRecords == null)
+                {
+                    return SelectableRows.Count;
+                }
+
+                return Parent.CurrentFilteredRecords.Count(r => r != null && SelectableRows.ContainsKey(GetSelectableCacheKey(r)));
+            }
+            if (Parent.SelectionSettings?.IsRowSelectable != null && Parent.DataSource == null && !Parent.SelectionSettings.PersistSelection
+                && !Parent.EnableVirtualization && SelectableRows.Count + NonSelectableRows.Count > 0)
+            {
+                // Remote page: only the selectable records of the current response count towards the header state.
+                return SelectableRows.Count;
+            }
             if (Parent.SelectionSettings != null && Parent.SelectionSettings.PersistSelection && Parent.DataSource != null)
             {
                 if (Parent.EditSettings != null && Parent.EditSettings.Mode == EditMode.Batch)
@@ -2892,6 +3230,11 @@ namespace Syncfusion.Blazor.Grids.Internal
             IEnumerable<Row<object>> Rows = GetRowsObject()?.Where(_ => _.IsDataRow && _.RowType?.Equals("Data", StringComparison.Ordinal) == true) ?? Enumerable.Empty<Row<object>>();
             foreach (Row<object> Row in Rows)
             {
+                if (state.Equals(CheckState.Check) && Row != null && !Row.IsSelectable)
+                {
+                    continue;
+                }
+
                 if ((state.Equals(CheckState.Check) || (Parent.DataSource == null && Parent.EnableVirtualization && Parent.CheckBoxState == CheckState.Intermediate)) && Row != null && Row.State != "UnSelected")
                 {
                     Row.IsSelected = true;
@@ -2907,12 +3250,38 @@ namespace Syncfusion.Blazor.Grids.Internal
                         _persistedData?.Remove(key);
                     }
                 }
+                if (Parent.EnableDomVirtualization)
+                {
+                    Parent.DomVirtualModule?.CaptureSelectionState(Row);
+                }
             }
         }
 
         #endregion
 
         #region Selection State Management Methods
+
+        private void RefreshDomSelectedRowIndexes()
+        {
+            if (!Parent.EnableDomVirtualization || Parent.DomVirtualModule == null)
+            {
+                return;
+            }
+
+            List<Row<object>>? rows = GetRowsObject();
+            HashSet<int> availableIndexes = rows?
+                .Where(row => row.IsDataRow && !row.IsDetailRow && row.Index.HasValue)
+                .Select(row => row.Index!.Value)
+                .ToHashSet() ?? new HashSet<int>();
+            HashSet<int> selectedIndexes = rows?
+                .Where(row => row.IsSelected && row.IsDataRow && !row.IsDetailRow && row.Index.HasValue)
+                .Select(row => row.Index!.Value)
+                .ToHashSet() ?? new HashSet<int>();
+            selectedIndexes.UnionWith(Parent.DomVirtualModule.GetRetainedSelectedRows()
+                .Where(row => !availableIndexes.Contains(row.Key))
+                .Select(row => row.Key));
+            Parent.SelectedRowIndexes = selectedIndexes.ToList();
+        }
 
         internal List<T> GetSelectedRecords()
         {
@@ -2923,12 +3292,39 @@ namespace Syncfusion.Blazor.Grids.Internal
             }
             else
             {
-                _records = GetRowsObject()?.Where(_ => _.IsSelected)
-                    .Select(x => (T)x.Data!).ToList<T>();
-                Parent.SelectedRowIndexes = GetRowsObject()!
-                    .Where(_ => _.IsSelected && _.Index.HasValue)
-                    .Select(x => x.Index!.Value).ToList()
-                    ?? new List<int>();
+                List<Row<object>>? rows = GetRowsObject();
+                List<Row<object>> selectedRows = rows?.Where(row => row.IsSelected).ToList() ?? new List<Row<object>>();
+                _records = selectedRows.Select(row => (T)row.Data!).ToList();
+                if (Parent.EnableDomVirtualization && Parent.DomVirtualModule != null)
+                {
+                    HashSet<int> availableIndexes = rows?
+                        .Where(row => row.IsDataRow && !row.IsDetailRow && row.Index.HasValue)
+                        .Select(row => row.Index!.Value)
+                        .ToHashSet() ?? new HashSet<int>();
+                    HashSet<int> selectedIndexes = selectedRows
+                        .Where(row => row.IsDataRow && !row.IsDetailRow && row.Index.HasValue)
+                        .Select(row => row.Index!.Value)
+                        .ToHashSet();
+                    foreach (KeyValuePair<int, object> retained in Parent.DomVirtualModule.GetRetainedSelectedRows())
+                    {
+                        if (!availableIndexes.Contains(retained.Key))
+                        {
+                            _records.Add((T)retained.Value);
+                            selectedIndexes.Add(retained.Key);
+                        }
+                    }
+                    selectedIndexes.UnionWith(Parent.DomVirtualModule.GetRetainedSelectedRows()
+                        .Where(row => !availableIndexes.Contains(row.Key))
+                        .Select(row => row.Key));
+                    Parent.SelectedRowIndexes = selectedIndexes.ToList();
+                }
+                else
+                {
+                    Parent.SelectedRowIndexes = rows!
+                        .Where(row => row.IsSelected && row.Index.HasValue)
+                        .Select(row => row.Index!.Value).ToList()
+                        ?? new List<int>();
+                }
             }
 
             return _records!;
@@ -2947,15 +3343,78 @@ namespace Syncfusion.Blazor.Grids.Internal
             }
         }
 
+        private static List<GridSelectedCell<T>> BuildSelectedCells(Row<object> row)
+        {
+            var cells = new List<GridSelectedCell<T>>();
+            if (row.Cells == null)
+            {
+                return cells;
+            }
+            foreach (Cell<object> cell in row.Cells)
+            {
+                if (!cell.IsSelected || cell.Column == null || !cell.IsDataCell)
+                {
+                    continue;
+                }
+                string? foreignKeyValue = null;
+                if (!string.IsNullOrEmpty(cell.Column.ForeignKeyValue) && row.ForeignKeyData != null
+                    && row.ForeignKeyData.TryGetValue(cell.Column.Uid, out IEnumerable<object>? foreignData) && foreignData?.FirstOrDefault() != null)
+                {
+                    foreignKeyValue = DataUtil.GetObject(cell.Column.ForeignKeyValue, foreignData.First())?.ToString();
+                }
+                cells.Add(new GridSelectedCell<T>()
+                {
+                    RowIndex = row.Index ?? -1,
+                    CellIndex = cell.Index ?? -1,
+                    Column = cell.Column,
+                    Field = cell.Column.Field,
+                    Value = string.IsNullOrEmpty(cell.Column.Field) || row.Data == null ? null : DataUtil.GetObject(cell.Column.Field, row.Data),
+                    ForeignKeyValue = foreignKeyValue,
+                    Data = (T?)row.Data
+                });
+            }
+            return cells;
+        }
+
+        internal List<GridSelectedCell<T>> GetSelectedCells()
+        {
+            var result = new List<GridSelectedCell<T>>();
+            if (!Parent.AllowSelection || IsRowMode() || Parent.Rows == null)
+            {
+                return result;
+            }
+            foreach (Row<object> row in Parent.Rows.Where(r => r.IsDataRow))
+            {
+                result.AddRange(BuildSelectedCells(row));
+            }
+            return result;
+        }
+
         internal void RefreshSelectionOnPaging()
         {
             if (Parent.SelectionSettings != null && !Parent.SelectionSettings.PersistSelection)
             {
                 Parent.CheckBoxState = CheckState.UnCheck;
             }
+            if (Parent.EnableDomVirtualization)
+            {
+                Parent.DomVirtualModule?.ClearRetainedSelectionState();
+            }
 
             _lastSelectedRow = null!;
             _lastSelectedCell = null!;
+        }
+
+        internal void ResetDomVirtualSelectionOnDataChange()
+        {
+            if (!Parent.EnableDomVirtualization || Parent.SelectionSettings?.PersistSelection == true)
+            {
+                return;
+            }
+
+            Parent.SelectedRowIndexes?.Clear();
+            Parent.CheckBoxState = CheckState.UnCheck;
+            Parent.EventAggregator.Trigger("HeaderStateChanged", null!);
         }
 
         internal Row<object>? SelectedRow()
@@ -3172,7 +3631,11 @@ namespace Syncfusion.Blazor.Grids.Internal
             else
             {
                 var selectedRow = Parent.Rows.Where(e => e.IsSelected == true).ToList();
-                selectedRow.ForEach(x => x.IsSelected = false);
+                selectedRow.ForEach(x =>
+                {
+                    x.IsSelected = false;
+                    Parent.DomVirtualModule?.CaptureSelectionState(x);
+                });
             }
         }
 

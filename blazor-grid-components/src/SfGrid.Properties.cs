@@ -84,6 +84,98 @@ namespace Syncfusion.Blazor.Grids
         private bool _allowFiltering { get; set; }
 
         /// <summary>
+        /// Gets or sets a value indicating whether Advanced Filtering is enabled for the Grid.
+        /// </summary>
+        /// <value>
+        /// A <see cref="bool"/> that determines whether users can access the
+        /// Advanced Filter (Query Builder) dialog. The default value is
+        /// <see langword="false"/>.
+        /// </value>
+        /// <remarks>
+        /// <para>
+        /// When this property is set to <see langword="true"/>, the Grid provides an
+        /// Advanced Filter dialog that enables users to create complex filtering
+        /// expressions using nested conditions, logical operators, and column-specific
+        /// filter operators.
+        /// </para>
+        /// <para>
+        /// Configure the initial filter rule and other Advanced Filter settings by
+        /// using a <see cref="GridAdvancedFilterSettings"/> component within the Grid.
+        /// </para>
+        /// <para>
+        /// The Advanced Filter dialog can be opened by users through the Grid user
+        /// interface or programmatically by calling
+        /// <see cref="OpenAdvancedFilterDialogAsync"/>.
+        /// </para>
+        /// <para>
+        /// When this property is <see langword="false"/>, Advanced Filtering features,
+        /// related APIs, and Advanced Filter dialog operations are unavailable.
+        /// </para>
+        /// </remarks>
+        /// <example>
+        /// <code><![CDATA[
+        /// <SfGrid DataSource="@Orders"
+        ///         AllowAdvancedFiltering="true">
+        ///     <GridAdvancedFilterSettings
+        ///         InitialRule="@InitialRule">
+        ///     </GridAdvancedFilterSettings>
+        /// </SfGrid>
+        /// ]]></code>
+        /// </example>
+        [Parameter]
+        [DefaultValue(false)]
+        [JsonPropertyName("allowAdvancedFiltering")]
+        public bool AllowAdvancedFiltering { get; set; }
+
+        private bool _allowAdvancedFiltering { get; set; }
+
+        /// <summary>
+        /// Gets or sets the Advanced Filter settings component for the Grid.
+        /// </summary>
+        /// <value>
+        /// A <see cref="GridAdvancedFilterSettings"/> instance that configures the
+        /// Advanced Filter (Query Builder) functionality for the Grid, or
+        /// <see langword="null"/> if no Advanced Filter settings are configured.
+        /// </value>
+        /// <remarks>
+        /// <para>
+        /// Use this property to configure the behavior and initial state of the
+        /// Advanced Filter dialog, including specifying an initial filter rule and
+        /// accessing the current filter rule.
+        /// </para>
+        /// <para>
+        /// Set <see cref="AllowAdvancedFiltering"/> to <see langword="true"/> to
+        /// enable the Advanced Filter (Query Builder) experience in the Grid.
+        /// </para>
+        /// <para>
+        /// This property is typically populated through a
+        /// <see cref="GridAdvancedFilterSettings"/> child component declared within
+        /// the Grid.
+        /// </para>
+        /// <para>
+        /// When this property is <see langword="null"/>, the Grid operates without
+        /// custom Advanced Filter settings and uses its default Advanced Filtering
+        /// behavior.
+        /// </para>
+        /// </remarks>
+        /// <example>
+        /// <code><![CDATA[
+        /// <SfGrid DataSource="@Orders"
+        ///         AllowAdvancedFiltering="true">
+        ///     <GridAdvancedFilterSettings
+        ///         InitialRule="@InitialRule">
+        ///     </GridAdvancedFilterSettings>
+        /// </SfGrid>
+        /// ]]></code>
+        /// </example>
+        [Parameter]
+        [DefaultValue(null)]
+        [JsonPropertyName("advancedFilterSettings")]
+        public GridAdvancedFilterSettings? AdvancedFilterSettings { get; set; }
+
+        private GridAdvancedFilterSettings? _advancedFilterSettings { get; set; }
+
+        /// <summary>
         /// Gets or sets a value that specifies whether the user can dynamically group or ungroup columns.
         /// </summary>
         /// <value>
@@ -315,8 +407,8 @@ namespace Syncfusion.Blazor.Grids
         /// <value>
         /// An instance of <see cref="Syncfusion.Blazor.Grids.GridKeySettings"/>.
         /// </value>
-        /// <remarks> 
-        /// <see cref="Syncfusion.Blazor.Grids.GridKeySettings"/> class provides various properties to customize key operations. 
+        /// <remarks>
+        /// <see cref="Syncfusion.Blazor.Grids.GridKeySettings"/> class provides various properties to customize key operations.
         /// </remarks>
         [Parameter]
         [DefaultValue(null)]
@@ -324,6 +416,28 @@ namespace Syncfusion.Blazor.Grids
         public GridKeySettings? KeySettings { get; set; }
 
         private GridKeySettings? _keySettings { get; set; }
+
+        /// <summary>
+        /// Gets or sets the custom keyboard shortcuts for the grid. When set, these
+        /// bindings override the built-in defaults and any bindings expressed
+        /// through the legacy <see cref="KeySettings"/> parameter.
+        /// </summary>
+        /// <value>
+        /// A <see cref="GridCustomKeyboardShortcuts"/> instance, or <c>null</c> to use defaults.
+        /// </value>
+        /// <remarks>
+        /// The grid detects in-place mutations, object recreation, and dictionary
+        /// reordering on the supplied object by comparing a canonical string
+        /// snapshot, so callers do not need to assign a new instance to trigger a recompile.
+        /// </remarks>
+        [Parameter]
+        [DefaultValue(null)]
+        [JsonPropertyName("keyboardShortcuts")]
+        public GridCustomKeyboardShortcuts? KeyboardShortcuts { get; set; }
+
+        private GridCustomKeyboardShortcuts? _keyboardShortcuts { get; set; }
+
+        private string? _prevKeyboardShortcutsSnapshot { get; set; }
 
         /// <summary>
         /// Gets or sets the column menu items that define both built-in and custom items.
@@ -832,10 +946,7 @@ namespace Syncfusion.Blazor.Grids
         /// This component configures DOM virtualization parameters:
         /// <list type="bullet">
         /// <item><description><see cref="GridDomVirtualizationSettings{TValue}.RowBuffer"/>: Render-side overscan rows.</description></item>
-        /// <item><description><see cref="GridDomVirtualizationSettings{TValue}.ColumnBuffer"/>: Render-side overscan columns.</description></item>
         /// <item><description><see cref="GridDomVirtualizationSettings{TValue}.MaxPoolSize"/>: Maximum row elements in DOM (default 500).</description></item>
-        /// <item><description><see cref="GridDomVirtualizationSettings{TValue}.ScrollThrottle"/>: Rate-limit scroll events (ms).</description></item>
-        /// <item><description><see cref="GridDomVirtualizationSettings{TValue}.AutoRowHeight"/>: Measure rows with templates/wrapped text.</description></item>
         /// </list>
         /// </para>
         /// <para>
@@ -1442,6 +1553,69 @@ namespace Syncfusion.Blazor.Grids
         [JsonPropertyName("autoFit")]
         public bool AutoFit { get; set; } = false;
         private bool _autoFit { get; set; }
+
+        /// <summary>
+        /// Gets or sets the column width redistribution mode applied during initial layout, AutoFit operations, and manual column resizing.
+        /// </summary>
+        /// <value>
+        /// A <see cref="Syncfusion.Blazor.Grids.ResizeMode"/> value that specifies whether and how column widths are redistributed to fill available grid width.
+        /// The default value is <see cref="Syncfusion.Blazor.Grids.ResizeMode.Normal"/>, which preserves existing AutoFit behavior without redistribution.
+        /// </value>
+        /// <remarks>
+        /// <para>
+        /// The <see cref="ResizeMode"/> property allows developers to choose between two width distribution strategies:
+        /// </para>
+        /// <para>
+        /// <strong><see cref="Syncfusion.Blazor.Grids.ResizeMode.Normal"/></strong> (default):
+        /// Columns are sized according to their <see cref="Syncfusion.Blazor.Grids.GridColumn.Width"/>, <see cref="AutoFit"/>, or content measurement without further adjustment.
+        /// If total column width is less than the grid's content area, the unused space appears as whitespace on the right.
+        /// This mode preserves 100% of existing behavior and is recommended for backward compatibility.
+        /// </para>
+        /// <para>
+        /// <strong><see cref="Syncfusion.Blazor.Grids.ResizeMode.Auto"/></strong>:
+        /// Available width is redistributed proportionally across eligible columns to maximize grid utilization.
+        /// <list type="bullet">
+        /// <item><description>On initial layout, explicit column widths are used as proportional starting weights</description></item>
+        /// <item><description>After AutoFit, surplus width (grid width − total measured width) is distributed proportionally among eligible columns</description></item>
+        /// <item><description>During manual column resize, width changes are balanced across other columns to preserve grid occupancy</description></item>
+        /// </list>
+        /// </para>
+        /// <para>
+        /// Redistribution applies subject to the following constraints:
+        /// <list type="bullet">
+        /// <item><description>MinWidth: Columns do not shrink below their configured <see cref="Syncfusion.Blazor.Grids.GridColumn.MinWidth"/></description></item>
+        /// <item><description>MaxWidth: Columns do not grow beyond their configured <see cref="Syncfusion.Blazor.Grids.GridColumn.MaxWidth"/></description></item>
+        /// <item><description>AllowResizing: Columns with <see cref="Syncfusion.Blazor.Grids.GridColumn.AllowResizing"/> = <see langword="false"/> are excluded</description></item>
+        /// <item><description>Visibility: Hidden or non-visible columns are excluded</description></item>
+        /// <item><description>Frozen columns: Redistribution applies across all panes (frozen-left, movable, frozen-right) without pane boundaries</description></item>
+        /// </list>
+        /// </para>
+        /// <para>
+        /// If constraints prevent full-width occupancy (e.g., all other columns reach MaxWidth), the grid displays the constrained layout with possible whitespace or horizontal scrolling rather than violating width constraints.
+        /// </para>
+        /// <para>
+        /// <strong>Interaction with Related Properties</strong>:
+        /// <list type="bullet">
+        /// <item><description><see cref="AutoFit"/>: Determines whether column widths are auto-measured from content. <see cref="ResizeMode"/> determines what happens to those measurements.</description></item>
+        /// <item><description><see cref="Syncfusion.Blazor.Grids.GridColumn.Width"/>: On initial layout with <see cref="ResizeMode.Auto"/>, explicit widths are used as proportional weights.</description></item>
+        /// <item><description>Persistence: Redistributed widths are stored as final widths; on page reload with <see cref="EnablePersistence"/> = <see langword="true"/>, redistribution does not re-run (persisted widths are restored as-is).</description></item>
+        /// </list>
+        /// </para>
+        /// <para>
+        /// <strong>Performance Considerations</strong>:
+        /// When <see cref="ResizeMode"/> is set to <see cref="Syncfusion.Blazor.Grids.ResizeMode.Auto"/>, additional processing occurs during AutoFit and manual resize to recalculate and redistribute widths. This is typically negligible for grids with &lt;200 columns. For grids with column virtualization (via <see cref="EnableColumnVirtualization"/>), the virtual offset cache is automatically refreshed after redistribution to ensure consistent scrolling and column positioning.
+        /// </para>
+        /// </remarks>
+        /// <example>
+        /// <code><![CDATA[
+        /// <SfGrid DataSource="@Orders" AutoFit="true" ResizeMode="ResizeMode.Auto" Width="800"></SfGrid>
+        /// ]]></code>
+        /// </example>
+        [Parameter]
+        [DefaultValue(ResizeMode.Normal)]
+        [JsonPropertyName("resizeMode")]
+        public ResizeMode ResizeMode { get; set; } = ResizeMode.Normal;
+        private ResizeMode _resizeMode = ResizeMode.Normal;
 
         /// <summary>
         /// Gets or sets a value indicating whether tooltips are enabled when hovering over grid cells and headers.

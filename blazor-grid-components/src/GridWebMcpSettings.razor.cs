@@ -97,7 +97,7 @@ namespace Syncfusion.Blazor.Grids
         /// <para>
         /// This prefix is combined with the configured tool name to produce the
         /// fully qualified tool identifier exposed through
-        /// <see cref="WebMcpToolExecuteEventArgs.ToolName"/>.
+        /// <see cref="GridWebMcpExecuteEventArgs.Name"/>.
         /// </para>
         /// <para>
         /// This property is not serialized and must be supplied directly through
