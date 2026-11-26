@@ -12,8 +12,8 @@
     <LangVersion Condition="'$(TargetFramework)'=='net10.0'">14</LangVersion>
     <LangVersion Condition="'$(TargetFramework)'=='net11.0'">15</LangVersion>
     <AddRazorSupportForMvc>true</AddRazorSupportForMvc>
-    <Version>100.2.1</Version>
-    <FileVersion>100.2.1</FileVersion>
+    <Version>35.2.13</Version>
+    <FileVersion>35.2.13</FileVersion>
     <PackageId>Syncfusion.Blazor.Grid</PackageId>
     <Title>Syncfusion Blazor Grid Component</Title>
     <Company>Syncfusion Inc.</Company>
