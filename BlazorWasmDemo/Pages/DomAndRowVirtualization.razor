@@ -1,0 +1,330 @@
+﻿@page "/domAndRow"
+@using Syncfusion.Blazor.Grids
+@using Syncfusion.Blazor.DropDowns
+@using Syncfusion.Blazor.Data
+@using Syncfusion.Blazor
+@using System.Collections
+
+<h2>Custom Adaptor Data</h2>
+<h3>
+    Syncfusion Grid Dom Virtualization 1 million records
+    with only Row Virtualization No other features enabled -> Height 300px, RowHeight 30px, PageSize 100
+</h3>
+<SfGrid TValue="Order"
+        AllowPaging="false"
+        EnableVirtualization="true"
+        AllowSorting="true"
+        Height="300"
+        EnableDomVirtualization="true"
+        RowHeight="30">
+    <SfDataManager AdaptorInstance="@typeof(OrderAdaptor)" Adaptor="Adaptors.CustomAdaptor" />
+    <GridPageSettings PageSize="100"></GridPageSettings>
+    <GridColumns>
+
+        <!-- DefaultEdit + Identity + PrimaryKey -->
+        <GridColumn Field=@nameof(Order.OrderId)
+                    HeaderText="Order ID"
+                    Width="120"
+                    IsPrimaryKey="true"
+                    IsIdentity="true"
+                    EditType="EditType.DefaultEdit">
+        </GridColumn>
+
+        <!-- DefaultEdit -->
+        <GridColumn Field=@nameof(Order.CustomerName)
+                    HeaderText="Customer"
+                    Width="180"
+                    EditType="EditType.DefaultEdit">
+        </GridColumn>
+
+        <!-- DropDownEdit -->
+        <GridColumn Field=@nameof(Order.Country)
+                    HeaderText="Country"
+                    Width="150"
+                    EditType="EditType.DropDownEdit">
+            <EditTemplate>
+                @{
+                    var data = context as Order;
+                }
+
+                <SfDropDownList TValue="string"
+                                TItem="string"
+                                DataSource="@Countries"
+                                @bind-Value="data.Country">
+                </SfDropDownList>
+            </EditTemplate>
+        </GridColumn>
+
+        <!-- BooleanEdit -->
+        <GridColumn Field=@nameof(Order.IsActive)
+                    HeaderText="Active"
+                    Width="120"
+                    DisplayAsCheckBox="true"
+                    EditType="EditType.BooleanEdit">
+        </GridColumn>
+
+        <!-- DatePickerEdit -->
+        <GridColumn Field=@nameof(Order.OrderDate)
+                    HeaderText="Order Date"
+                    Width="150"
+                    Type="ColumnType.Date"
+                    Format="d"
+                    EditType="EditType.DatePickerEdit">
+        </GridColumn>
+
+        <!-- DateTimePickerEdit -->
+        <GridColumn Field=@nameof(Order.ShippedDateTime)
+                    HeaderText="Shipped DateTime"
+                    Width="190"
+                    Type="ColumnType.DateTime"
+                    Format="g"
+                    EditType="EditType.DateTimePickerEdit">
+        </GridColumn>
+
+        <!-- NumericEdit -->
+        <GridColumn Field=@nameof(Order.Amount)
+                    HeaderText="Amount"
+                    Width="140"
+                    Format="C2"
+                    TextAlign="TextAlign.Right"
+                    EditType="EditType.NumericEdit">
+        </GridColumn>
+
+        <!-- TimePickerEdit -->
+        <GridColumn Field=@nameof(Order.DeliveryTime)
+                    HeaderText="Delivery Time"
+                    Width="160"
+                    Format="hh:mm tt"
+                    EditType="EditType.TimePickerEdit">
+        </GridColumn>
+
+    </GridColumns>
+</SfGrid>
+
+@code
+{
+    public class Order
+    {
+        public int OrderId { get; set; }
+
+        public string CustomerName { get; set; } = "";
+
+        public string Country { get; set; } = "";
+
+        public bool IsActive { get; set; }
+
+        public DateTime OrderDate { get; set; }
+
+        public DateTime ShippedDateTime { get; set; }
+
+        public decimal Amount { get; set; }
+
+        public DateTime DeliveryTime { get; set; }
+    }
+
+    private static readonly string[] Countries =
+        {
+            "USA",
+            "India",
+            "Germany",
+            "UK",
+            "France",
+            "Japan"
+    };
+
+    private static int counter { get; set; }
+    public class OrderAdaptor : DataAdaptor
+    {
+
+        private static readonly string[] Countries =
+        {
+            "USA",
+            "India",
+            "Germany",
+            "UK",
+            "France",
+            "Japan"
+    };
+        private static List<Order> Orders = Enumerable.Range(1, 10000)
+            .Select(i => new Order
+            {
+                OrderId = i,
+                CustomerName = $"Customer {i}",
+                Country = Countries[i % Countries.Length],
+                IsActive = i % 2 == 0,
+                OrderDate = DateTime.Today.AddDays(-(i % 365)),
+                ShippedDateTime = DateTime.Now.AddHours(-(i % 200)),
+                Amount = i * 10,
+                DeliveryTime = DateTime.Today.AddHours(i % 24).AddMinutes(i % 60)
+            })
+            .ToList();
+
+        public override object Read(DataManagerRequest dataManagerRequest, string? key = null)
+        {
+            IEnumerable GridData = Orders;
+            IEnumerable DataSource = Orders;
+            if (dataManagerRequest.Search != null && dataManagerRequest.Search.Count > 0)
+            {
+                GridData = DataOperations.PerformSearching(GridData, dataManagerRequest.Search);
+            }
+            if (dataManagerRequest.Where != null && dataManagerRequest.Where.Count > 0)
+            {
+                GridData = DataOperations.PerformFiltering(GridData, dataManagerRequest.Where, dataManagerRequest.Where[0].Operator);
+            }
+            if (dataManagerRequest.Sorted?.Count > 0) // perform Sorting
+            {
+                GridData = DataOperations.PerformSorting(GridData, dataManagerRequest.Sorted);
+            }
+            if (dataManagerRequest.Skip != 0)
+            {
+                GridData = DataOperations.PerformSkip(GridData, dataManagerRequest.Skip); //Paging
+            }
+            if (dataManagerRequest.Take != 0)
+            {
+                GridData = DataOperations.PerformTake(GridData, dataManagerRequest.Take);
+            }
+            IDictionary<string, object> aggregates = new Dictionary<string, object>();
+            if (dataManagerRequest.Aggregates != null) // Aggregation
+            {
+                aggregates = DataUtil.PerformAggregation(DataSource, dataManagerRequest.Aggregates);
+            }
+            if (dataManagerRequest.Group != null && dataManagerRequest.Group.Any()) //Grouping
+            {
+                foreach (var group in dataManagerRequest.Group)
+                {
+                    GridData = DataUtil.Group<Order>(GridData, group, dataManagerRequest.Aggregates ?? new List<Syncfusion.Blazor.Data.Aggregate>(), 0, dataManagerRequest.GroupByFormatter ?? new Dictionary<string, string>());
+                }
+            }
+            return dataManagerRequest.RequiresCounts ? new DataResult() { Result = GridData, Count = Orders.Count(), Aggregates = aggregates } : (object)GridData;
+        }
+
+        #region Create
+
+        public override object Insert(DataManager dataManager, object value, string key)
+        {
+            var order = value as Order;
+
+            if (order != null)
+            {
+                order.OrderId = Orders.Max(x => x.OrderId) + 1;
+                Orders.Add(order);
+            }
+
+            return order;
+        }
+
+        #endregion
+
+        #region Update
+
+        public override object Update(DataManager dataManager, object value, string keyField, string key)
+        {
+            var updatedOrder = value as Order;
+
+            if (updatedOrder != null)
+            {
+                var existingOrder = Orders.FirstOrDefault(x => x.OrderId == updatedOrder.OrderId);
+
+                if (existingOrder != null)
+                {
+                    existingOrder.CustomerName = updatedOrder.CustomerName;
+                    existingOrder.Country = updatedOrder.Country;
+                    existingOrder.IsActive = updatedOrder.IsActive;
+                    existingOrder.OrderDate = updatedOrder.OrderDate;
+                    existingOrder.ShippedDateTime = updatedOrder.ShippedDateTime;
+                    existingOrder.Amount = updatedOrder.Amount;
+                    existingOrder.DeliveryTime = updatedOrder.DeliveryTime;
+
+                }
+            }
+
+            return updatedOrder;
+        }
+
+        #endregion
+
+        #region Delete
+
+        public override object Remove(DataManager dataManager, object value, string keyField, string key)
+        {
+            int orderId = Convert.ToInt32(value);
+
+            var record = Orders.FirstOrDefault(x => x.OrderId == orderId);
+
+            if (record != null)
+            {
+                Orders.Remove(record);
+            }
+
+            return record;
+        }
+
+        #endregion
+
+        #region Batch Update
+
+        public override object BatchUpdate(
+            DataManager dataManager,
+            object changedRecords,
+            object addedRecords,
+            object deletedRecords,
+            string keyField,
+            string key,
+            int? dropIndex)
+        {
+            // Added records
+            if (addedRecords is IEnumerable<Order> added)
+            {
+                foreach (var item in added)
+                {
+                    item.OrderId = Orders.Max(x => x.OrderId) + 1;
+                    Orders.Add(item);
+                }
+            }
+
+            // Updated records
+            if (changedRecords is IEnumerable<Order> changed)
+            {
+                foreach (var item in changed)
+                {
+                    var existing = Orders.FirstOrDefault(x => x.OrderId == item.OrderId);
+
+                    if (existing != null)
+                    {
+                        existing.CustomerName = item.CustomerName;
+                        existing.Country = item.Country;
+                        existing.IsActive = item.IsActive;
+                        existing.OrderDate = item.OrderDate;
+                        existing.ShippedDateTime = item.ShippedDateTime;
+                        existing.Amount = item.Amount;
+                        existing.DeliveryTime = item.DeliveryTime;
+
+                    }
+                }
+            }
+
+            // Deleted records
+            if (deletedRecords is IEnumerable<Order> deleted)
+            {
+                foreach (var item in deleted)
+                {
+                    var existing = Orders.FirstOrDefault(x => x.OrderId == item.OrderId);
+
+                    if (existing != null)
+                    {
+                        Orders.Remove(existing);
+                    }
+                }
+            }
+
+            return new
+            {
+                addedRecords,
+                changedRecords,
+                deletedRecords
+            };
+        }
+
+        #endregion
+    }
+}
