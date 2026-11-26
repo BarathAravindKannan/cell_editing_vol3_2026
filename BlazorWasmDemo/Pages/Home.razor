@@ -1,7 +1,9 @@
 ﻿@page "/"
 @using Syncfusion.Blazor.Grids
 @using Syncfusion.Blazor.DropDowns
+@using System.Diagnostics
 
+<h2>Timer: @timerText</h2>
 <h2>Local Data</h2>
 <h3>Syncfusion Grid Dom Virtualization 10k records No paging and no virtualization</h3>
 <SfGrid DataSource="@Orders"
@@ -13,7 +15,7 @@
         AllowGrouping="true"
         AllowRowDragAndDrop="true"
         RowHeight="30">
-        <GridDomVirtualizationSettings TValue="Order" RowBuffer="5" />
+    <GridDomVirtualizationSettings TValue="Order" RowBuffer="5" />
     <GridGroupSettings ShowDropArea="true" EnableLazyLoading="true" />
     <GridEditSettings AllowAdding="true" AllowDeleting="true" AllowEditing="true" Mode="EditMode.Normal" NewRowPosition="NewRowPosition.Bottom"></GridEditSettings>
     <GridTemplates>
@@ -168,6 +170,8 @@
 
 @code
 {
+    string timerText = "";
+    private Stopwatch timer = new();
     private List<Order> Orders = new();
     private static readonly string[] Countries =
     {
@@ -194,10 +198,29 @@
             DeliveryTime = DateTime.Today.AddHours(i % 24).AddMinutes(i % 60)
         })
         .ToList();
+        timer.Restart();
+    }
+
+    private bool _isShouldRender = true;
+    protected override bool ShouldRender()
+    {
+        return _isShouldRender;
     }
     private int CustomAggregateFunction()
     {
         return Orders.Count(x => x.IsActive);
+    }
+
+    protected override void OnAfterRender(bool firstRender)
+    {
+        if (firstRender)
+        {
+            timer.Stop();
+            timerText = $"[Syncfusion Case01] Initial Rendering: {timer.ElapsedMilliseconds} ms";
+            Console.WriteLine(timerText);
+            Debug.WriteLine(timerText);
+            StateHasChanged(); // Trigger re-render
+        }
     }
 
     public class Order

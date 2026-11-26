@@ -1,9 +1,10 @@
 ﻿@page "/counter"
 @using Syncfusion.Blazor.Grids
 @using Syncfusion.Blazor.DropDowns
+@using System.Diagnostics
 
-
-<h3>Syncfusion Grid Dom Virtualization Is DISABLED - 5k records</h3>
+<h3>Syncfusion Grid Dom Virtualization Is DISABLED - 2k records</h3>
+<h2>Timer: @timerText</h2>
 <SfGrid DataSource="@Orders"
         Toolbar="@(new string[] { "Add", "Edit", "Delete", "Update", "Cancel" })"
         Height="300"
@@ -166,6 +167,8 @@
 
 @code
 {
+    private Stopwatch timer = new();
+    string timerText = "";
     private List<Order> Orders = new();
     private static readonly string[] Countries =
     {
@@ -179,7 +182,7 @@
 
     protected override void OnInitialized()
     {
-        Orders = Enumerable.Range(1, 5000)
+        Orders = Enumerable.Range(1, 2000)
         .Select(i => new Order
         {
             OrderId = i,
@@ -192,6 +195,24 @@
             DeliveryTime = DateTime.Today.AddHours(i % 24).AddMinutes(i % 60)
         })
         .ToList();
+        timer.Restart();
+    }
+
+    private bool _isShouldRender = true;
+    protected override bool ShouldRender()
+    {
+        return _isShouldRender;
+    }
+    protected override void OnAfterRender(bool firstRender)
+    {
+        if (firstRender)
+        {
+            timer.Stop();
+            timerText = $"[Syncfusion Case01] Initial Rendering: {timer.ElapsedMilliseconds} ms";
+            Console.WriteLine(timerText);
+            Debug.WriteLine(timerText);
+            StateHasChanged(); // Trigger re-render
+        }
     }
     private int CustomAggregateFunction()
     {
